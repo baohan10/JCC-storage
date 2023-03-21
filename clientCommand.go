@@ -5,9 +5,12 @@ import (
     "io"
     "os"
     "fmt"
+    "encoding/json"
     "path/filepath"
     "sync"
     "strconv"
+    "rabbitmq"
+    "time"
     agentcaller "proto"
 
     //"github.com/pborman/uuid"
@@ -87,6 +90,7 @@ func RepRead(localFilePath string, bucketName string, objectName string){
 
 func RepWrite(localFilePath string, bucketName string, objectName string, numRep int){
     fmt.Println("write "+localFilePath+" as "+bucketName+"/"+objectName)
+    userId:=0
     //获取文件大小
     fileInfo,_ := os.Stat(localFilePath)
     fileSizeInBytes := fileInfo.Size()
@@ -99,29 +103,80 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
     if lastPacketInBytes>0 {
         numPacket++
     }
-    
-    //发送写请求，分配写入节点
-    ips:=make([]string, numRep) 
 
-    for i:=0;i<numRep;i++ {
-        ips[i]="localhost"
+    //发送写请求，分配写入节点Ip 
+    command1:= rabbitmq.RepWriteCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        FileSizeInBytes: fileSizeInBytes,
+        NumRep: numRep,
+        UserId: userId,
     }
+    c1,_:=json.Marshal(command1)
+    b1:=append([]byte("03"),c1...)
+    fmt.Println(b1)
+    rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
+    rabbit1.PublishSimple(b1)
+
+    //接收消息，赋值给ips
+    var res1 rabbitmq.WriteRes
+    var ips []string
+    queueName := "clientQueue"+strconv.Itoa(userId)
+    rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
+    msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res1)
+            ips=res1.Ips
+            wg.Done()
+        }
+    }()
+    wg.Wait()    
 
     //创建channel
     loadDistributeBufs:=make([]chan []byte,numRep) 
-
     for i := 0; i < numRep; i++ {
         loadDistributeBufs[i] = make(chan []byte)
     }
     
     //正式开始写入
+    hashs:= make([]string, numRep)
     go loadDistribute(localFilePath, loadDistributeBufs[:], numWholePacket, lastPacketInBytes)//从本地文件系统加载数据
-    wg := sync.WaitGroup{}
     wg.Add(numRep)
     for i:=0;i<numRep;i++ {
-        go send("rep.json"+strconv.Itoa(i), ips[i], loadDistributeBufs[i], numPacket, &wg)//"block1.json"这样参数不需要
+        go send("rep.json"+strconv.Itoa(i), ips[i], loadDistributeBufs[i], numPacket, &wg, hashs, i)//"block1.json"这样参数不需要
     }
     wg.Wait()
+
+    //第二轮通讯:插入元数据hashs
+    command2:= rabbitmq.WriteHashCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        Hashs: hashs,
+        UserId: userId,
+    }
+    c1,_=json.Marshal(command2)
+    b1=append([]byte("04"),c1...)
+    rabbit1.PublishSimple(b1)
+
+    //接受第二轮通讯结果
+    var res2 rabbitmq.WriteHashRes
+    msgs=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res2)
+            if(res2.MetaCode==0){
+                wg.Done()
+            }
+        }
+    }()
+    wg.Wait()
+    rabbit1.Destroy()
+    rabbit2.Destroy()
+    //
 }
 
 func EcRead(localFilePath string, bucketName string, objectName string){
@@ -191,9 +246,10 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
     go encode(loadBufs[:], encodeBufs[:], coefs, numPacket)
     wg := sync.WaitGroup{}
     wg.Add(3)
-    go send("block1.json", ips[0], encodeBufs[0], numPacket, &wg)//"block1.json"这样参数不需要
-    go send("block2.json", ips[1], encodeBufs[1], numPacket, &wg)
-    go send("block3.json", ips[2], encodeBufs[2], numPacket, &wg)
+    hashs:= make([]string, 3)
+    go send("block1.json", ips[0], encodeBufs[0], numPacket, &wg, hashs, 0)//"block1.json"这样参数不需要
+    go send("block2.json", ips[1], encodeBufs[1], numPacket, &wg, hashs, 1)
+    go send("block3.json", ips[2], encodeBufs[2], numPacket, &wg, hashs, 2)
     wg.Wait()
 }
 
@@ -285,7 +341,7 @@ func encode(inBufs []chan []byte, outBufs []chan []byte, coefs [][]int64, numPac
     }
 }
 
-func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup){
+func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int){
     fmt.Println("send "+blockhash)
     //rpc相关
     conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
@@ -313,8 +369,9 @@ func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *s
 	}
     res, err := stream.CloseAndRecv()
     fmt.Println(res)
-    wg.Done()
+    hashs[idx]=res.BlockOrReplicaHash
     conn.Close()
+    wg.Done()
     return
 }
 

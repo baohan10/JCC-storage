@@ -3,8 +3,10 @@ module client
 go 1.18
 
 require proto v0.0.0
+require rabbitmq v0.0.0
 
 replace proto => ../proto
+replace rabbitmq => ../rabbitmq
 
 require (
 	github.com/golang/protobuf v1.5.2 // indirect
