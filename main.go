@@ -73,6 +73,20 @@ func main() {
 		                fmt.Printf("json.Unmarshal failed, err:%v\n", err)
 	                }
                     CoorRepRead(command) 
+                case "06":
+                    var command rabbitmq.MoveCommand 
+	                err := json.Unmarshal(c1, &command)
+	                if err != nil {
+		                fmt.Printf("json.Unmarshal failed, err:%v\n", err)
+	                }
+                    CoorMove(command) 
+                case "07":
+                    var command rabbitmq.TempCacheReport
+	                err := json.Unmarshal(c1, &command)
+	                if err != nil {
+		                fmt.Printf("json.Unmarshal failed, err:%v\n", err)
+	                }
+                    TempCacheReport(command)
             }
             //log.Printf("Received a message: %s", d.Body)
             //time.Sleep(duration)
