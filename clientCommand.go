@@ -38,7 +38,7 @@ func Move(bucketName string, objectName string, destination string){
         Destination: destination,
     }
     c1,_:=json.Marshal(command1)
-    b1:=append([]byte("06"),c1...)
+    b1:=append([]byte("05"),c1...)
     fmt.Println(string(b1))
     rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
     rabbit1.PublishSimple(b1)
@@ -124,30 +124,30 @@ func Move(bucketName string, objectName string, destination string){
     rabbit4.Destroy()
 }
 
-
-
-
-func RepRead(localFilePath string, bucketName string, objectName string){
+func Read(localFilePath string, bucketName string, objectName string){
     fmt.Println("read "+bucketName+"/"+objectName+" to "+localFilePath)
     //获取块hash，ip，序号，编码参数等
     //发送写请求，分配写入节点Ip 
     userId:=0
-    command1:= rabbitmq.RepReadCommand{
+    command1:= rabbitmq.ReadCommand{
         BucketName: bucketName,
         ObjectName: objectName,
         UserId: userId,
     }
     c1,_:=json.Marshal(command1)
-    b1:=append([]byte("05"),c1...)
+    b1:=append([]byte("02"),c1...)
     fmt.Println(b1)
     rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
     rabbit1.PublishSimple(b1)
 
     //接收消息，赋值给ip, repHash, fileSizeInBytes
-    var res1 rabbitmq.RepReadRes
-    var ip string
-    var repHash string
+    var res1 rabbitmq.ReadRes
+    var hashs []string
+    var ips []string
     var fileSizeInBytes int64
+    var ecName string
+    var ids []int
+    var redundancy string
     queueName := "coorClientQueue"+strconv.Itoa(userId)
     rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
     msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
@@ -156,19 +156,35 @@ func RepRead(localFilePath string, bucketName string, objectName string){
     go func() {
         for d := range msgs {
             _ = json.Unmarshal(d.Body, &res1)
-            ip=res1.Ip
-            repHash=res1.Hash
-            fileSizeInBytes=res1.FileSizeInBytes
+            ips=res1.Ips
+	        hashs=res1.Hashs
+	        ids=res1.BlockIds 
+	        ecName=res1.EcName
+	        fileSizeInBytes=res1.FileSizeInBytes
+            redundancy=res1.Redundancy
             wg.Done()
         }
     }()
     wg.Wait() 
-    fmt.Println(ip)
-    fmt.Println(repHash)
+    fmt.Println(redundancy)
+    fmt.Println(ips)
+    fmt.Println(hashs)
+    fmt.Println(ids)
+    fmt.Println(ecName)
     fmt.Println(fileSizeInBytes)
     rabbit1.Destroy()
     rabbit2.Destroy()
+    switch redundancy {
+        case "rep":
+            repRead(fileSizeInBytes, ips[0], hashs[0], localFilePath)
+        case "ec":
+            ecRead(fileSizeInBytes, ips, hashs, ids, ecName, localFilePath)
+    }
+    
+}
 
+
+func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath string){
     numPacket := (fileSizeInBytes+packetSizeInBytes-1)/(packetSizeInBytes)
     fmt.Println(numPacket)
     //rpc相关
@@ -208,7 +224,6 @@ func RepRead(localFilePath string, bucketName string, objectName string){
 }
 
 func RepWrite(localFilePath string, bucketName string, objectName string, numRep int){
-    fmt.Println("write "+localFilePath+" as "+bucketName+"/"+objectName)
     userId:=0
     //获取文件大小
     fileInfo,_ := os.Stat(localFilePath)
@@ -298,55 +313,9 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
     //
 }
 
-func EcRead(localFilePath string, bucketName string, objectName string){
-    fmt.Println("read "+bucketName+"/"+objectName+" to "+localFilePath)
-    //获取块hash，ip，序号，编码参数等
-    
-    userId:=0
-    command1:= rabbitmq.EcReadCommand{
-        BucketName: bucketName,
-        ObjectName: objectName,
-        UserId: userId,
-    }
-    c1,_:=json.Marshal(command1)
-    b1:=append([]byte("02"),c1...)
-    fmt.Println(b1)
-    rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
-    rabbit1.PublishSimple(b1)
-
-    //接收消息，赋值给ip, repHash, fileSizeInBytes
-    var res1 rabbitmq.EcReadRes
-    var blockHashs []string
-    var ips []string
-    var fileSizeInBytes int64
-    var ecName string
-    var blockIds []int
-    queueName := "coorClientQueue"+strconv.Itoa(userId)
-    rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
-    msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
-    wg := sync.WaitGroup{}
-    wg.Add(1)
-    go func() {
-        for d := range msgs {
-            _ = json.Unmarshal(d.Body, &res1)
-            ips=res1.Ips
-	        blockHashs=res1.Hashs
-	        blockIds=res1.BlockIds 
-	        ecName=res1.EcName
-	        fileSizeInBytes=res1.FileSizeInBytes
-            wg.Done()
-        }
-    }()
-    wg.Wait() 
-    fmt.Println(ips)
-    fmt.Println(blockHashs)
-    fmt.Println(blockIds)
-    fmt.Println(ecName)
-    fmt.Println(fileSizeInBytes)
-    rabbit1.Destroy()
-    rabbit2.Destroy()
-
+func ecRead(fileSizeInBytes int64, ips []string, blockHashs []string, blockIds []int, ecName string, localFilePath string){
     //根据ecName获得以下参数
+    wg := sync.WaitGroup{}
     const ecK int = 2
     const ecN int = 3
     var coefs = [][]int64 {{1,1,1},{1,2,3}}//2应替换为ecK，3应替换为ecN

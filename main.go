@@ -28,13 +28,11 @@ func main() {
     switch args[1] {
         case "ecWrite":
             EcWrite(args[2], args[3], args[4], args[5]) 
-        case "ecRead":
-            EcRead(args[2], args[3], args[4])
         case "write":
             numRep,_ :=strconv.Atoi(args[5])
             RepWrite(args[2], args[3], args[4], numRep)
         case "read":
-            RepRead(args[2], args[3], args[4])
+            Read(args[2], args[3], args[4])
         case "move":
             Move(args[2],args[3], args[4])//bucket object destination
     }    
