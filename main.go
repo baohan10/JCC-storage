@@ -14,12 +14,17 @@ import (
 )
 
 const (
-    Port = ":5000"
+    Port = ":5010"
     packetSizeInBytes=10
+    LocalIp = "localhost"
 )
 
 
 func main(){
+    //处置协调端、客户端命令（可多建几个）
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go commandHandle(&wg)
     //面向客户端收发数据
     lis, err := net.Listen("tcp", Port)
     if err != nil {
@@ -28,10 +33,6 @@ func main(){
     s := grpc.NewServer()
     agentserver.RegisterTranBlockOrReplicaServer(s, &anyOne{})
     s.Serve(lis)
-    //处置协调端、客户端命令（可多建几个）
-    wg := sync.WaitGroup{}
-    wg.Add(1)
-    go commandHandle(&wg)
     wg.Wait()
     //
 }
