@@ -289,6 +289,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
         BucketName: bucketName,
         ObjectName: objectName,
         Hashs: hashs,
+        Ips： ips，
         UserId: userId,
     }
     c1,_=json.Marshal(command2)
@@ -416,6 +417,7 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
         BucketName: bucketName,
         ObjectName: objectName,
         Hashs: hashs,
+        Ips: ips,
         UserId: userId,
     }
     c1,_=json.Marshal(command2)
