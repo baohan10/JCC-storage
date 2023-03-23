@@ -44,7 +44,7 @@ func CoorMove(command rabbitmq.MoveCommand) {
     ecName := "ecName"
     hashs := []string{"block1.json","block2.json"}
     ids := []int{0,1}
-    fileSizeInBytes :=31
+    fileSizeInBytes :=21
     
     res:= rabbitmq.MoveRes{
         Redundancy: redundancy,
@@ -82,29 +82,18 @@ func CoorEcWriteHash(command rabbitmq.WriteHashCommand) {
     rabbitSend(c, command.UserId)
 }
 
-func CoorEcRead(command rabbitmq.EcReadCommand) {
-    fmt.Println("CoorEcRead")
+func CoorRead(command rabbitmq.ReadCommand) {
+    fmt.Println("CoorRead")
     fmt.Println(command.BucketName)
     
     //返回消息
-    res:= rabbitmq.EcReadRes{
+    res:= rabbitmq.ReadRes{
+        Redundancy: "rep",
         Ips: []string{"localhost","localhost"},
 	    Hashs: []string{"block1.json","block2.json"},
 	    BlockIds: []int{0,1}, 
 	    EcName: "ecName",
-	    FileSizeInBytes: 31,
-    }
-    c,_:=json.Marshal(res)
-    rabbitSend(c, command.UserId)
-}
-
-func CoorRepWrite(command rabbitmq.RepWriteCommand) {
-    fmt.Println("CoorRepWrite")
-    fmt.Println(command.BucketName)
-    
-    //返回消息
-    res:= rabbitmq.WriteRes{
-        Ips: []string{"localhost","localhost","localhost"},
+	    FileSizeInBytes: 21,
     }
     c,_:=json.Marshal(res)
     rabbitSend(c, command.UserId)
@@ -122,15 +111,13 @@ func CoorRepWriteHash(command rabbitmq.WriteHashCommand) {
     rabbitSend(c, command.UserId)
 }
 
-func CoorRepRead(command rabbitmq.RepReadCommand) {
-    fmt.Println("CoorRepRead")
+func CoorRepWrite(command rabbitmq.RepWriteCommand) {
+    fmt.Println("CoorRepWrite")
     fmt.Println(command.BucketName)
     
     //返回消息
-    res:= rabbitmq.RepReadRes{
-        Ip: "localhost",
-	    Hash: "testhash",
-	    FileSizeInBytes: 12345,
+    res:= rabbitmq.WriteRes{
+        Ips: []string{"localhost","localhost","localhost"},
     }
     c,_:=json.Marshal(res)
     rabbitSend(c, command.UserId)

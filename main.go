@@ -46,12 +46,12 @@ func main() {
 	                }
                     CoorEcWriteHash(command) 
                 case "02":
-                    var command rabbitmq.EcReadCommand 
+                    var command rabbitmq.ReadCommand 
 	                err := json.Unmarshal(c1, &command)
 	                if err != nil {
 		                fmt.Printf("json.Unmarshal failed, err:%v\n", err)
 	                }
-                    CoorEcRead(command) 
+                    CoorRead(command) 
                 case "03":
                     var command rabbitmq.RepWriteCommand 
 	                err := json.Unmarshal(c1, &command)
@@ -67,20 +67,13 @@ func main() {
 	                }
                     CoorRepWriteHash(command) 
                 case "05":
-                    var command rabbitmq.RepReadCommand 
-	                err := json.Unmarshal(c1, &command)
-	                if err != nil {
-		                fmt.Printf("json.Unmarshal failed, err:%v\n", err)
-	                }
-                    CoorRepRead(command) 
-                case "06":
                     var command rabbitmq.MoveCommand 
 	                err := json.Unmarshal(c1, &command)
 	                if err != nil {
 		                fmt.Printf("json.Unmarshal failed, err:%v\n", err)
 	                }
                     CoorMove(command) 
-                case "07":
+                case "06":
                     var command rabbitmq.TempCacheReport
 	                err := json.Unmarshal(c1, &command)
 	                if err != nil {
