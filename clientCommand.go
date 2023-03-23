@@ -21,34 +21,153 @@ import (
     _ "google.golang.org/grpc/balancer/grpclb"
 )
 const (
-    port = ":5000"
+    port = ":5010"
     packetSizeInBytes=10
 )
 
 func Move(bucketName string, objectName string, destination string){
-    //将bucketName, objectName, destination发给协调端，分析是否允许调度，若允许，则返回调度目的地ip、冗余策略、replication hash或blocks hash
-    ip := "localhost"
-    redundancy := "rep"
-    hashs := []string{"rep.json0"}
-    ids := []int{0,1,2,3,4}
-    ecName := "ecname"
-    
-    switch redundancy {
-        case "ec":
-            ecMove(ip, hashs, ids, ecName)
-        case "rep":
-            repMove(ip, hashs[0])
+    //将bucketName, objectName, destination发给协调端
+    fmt.Println("move "+bucketName+"/"+objectName+" to "+destination)
+    //获取块hash，ip，序号，编码参数等
+    //发送写请求，分配写入节点Ip 
+    userId:=0
+    command1:= rabbitmq.MoveCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        UserId: userId,
+        Destination: destination,
     }
+    c1,_:=json.Marshal(command1)
+    b1:=append([]byte("06"),c1...)
+    fmt.Println(string(b1))
+    rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
+    rabbit1.PublishSimple(b1)
 
+    //接收消息，赋值给ip, repHash, fileSizeInBytes
+    var res1 rabbitmq.MoveRes
+    var redundancy string
+    var hashs []string
+    var fileSizeInBytes int64
+    var ecName string
+    var ids []int
+    queueName := "coorClientQueue"+strconv.Itoa(userId)
+    rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
+    msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res1)
+            redundancy=res1.Redundancy
+            ids=res1.Ids
+            hashs=res1.Hashs
+            fileSizeInBytes=res1.FileSizeInBytes
+            ecName=res1.EcName
+            wg.Done()
+        }
+    }()
+    wg.Wait() 
+    fmt.Println(redundancy)
+    fmt.Println(hashs)
+    fmt.Println(ids)
+    fmt.Println(fileSizeInBytes)
+    fmt.Println(ecName)
+    //根据redundancy调用repMove和ecMove
+    
+    rabbit3 := rabbitmq.NewRabbitMQSimple("agentQueue"+destination)
+    var b2 []byte
+    switch redundancy {
+        case "rep":
+            command2:= rabbitmq.RepMoveCommand{
+                Hashs: hashs,
+                BucketName: bucketName,
+                ObjectName: objectName,
+                UserId: userId,
+            }
+            c2,_:=json.Marshal(command2) 
+            b2=append([]byte("00"),c2...)
+        case "ec":
+            command2:= rabbitmq.EcMoveCommand{
+                Hashs: hashs,
+                Ids: ids,
+                EcName: ecName,
+                BucketName: bucketName,
+                ObjectName: objectName,
+                UserId: userId,
+            }
+            c2,_:=json.Marshal(command2)
+            b2=append([]byte("01"),c2...)
+    }
+    fmt.Println(b2)
+    rabbit3.PublishSimple(b2)
+    //接受调度成功与否的消息
+    //接受第二轮通讯结果
+    var res2 rabbitmq.AgentMoveRes
+    queueName = "agentClientQueue"+strconv.Itoa(userId)
+    rabbit4 := rabbitmq.NewRabbitMQSimple(queueName)
+    msgs=rabbit4.ConsumeSimple(time.Millisecond, true)
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res2)
+            if(res2.MoveCode==0){
+                wg.Done()
+                fmt.Println("Move Success")
+            }
+        }
+    }()
+    wg.Wait()
+
+    rabbit1.Destroy()
+    rabbit2.Destroy()
+    rabbit3.Destroy()
+    rabbit4.Destroy()
 }
+
+
+
 
 func RepRead(localFilePath string, bucketName string, objectName string){
     fmt.Println("read "+bucketName+"/"+objectName+" to "+localFilePath)
     //获取块hash，ip，序号，编码参数等
+    //发送写请求，分配写入节点Ip 
+    userId:=0
+    command1:= rabbitmq.RepReadCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        UserId: userId,
+    }
+    c1,_:=json.Marshal(command1)
+    b1:=append([]byte("05"),c1...)
+    fmt.Println(b1)
+    rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
+    rabbit1.PublishSimple(b1)
 
-    repHash := "rep.json0"
-    ip := "localhost" 
-    var fileSizeInBytes int64=41
+    //接收消息，赋值给ip, repHash, fileSizeInBytes
+    var res1 rabbitmq.RepReadRes
+    var ip string
+    var repHash string
+    var fileSizeInBytes int64
+    queueName := "coorClientQueue"+strconv.Itoa(userId)
+    rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
+    msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res1)
+            ip=res1.Ip
+            repHash=res1.Hash
+            fileSizeInBytes=res1.FileSizeInBytes
+            wg.Done()
+        }
+    }()
+    wg.Wait() 
+    fmt.Println(ip)
+    fmt.Println(repHash)
+    fmt.Println(fileSizeInBytes)
+    rabbit1.Destroy()
+    rabbit2.Destroy()
 
     numPacket := (fileSizeInBytes+packetSizeInBytes-1)/(packetSizeInBytes)
     fmt.Println(numPacket)
@@ -121,7 +240,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
     //接收消息，赋值给ips
     var res1 rabbitmq.WriteRes
     var ips []string
-    queueName := "clientQueue"+strconv.Itoa(userId)
+    queueName := "coorClientQueue"+strconv.Itoa(userId)
     rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
     msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
     wg := sync.WaitGroup{}
@@ -182,12 +301,56 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 func EcRead(localFilePath string, bucketName string, objectName string){
     fmt.Println("read "+bucketName+"/"+objectName+" to "+localFilePath)
     //获取块hash，ip，序号，编码参数等
+    
+    userId:=0
+    command1:= rabbitmq.EcReadCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        UserId: userId,
+    }
+    c1,_:=json.Marshal(command1)
+    b1:=append([]byte("02"),c1...)
+    fmt.Println(b1)
+    rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
+    rabbit1.PublishSimple(b1)
+
+    //接收消息，赋值给ip, repHash, fileSizeInBytes
+    var res1 rabbitmq.EcReadRes
+    var blockHashs []string
+    var ips []string
+    var fileSizeInBytes int64
+    var ecName string
+    var blockIds []int
+    queueName := "coorClientQueue"+strconv.Itoa(userId)
+    rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
+    msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res1)
+            ips=res1.Ips
+	        blockHashs=res1.Hashs
+	        blockIds=res1.BlockIds 
+	        ecName=res1.EcName
+	        fileSizeInBytes=res1.FileSizeInBytes
+            wg.Done()
+        }
+    }()
+    wg.Wait() 
+    fmt.Println(ips)
+    fmt.Println(blockHashs)
+    fmt.Println(blockIds)
+    fmt.Println(ecName)
+    fmt.Println(fileSizeInBytes)
+    rabbit1.Destroy()
+    rabbit2.Destroy()
+
+    //根据ecName获得以下参数
     const ecK int = 2
     const ecN int = 3
     var coefs = [][]int64 {{1,1,1},{1,2,3}}//2应替换为ecK，3应替换为ecN
-    var blockHashs = []string{"block1.json","block2.json"}
-    var ips  = []string {"localhost","localhost"} 
-    var fileSizeInBytes int64=41
+    
     numPacket := (fileSizeInBytes+int64(ecK)*packetSizeInBytes-1)/(int64(ecK)*packetSizeInBytes)
     fmt.Println(numPacket)
     //创建channel
@@ -200,8 +363,6 @@ func EcRead(localFilePath string, bucketName string, objectName string){
         decodeBufs[i] = make(chan []byte)
     }
     
-    
-    wg := sync.WaitGroup{}
     wg.Add(1)
     go get(blockHashs[0], ips[0], getBufs[0], numPacket)
     go get(blockHashs[1], ips[1], getBufs[1], numPacket)
@@ -227,7 +388,37 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
     fmt.Println(numPacket)
     
     //发送写请求，分配写入节点
-    var ips  = []string {"localhost","localhost","localhost"} //3应替换为ecN
+    userId :=0
+    //发送写请求，分配写入节点Ip 
+    command1:= rabbitmq.EcWriteCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        FileSizeInBytes: fileSizeInBytes,
+        EcName: ecName,
+        UserId: userId,
+    }//
+    c1,_:=json.Marshal(command1)
+    b1:=append([]byte("00"),c1...)//
+    fmt.Println(b1)
+    rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
+    rabbit1.PublishSimple(b1)
+
+    //接收消息，赋值给ips
+    var res1 rabbitmq.WriteRes
+    var ips []string
+    queueName := "coorClientQueue"+strconv.Itoa(userId)
+    rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
+    msgs:=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res1)
+            ips=res1.Ips
+            wg.Done()
+        }
+    }()
+    wg.Wait()   
 
     //创建channel
     var loadBufs [ecK]chan []byte
@@ -244,13 +435,40 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
     //正式开始写入
     go load(localFilePath, loadBufs[:], numPacket*int64(ecK), fileSizeInBytes)//从本地文件系统加载数据
     go encode(loadBufs[:], encodeBufs[:], coefs, numPacket)
-    wg := sync.WaitGroup{}
     wg.Add(3)
     hashs:= make([]string, 3)
     go send("block1.json", ips[0], encodeBufs[0], numPacket, &wg, hashs, 0)//"block1.json"这样参数不需要
     go send("block2.json", ips[1], encodeBufs[1], numPacket, &wg, hashs, 1)
     go send("block3.json", ips[2], encodeBufs[2], numPacket, &wg, hashs, 2)
     wg.Wait()
+
+    //第二轮通讯:插入元数据hashs
+    command2:= rabbitmq.WriteHashCommand{
+        BucketName: bucketName,
+        ObjectName: objectName,
+        Hashs: hashs,
+        UserId: userId,
+    }
+    c1,_=json.Marshal(command2)
+    b1=append([]byte("01"),c1...)
+    rabbit1.PublishSimple(b1)
+
+    //接受第二轮通讯结果
+    var res2 rabbitmq.WriteHashRes
+    msgs=rabbit2.ConsumeSimple(time.Millisecond, true)
+    wg.Add(1)
+    go func() {
+        for d := range msgs {
+            _ = json.Unmarshal(d.Body, &res2)
+            if(res2.MetaCode==0){
+                wg.Done()
+            }
+        }
+    }()
+    wg.Wait()
+    rabbit1.Destroy()
+    rabbit2.Destroy()
+    //
 }
 
 func repMove(ip string, hash string){
