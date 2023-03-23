@@ -87,7 +87,7 @@ func RepMove(command rabbitmq.RepMoveCommand) {
         Hashs: hashs,
     }
     c,_=json.Marshal(command1)
-    b:=append([]byte("07"),c...)
+    b:=append([]byte("06"),c...)
     fmt.Println(b)
     rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
     rabbit.PublishSimple(b)
@@ -114,7 +114,7 @@ func EcMove(command rabbitmq.EcMoveCommand) {
         Hashs: hashs,
     }
     c,_=json.Marshal(command1)
-    b:=append([]byte("07"),c...)
+    b:=append([]byte("06"),c...)
     fmt.Println(b)
     rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
     rabbit.PublishSimple(b)
