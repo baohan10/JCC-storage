@@ -1,11 +1,5 @@
 module agent
 
-require proto v0.0.0
-
-replace proto => ../proto
-
-replace rabbitmq => ../rabbitmq
-
 require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/streadway/amqp v1.0.0 // indirect
@@ -15,7 +9,6 @@ require (
 	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
 	google.golang.org/grpc v1.53.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
-	rabbitmq v0.0.0-00010101000000-000000000000 // indirect
 )
 
 go 1.18
