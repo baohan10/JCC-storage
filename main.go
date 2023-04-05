@@ -31,7 +31,12 @@ func main() {
 		EcWrite(args[2], args[3], args[4], args[5])
 	case "write":
 		numRep, _ := strconv.Atoi(args[5])
-		RepWrite(args[2], args[3], args[4], numRep)
+		if numRep <= 0 || numRep > 10 {
+			print("write::InputError!")
+		} else {
+			RepWrite(args[2], args[3], args[4], numRep)
+		}
+
 	case "read":
 		Read(args[2], args[3], args[4])
 	case "move":

@@ -12,11 +12,13 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
 	//"reflect"
 	//"github.com/pborman/uuid"
 	//"github.com/streadway/amqp"
 	"ec"
-	"config"
+	"utils"
+
 	"google.golang.org/grpc"
 
 	_ "google.golang.org/grpc/balancer/grpclb"
@@ -81,21 +83,23 @@ func Move(bucketName string, objectName string, destination string) {
 	switch redundancy {
 	case "rep":
 		command2 := rabbitmq.RepMoveCommand{
-			Hashs:      hashs,
-			BucketName: bucketName,
-			ObjectName: objectName,
-			UserId:     userId,
+			Hashs:           hashs,
+			BucketName:      bucketName,
+			ObjectName:      objectName,
+			UserId:          userId,
+			FileSizeInBytes: fileSizeInBytes,
 		}
 		c2, _ := json.Marshal(command2)
 		b2 = append([]byte("00"), c2...)
 	case "ec":
 		command2 := rabbitmq.EcMoveCommand{
-			Hashs:      hashs,
-			Ids:        ids,
-			EcName:     ecName,
-			BucketName: bucketName,
-			ObjectName: objectName,
-			UserId:     userId,
+			Hashs:           hashs,
+			Ids:             ids,
+			EcName:          ecName,
+			BucketName:      bucketName,
+			ObjectName:      objectName,
+			UserId:          userId,
+			FileSizeInBytes: fileSizeInBytes,
 		}
 		c2, _ := json.Marshal(command2)
 		b2 = append([]byte("01"), c2...)
@@ -318,30 +322,33 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 func ecRead(fileSizeInBytes int64, ips []string, blockHashs []string, blockIds []int, ecName string, localFilePath string) {
 	//根据ecName获得以下参数
 	wg := sync.WaitGroup{}
-	const ecK int = 2
-	const ecN int = 3
+	ecPolicies := *utils.GetEcPolicy()
+	ecPolicy := ecPolicies[ecName]
+	fmt.Println(ecPolicy)
+	ecK := ecPolicy.GetK()
+	ecN := ecPolicy.GetN()
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 
 	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
 	fmt.Println(numPacket)
 	//创建channel
-    var getBufs [ecN]chan []byte
-    var decodeBufs [ecK]chan []byte
-    for i := 0; i < ecN; i++ {
-        getBufs[i] = make(chan []byte)
-    }
-    for i := 0; i < ecK; i++ {
-        decodeBufs[i] = make(chan []byte)
-    }
-    //从协调端获取有哪些编码块
-    //var blockSeq = []int{0,1}
+	getBufs := make([]chan []byte, ecN)
+	decodeBufs := make([]chan []byte, ecK)
+	for i := 0; i < ecN; i++ {
+		getBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < ecK; i++ {
+		decodeBufs[i] = make(chan []byte)
+	}
+	//从协调端获取有哪些编码块
+	//var blockSeq = []int{0,1}
 	blockSeq := blockIds
-    wg.Add(1)
-    for i:=0; i<len(blockSeq); i++{
-        go get(blockHashs[blockSeq[i]], ips[blockSeq[i]], getBufs[blockSeq[i]], numPacket)
-    }
-    go decode(getBufs[:], decodeBufs[:], blockSeq, ecK, coefs, numPacket)
-    go persist(decodeBufs[:], numPacket, localFilePath, &wg)
+	wg.Add(1)
+	for i := 0; i < len(blockSeq); i++ {
+		go get(blockHashs[i], ips[i], getBufs[blockSeq[i]], numPacket)
+	}
+	go decode(getBufs[:], decodeBufs[:], blockSeq, ecK, coefs, numPacket)
+	go persist(decodeBufs[:], numPacket, localFilePath, &wg)
 	wg.Wait()
 
 }
@@ -353,14 +360,17 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	fileSizeInBytes := fileInfo.Size()
 	fmt.Println(fileSizeInBytes)
 	//调用纠删码库，获取编码参数及生成矩阵
-	ecPolicy := (*config.GetEcPolicy())[1]
+	ecPolicies := *utils.GetEcPolicy()
+	ecPolicy := ecPolicies[ecName]
+
+	ipss := utils.GetAgentIps()
+	fmt.Println(ipss)
 	print("@!@!@!@!@!@!")
 
-
-	//var policy config.EcConfig
+	//var policy utils.EcConfig
 	//policy = ecPolicy[0]
-	ecK:=ecPolicy.GetK()
-	ecN:=ecPolicy.GetN()
+	ecK := ecPolicy.GetK()
+	ecN := ecPolicy.GetN()
 	//const ecK int = ecPolicy.GetK()
 	//const ecN int = ecPolicy.GetN()
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
@@ -403,27 +413,32 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	wg.Wait()
 
 	//创建channel
-    var loadBufs [20]chan []byte
-    var encodeBufs [20]chan []byte
-    for i := 0; i < ecN; i++ {
-        loadBufs[i] = make(chan []byte)
-    }
-    ipss := []string{"localhost","localhost","localhost","localhost","localhost","localhost","localhost","localhost","localhost"}
-    for i := 0; i < ecN; i++ {
-        encodeBufs[i] = make(chan []byte)
-    }
-    hashs := []string{"h1","h2","h3","h4","h5","h6","h7","h8","h9"}
-    //正式开始写入
-    go load(localFilePath, loadBufs[:ecN], ecK, numPacket*int64(ecK), fileSizeInBytes)//从本地文件系统加载数据
-    go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
-
-    wg.Add(ecN)
-	
+	loadBufs := make([]chan []byte, ecN)
+	encodeBufs := make([]chan []byte, ecN)
 	for i := 0; i < ecN; i++ {
-        go send(hashs[i], ipss[i], encodeBufs[i], numPacket, &wg, hashs, i)
-    }
-    wg.Wait()
+		loadBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < ecN; i++ {
+		encodeBufs[i] = make(chan []byte)
+	}
+	blockNames := make([]string, ecN)
+	for i := 0; i < ecN; i++ {
+		blockNames[i] = (bucketName + "_" + objectName + "_" + strconv.Itoa(i))
+		print(blockNames[i])
+		print("miemiemie")
+	}
+	hashs := make([]string, ecN)
+	//正式开始写入
+	go load(localFilePath, loadBufs[:ecN], ecK, numPacket*int64(ecK), fileSizeInBytes) //从本地文件系统加载数据
+	go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
 
+	wg.Add(ecN)
+
+	for i := 0; i < ecN; i++ {
+		go send(blockNames[i], ips[i], encodeBufs[i], numPacket, &wg, hashs, i)
+	}
+	wg.Wait()
+	//fmt.Println(hashs)
 	//第二轮通讯:插入元数据hashs
 	command2 := rabbitmq.WriteHashCommand{
 		BucketName: bucketName,
@@ -489,111 +504,111 @@ func loadDistribute(localFilePath string, loadDistributeBufs []chan []byte, numW
 	file.Close()
 }
 
-func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket int64, fileSizeInBytes int64){
-    fmt.Println("load "+ localFilePath)
-    file, _ := os.Open(localFilePath)
-    
-    for i:=0;int64(i)<totalNumPacket;i++ {
-        print(totalNumPacket)
-        
-        buf := make([]byte, packetSizeInBytes)
-        idx:=i%ecK
-        print(len(loadBufs))
-        _, err := file.Read(buf)
-        loadBufs[idx]<-buf
+func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket int64, fileSizeInBytes int64) {
+	fmt.Println("load " + localFilePath)
+	file, _ := os.Open(localFilePath)
 
-        if(idx == ecK-1){
-            print("***")
-            for j:=ecK;j<len(loadBufs);j++ {
-                print(j)
-                zeroPkt := make([]byte, packetSizeInBytes)
-                fmt.Printf("%v",zeroPkt)
-                loadBufs[j]<-zeroPkt
-            }
-        }
-        if err != nil && err != io.EOF {
-            break
-        } 
-    }
-    fmt.Println("load over")
-    for i:=0;i<len(loadBufs);i++{
-        print(i)
-        close(loadBufs[i])
-    }
-    file.Close()
+	for i := 0; int64(i) < totalNumPacket; i++ {
+		print(totalNumPacket)
+
+		buf := make([]byte, packetSizeInBytes)
+		idx := i % ecK
+		print(len(loadBufs))
+		_, err := file.Read(buf)
+		loadBufs[idx] <- buf
+
+		if idx == ecK-1 {
+			print("***")
+			for j := ecK; j < len(loadBufs); j++ {
+				print(j)
+				zeroPkt := make([]byte, packetSizeInBytes)
+				fmt.Printf("%v", zeroPkt)
+				loadBufs[j] <- zeroPkt
+			}
+		}
+		if err != nil && err != io.EOF {
+			break
+		}
+	}
+	fmt.Println("load over")
+	for i := 0; i < len(loadBufs); i++ {
+		print(i)
+		close(loadBufs[i])
+	}
+	file.Close()
 }
 
-func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int64, numPacket int64){
-    fmt.Println("encode ")
-    var tmpIn [][]byte
-    tmpIn = make([][]byte, len(outBufs))
-    enc := ec.NewRsEnc(ecK, len(outBufs))
-    for i := 0; int64(i) < numPacket; i++ {
-        for j :=0; j < len(outBufs); j++ {//3    
-            tmpIn[j]=<-inBufs[j]
-            //print(i)
-            //fmt.Printf("%v",tmpIn[j])
-            //print("@#$")
-        }    
-        enc.Encode(tmpIn)
-		fmt.Printf("%v",tmpIn)
+func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int64, numPacket int64) {
+	fmt.Println("encode ")
+	var tmpIn [][]byte
+	tmpIn = make([][]byte, len(outBufs))
+	enc := ec.NewRsEnc(ecK, len(outBufs))
+	for i := 0; int64(i) < numPacket; i++ {
+		for j := 0; j < len(outBufs); j++ { //3
+			tmpIn[j] = <-inBufs[j]
+			//print(i)
+			//fmt.Printf("%v",tmpIn[j])
+			//print("@#$")
+		}
+		enc.Encode(tmpIn)
+		fmt.Printf("%v", tmpIn)
 		print("$$$$$$$$$$$$$$$$$$")
-        for j := 0; j < len(outBufs); j++{//1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])  
-            outBufs[j]<-tmpIn[j]
-            }
-    }
-    fmt.Println("encode over")
-    for i:=0;i<len(outBufs);i++{
-        close(outBufs[i])
-    }
+		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
+			outBufs[j] <- tmpIn[j]
+		}
+	}
+	fmt.Println("encode over")
+	for i := 0; i < len(outBufs); i++ {
+		close(outBufs[i])
+	}
 }
 
-func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, coefs [][]int64, numPacket int64){
-    fmt.Println("decode ")
-    var tmpIn [][]byte
-    var zeroPkt []byte
-    tmpIn = make([][]byte, len(inBufs))
-    hasBlock := map[int]bool{}
-    for j:=0;j < len(blockSeq); j++{
-        hasBlock[blockSeq[j]] = true
-    }
-    needRepair:=false//检测是否传入了所有数据块
-    for j:=0; j < len(outBufs) ; j++{
-        if(blockSeq[j] != j){
-            needRepair = true
-        }
-    }
-    enc := ec.NewRsEnc(ecK, len(inBufs))
-    for i := 0; int64(i) < numPacket; i++ {
-        for j :=0; j < len(inBufs); j++ {//3    
-            if(hasBlock[j]){
-                tmpIn[j]=<-inBufs[j]
-            }else{
-                tmpIn[j]=zeroPkt
-            }
-        }
-        fmt.Printf("%v",tmpIn)
-        if(needRepair){
-            err:=enc.Repair(tmpIn)
-            print("&&&&&")
-            if err != nil {
-                fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
-            }
-        }
-        //fmt.Printf("%v",tmpIn)
+func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, coefs [][]int64, numPacket int64) {
+	fmt.Println("decode ")
+	var tmpIn [][]byte
+	var zeroPkt []byte
+	tmpIn = make([][]byte, len(inBufs))
+	hasBlock := map[int]bool{}
+	for j := 0; j < len(blockSeq); j++ {
+		hasBlock[blockSeq[j]] = true
+	}
+	needRepair := false //检测是否传入了所有数据块
+	for j := 0; j < len(outBufs); j++ {
+		if blockSeq[j] != j {
+			needRepair = true
+		}
+	}
+	enc := ec.NewRsEnc(ecK, len(inBufs))
+	for i := 0; int64(i) < numPacket; i++ {
+		for j := 0; j < len(inBufs); j++ { //3
+			if hasBlock[j] {
+				tmpIn[j] = <-inBufs[j]
+			} else {
+				tmpIn[j] = zeroPkt
+			}
+		}
+		fmt.Printf("%v", tmpIn)
+		if needRepair {
+			err := enc.Repair(tmpIn)
+			print("&&&&&")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
+			}
+		}
+		//fmt.Printf("%v",tmpIn)
 
-        for j := 0; j < len(outBufs); j++{//1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])  
-            outBufs[j]<-tmpIn[j]
-        }
-    }
-    fmt.Println("decode over")
-    for i:=0;i<len(outBufs);i++{
-        close(outBufs[i])
-    }
+		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
+			outBufs[j] <- tmpIn[j]
+		}
+	}
+	fmt.Println("decode over")
+	for i := 0; i < len(outBufs); i++ {
+		close(outBufs[i])
+	}
 }
 
-func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) {
-	fmt.Println("send " + blockhash)
+func send(blockName string, ip string, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) {
+	fmt.Println("send " + blockName)
 	//rpc相关
 	conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
 	if err != nil {
@@ -601,7 +616,6 @@ func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *s
 	}
 
 	client := agentcaller.NewTranBlockOrReplicaClient(conn)
-
 	stream, err := client.SendBlockOrReplica(context.Background())
 	if err != nil {
 		panic(err)
@@ -610,8 +624,8 @@ func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *s
 		buf := <-inBuf
 		fmt.Println(buf)
 		err := stream.Send(&agentcaller.BlockOrReplica{
-			BlockOrReplicaName: blockhash,
-			BlockOrReplicaHash: blockhash,
+			BlockOrReplicaName: blockName,
+			BlockOrReplicaHash: blockName,
 			BlockOrReplicaData: buf,
 		})
 		if err != nil && err != io.EOF {
@@ -628,6 +642,7 @@ func send(blockhash string, ip string, inBuf chan []byte, numPacket int64, wg *s
 
 func get(blockHash string, ip string, getBuf chan []byte, numPacket int64) {
 	//rpc相关
+	print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 	conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
 	if err != nil {
 		panic(err)
