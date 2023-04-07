@@ -213,7 +213,11 @@ func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath str
 	if err != nil {
 		return
 	}
-
+	/*
+		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
+			如果本地有ipfs daemon且能获取相应对象的cid，则获取对象cid对应的ipfsblock的cid，通过ipfs网络获取这些ipfsblock
+			否则，像目前一样，使用grpc向指定节点获取
+	*/
 	stream, _ := client.GetBlockOrReplica(context.Background(), &agentcaller.GetReq{
 		BlockOrReplicaHash: repHash,
 	})
@@ -235,7 +239,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	fileSizeInBytes := fileInfo.Size()
 	fmt.Println(fileSizeInBytes)
 
-	//计算每个块的packet数
+	//写入对象的packet数
 	numWholePacket := fileSizeInBytes / packetSizeInBytes
 	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
 	numPacket := numWholePacket
@@ -243,7 +247,8 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 		numPacket++
 	}
 
-	//发送写请求，分配写入节点Ip
+	//发送写请求，请求Coor分配写入节点Ip
+	//TO DO： 加入两个字段，本机IP和当前进程号
 	command1 := rabbitmq.RepWriteCommand{
 		BucketName:      bucketName,
 		ObjectName:      objectName,
@@ -257,9 +262,15 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
 	rabbit1.PublishSimple(b1)
 
-	//接收消息，赋值给ips
 	var res1 rabbitmq.WriteRes
 	var ips []string
+	/*
+		TODO xh: 判断writeRes里的状态码
+			如果有错，就报错返回，结束程序
+			如果没错，就把得到的IP值赋给ips
+	*/
+
+	//TODO xh: queueName调整：coorClientQueue+"_"+"本机Ip"+"_"+"进程号"
 	queueName := "coorClientQueue" + strconv.Itoa(userId)
 	rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
 	msgs := rabbit2.ConsumeSimple(time.Millisecond, true)
@@ -269,8 +280,8 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 		for d := range msgs {
 			_ = json.Unmarshal(d.Body, &res1)
 			ips = res1.Ips
-			wg.Done()
 		}
+		wg.Done()
 	}()
 	wg.Wait()
 
@@ -285,11 +296,13 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	go loadDistribute(localFilePath, loadDistributeBufs[:], numWholePacket, lastPacketInBytes) //从本地文件系统加载数据
 	wg.Add(numRep)
 	for i := 0; i < numRep; i++ {
+		//TODO xh: send的第一个参数不需要了
 		go send("rep.json"+strconv.Itoa(i), ips[i], loadDistributeBufs[i], numPacket, &wg, hashs, i) //"block1.json"这样参数不需要
 	}
 	wg.Wait()
 
 	//第二轮通讯:插入元数据hashs
+	//TODO xh: 加入pid字段
 	command2 := rabbitmq.WriteHashCommand{
 		BucketName: bucketName,
 		ObjectName: objectName,
@@ -311,6 +324,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 			if res2.MetaCode == 0 {
 				wg.Done()
 			}
+			//TODO xh: MetaCode不为零，代表插入出错，需输出错误
 		}
 	}()
 	wg.Wait()
@@ -470,11 +484,11 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 }
 
 func repMove(ip string, hash string) {
-	//通过消息队列发送调度命令
+	//TO DO: 通过消息队列发送调度命令
 }
 
 func ecMove(ip string, hashs []string, ids []int, ecName string) {
-	//通过消息队列发送调度命令
+	//TO DO: 通过消息队列发送调度命令
 }
 
 func loadDistribute(localFilePath string, loadDistributeBufs []chan []byte, numWholePacket int64, lastPacketInBytes int64) {
@@ -609,6 +623,11 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 
 func send(blockName string, ip string, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) {
 	fmt.Println("send " + blockName)
+	/*
+		TO DO ss: 判断本地有没有ipfs daemon、能否与目标agent的ipfs daemon连通、本地ipfs目录空间是否充足
+			如果本地有ipfs daemon、能与目标agent的ipfs daemon连通、本地ipfs目录空间充足，将所有内容写入本地ipfs目录，得到对象的cid，发送cid给目标agent让其pin相应的对象
+			否则，像目前一样，使用grpc向指定节点获取
+	*/
 	//rpc相关
 	conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
 	if err != nil {
@@ -647,6 +666,11 @@ func get(blockHash string, ip string, getBuf chan []byte, numPacket int64) {
 	if err != nil {
 		panic(err)
 	}
+	/*
+		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
+			如果本地有ipfs daemon且能获取相应编码块的cid，则获取编码块cid对应的ipfsblock的cid，通过ipfs网络获取这些ipfsblock
+			否则，像目前一样，使用grpc向指定节点获取
+	*/
 	client := agentcaller.NewTranBlockOrReplicaClient(conn)
 	//rpc get
 	stream, _ := client.GetBlockOrReplica(context.Background(), &agentcaller.GetReq{
