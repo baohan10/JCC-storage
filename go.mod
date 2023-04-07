@@ -1,21 +1,9 @@
 module agent
 
 require (
-	utils v0.0.0-00010101000000-000000000000
-	ec v0.0.0-00010101000000-000000000000
 	github.com/ipfs/go-ipfs-api v0.5.0
 	google.golang.org/grpc v1.53.0
-	proto v0.0.0
-	rabbitmq v0.0.0-00010101000000-000000000000
 )
-
-replace proto => ../proto
-
-replace rabbitmq => ../rabbitmq
-
-replace utils => ../utils
-
-replace ec => ../ec
 
 require (
 	github.com/beevik/etree v1.1.0 // indirect

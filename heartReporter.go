@@ -46,9 +46,9 @@ func heartReport(wg *sync.WaitGroup) {
 		}
 		waitG.Wait()
 		fmt.Println(agentDelay)
-		//访问ipfs，记录是否能正常访问，记录到ipfsStatus
+		//TODO: 查看本地IPFS daemon是否正常，记录到ipfsStatus
 		ipfsStatus := true
-		//访问自身资源目录（obs,minio等），记录是否正常，记录到localDirStatus
+		//TODO：访问自身资源目录（配置文件中获取路径），记录是否正常，记录到localDirStatus
 		localDirStatus := true
 		//发送心跳
 		command := rabbitmq.HeartReport{
