@@ -16,6 +16,7 @@ import (
 )
 
 func main() {
+	//TODO xh:解析配置文件
 	rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
 	msgs := rabbit.ConsumeSimpleQos(time.Millisecond * 500)
 	forever := make(chan bool)

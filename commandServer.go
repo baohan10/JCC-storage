@@ -17,6 +17,7 @@ import (
 )
 
 func rabbitSend(c []byte, userId int) {
+	//TO DO xh： queueName调整：coorClientQueue+"_"+"本机Ip"+"_"+"进程号"
 	queueName := "coorClientQueue" + strconv.Itoa(userId)
 	rabbit := rabbitmq.NewRabbitMQSimple(queueName)
 	fmt.Println(string(c))
@@ -294,10 +295,8 @@ func CoorRepWriteHash(command rabbitmq.WriteHashCommand) {
 	fmt.Println(command.BucketName)
 	//jh：根据command中的信息，插入对象副本表中的Hash字段，并完成缓存表的插入
 	//插入对象副本表中的Hash字段
+	//TODO xh: objectID的查询合并到Insert_RepHash函数中去
 	ObjectId := Query_ObjectID(command.ObjectName)
-	print("@@@@@@@@@@")
-	print(ObjectId)
-	print("@@@@@@@@@@@@@")
 	Insert_RepHash(ObjectId, command.Hashs[0])
 	//缓存表的插入
 	Insert_Cache(command.Hashs, command.Ips, false)
@@ -306,26 +305,31 @@ func CoorRepWriteHash(command rabbitmq.WriteHashCommand) {
 		MetaCode: 0,
 	}
 	c, _ := json.Marshal(res)
+	//TODO xh: 传入client的ip和pid
 	rabbitSend(c, command.UserId)
 }
 
 func CoorRepWrite(command rabbitmq.RepWriteCommand) {
 	fmt.Println("CoorRepWrite")
 	fmt.Println(command.BucketName)
-	//jh：根据command中的UserId查询用户节点权限表，返回用户可用的NodeIp；
-	//kx：根据command中的ecName，得到ecN，然后从jh查到的NodeIp中选择numRep个，赋值给Ips
-	//jh：完成对象表、对象副本表的插入（对象副本表的Hash字段先不插入）
-	//返回消息
+	//查询用户可用的节点IP
 	nodeip := Query_UserNode(command.UserId) //nodeip格式：[]string
 	numRep := command.NumRep
-
+	/*
+		TODO xh:错误判断
+			1.判断用户可用节点是否小于numRep
+			2.判断用户要写入的对象是否已存在
+			如果存在上述错误，直接通过消息队列返回错误代码给客户端（需在rabbitmq/commands.go中给writeRes加上错误代码字段）
+	*/
 	ips := make([]string, numRep)
-	//kx：从jh查到的NodeIp中选择numRep个，赋值给Ips
-	//根据BucketName查询BucketID
+	//随机选取numRep个nodeIp
 	start := utils.GetRandInt(len(nodeip))
 	for i := 0; i < numRep; i++ {
 		ips[i] = nodeip[(start+i)%len(nodeip)]
 	}
+	//TODO xh: Query_BucketID和Insert_RepObject合成一个命令(两个动作可以一条sql语句搞定)，保留Query_BucketID函数，
+	//但这里不使用它，而是把command.BucketName也传入Insert_RepObject，让其完成查询和插入操作，
+	//TODO xh: 元数据插入失败，需返回错误码
 	BucketID := Query_BucketID(command.BucketName)
 	//对象表插入
 	ObjectID := Insert_RepObject(command.ObjectName, BucketID, command.FileSizeInBytes, command.NumRep)
@@ -336,6 +340,7 @@ func CoorRepWrite(command rabbitmq.RepWriteCommand) {
 		Ips: ips,
 	}
 	c, _ := json.Marshal(res)
+	//TODO xh：传入clientIp和进程号
 	rabbitSend(c, command.UserId)
 }
 
