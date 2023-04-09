@@ -29,6 +29,7 @@ const (
 	packetSizeInBytes = 10
 )
 
+//TODO xh:调整函数顺序，以及函数名大小写
 func Move(bucketName string, objectName string, destination string) {
 	//将bucketName, objectName, destination发给协调端
 	fmt.Println("move " + bucketName + "/" + objectName + " to " + destination)
@@ -141,6 +142,7 @@ func Read(localFilePath string, bucketName string, objectName string) {
 		UserId:     userId,
 	}
 	c1, _ := json.Marshal(command1)
+	//TODO xh: 用常量定义"02"等
 	b1 := append([]byte("02"), c1...)
 	fmt.Println(b1)
 	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
@@ -160,6 +162,7 @@ func Read(localFilePath string, bucketName string, objectName string) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
+		//TODO xh: 增加消息队列等待超时机制（配置文件指定最长等待时间，超时报错返回）
 		for d := range msgs {
 			_ = json.Unmarshal(d.Body, &res1)
 			ips = res1.Ips
@@ -181,6 +184,7 @@ func Read(localFilePath string, bucketName string, objectName string) {
 	rabbit1.Destroy()
 	rabbit2.Destroy()
 	switch redundancy {
+	//TODO xh: redundancy换为bool型，用常量EC表示ec,REP表示rep
 	case "rep":
 		repRead(fileSizeInBytes, ips[0], hashs[0], localFilePath)
 	case "ec":
@@ -203,6 +207,7 @@ func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath str
 	if err != nil {
 		panic(err)
 	}
+	//TODO xh:删除assets，改为读到当前目录与localFilePath的叠加路径
 	fURL := filepath.Join(filepath.Dir(fDir), "assets")
 	_, err = os.Stat(fURL)
 	if os.IsNotExist(err) {

@@ -27,7 +27,7 @@ func main() {
 	for i := 0; i < arg_num; i++ {
 		fmt.Println(args[i])
 	}
-	//TODO: 改为交互式client，输入用户名及秘钥后进入交互界面
+
 	switch args[1] {
 	case "ecWrite":
 		EcWrite(args[2], args[3], args[4], args[5])
@@ -45,11 +45,13 @@ func main() {
 		Move(args[2], args[3], args[4]) //bucket object destination
 	}
 	/*
-		TO DO:
+		TO DO future:
 		1. ls命令，显示用户指定桶下的所有对象，及相关的元数据
 		2. rm命令，用户指定bucket和object名，执行删除操作
 		3. update命令，用户发起对象更新命令，查询元数据，判断对象的冗余方式，删除旧对象（unpin所有的副本或编码块），写入新对象
 		4. ipfsStat命令，查看本地有无ipfsdaemon，ipfs目录的使用率
 		5. ipfsFlush命令，unpin本地ipfs目录中的所有cid(block)
+		6. 改为交互式client，输入用户名及秘钥后进入交互界面
+		7. 支持纯缓存类型的IPFS节点，数据一律存在后端存储服务中
 	*/
 }
