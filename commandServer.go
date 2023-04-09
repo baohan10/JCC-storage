@@ -208,29 +208,16 @@ func CoorEcWriteHash(command rabbitmq.WriteHashCommand) {
 func CoorRead(command rabbitmq.ReadCommand) {
 	fmt.Println("CoorRead")
 	fmt.Println(command.BucketName)
-	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
-	//-若redundancy是rep，查询对象副本表, 获得repHash
-	//--ids ：={0}
-	//--hashs := {repHash}
-	//-若redundancy是ec,查询对象编码块表，获得blockHashs, ids(innerID),
-	//--查询缓存表，获得每个hash的nodeIps、TempOrPins、Times
-	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)确定hashs、ids
-	//返回消息
-
-	/*res := rabbitmq.ReadRes{
-		Redundancy:      "rep",
-		Ips:             []string{"localhost", "localhost"},
-		Hashs:           []string{"block1.json", "block2.json"},
-		BlockIds:        []int{0, 1},
-		EcName:          "ecName",
-		FileSizeInBytes: 21,
-	}*/
-
 	var ips, hashs []string
 	blockIds := []int{0}
 	//先查询
 	BucketID := Query_BucketID(command.BucketName)
 	//jh:使用command中的bucketid和objectname查询对象表,获得objectid,redundancy，EcName,fileSizeInBytes
+	/*
+		TODO xh:
+		redundancyy（bool型）这个变量名不规范（应该是为了与redundancy（字符型）分开而随意取的名），需调整：
+			只用redundancy变量，且将其类型调整为bool（用常量EC表示false,REP表示true），ReadRes结构体的定义做相应修改
+	*/
 	ObjectID, fileSizeInBytes, redundancyy, ecName := Query_Object(command.ObjectName, BucketID)
 	//-若redundancy是rep，查询对象副本表, 获得repHash
 	redundancy := "rep"
@@ -238,6 +225,7 @@ func CoorRead(command rabbitmq.ReadCommand) {
 		repHash := Query_ObjectRep(ObjectID)
 		hashs[0] = repHash
 		caches := Query_Cache(repHash)
+		//TODO xh: 所有错误消息均不可吃掉，记录到日志里
 		for _, cache := range caches {
 			ip := cache.NodeIP
 			ips = append(ips, ip)
