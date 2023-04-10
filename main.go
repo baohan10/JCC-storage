@@ -19,9 +19,9 @@ import (
 	_ "google.golang.org/grpc/balancer/grpclb"
 )
 
-func main() {
-	//TODO xh:加载配置文件，获取packetSizeInBytes、grpc port、ipfs port、最大副本数、本机公网Ip等信息，参照src/utils/config.go
+//TODO xh: 读取配置文件，初始化变量，获取packetSizeInBytes、grpc port、ipfs port、最大副本数、本机公网Ip等信息，参照src/utils/config.go
 
+func main() {
 	args := os.Args
 	arg_num := len(os.Args)
 	for i := 0; i < arg_num; i++ {
