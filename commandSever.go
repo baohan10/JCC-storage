@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"sync"
+	"ec"
 	"encoding/json"
 	"os"
 	"rabbitmq"
 	"strconv"
+	"sync"
 	"utils"
-	"ec"
 	//agentcaller "proto"
 	//"github.com/pborman/uuid"
 	//"github.com/streadway/amqp"
@@ -116,18 +116,17 @@ func RepMove(command rabbitmq.RepMoveCommand) {
 	//源文件
 	data := CatIPFS(hashs[0])
 
-	
 	numWholePacket := fileSizeInBytes / packetSizeInBytes
 	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
 	fmt.Println(fileSizeInBytes)
 	fmt.Println(numWholePacket)
 	fmt.Println(lastPacketInBytes)
 	for i := 0; int64(i) < numWholePacket; i++ {
-		buf := []byte(data[i*packetSizeInBytes:i*packetSizeInBytes+packetSizeInBytes])
+		buf := []byte(data[i*packetSizeInBytes : i*packetSizeInBytes+packetSizeInBytes])
 		outFile.Write(buf)
 	}
 	if lastPacketInBytes > 0 {
-		buf := []byte(data[numWholePacket*packetSizeInBytes:numWholePacket*packetSizeInBytes+lastPacketInBytes])
+		buf := []byte(data[numWholePacket*packetSizeInBytes : numWholePacket*packetSizeInBytes+lastPacketInBytes])
 		outFile.Write(buf)
 	}
 	outFile.Close()
@@ -150,48 +149,48 @@ func RepMove(command rabbitmq.RepMoveCommand) {
 	rabbit.Destroy()
 }
 
-func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64){
-    fmt.Println("decode ")
-    var tmpIn [][]byte
-    var zeroPkt []byte
-    tmpIn = make([][]byte, len(inBufs))
-    hasBlock := map[int]bool{}
-    for j:=0;j < len(blockSeq); j++{
-        hasBlock[blockSeq[j]] = true
-    }
-    needRepair:=false//检测是否传入了所有数据块
-    for j:=0; j < len(outBufs) ; j++{
-        if(blockSeq[j] != j){
-            needRepair = true
-        }
-    }
-    enc := ec.NewRsEnc(ecK, len(inBufs))
-    for i := 0; int64(i) < numPacket; i++ {
-        for j :=0; j < len(inBufs); j++ {//3    
-            if(hasBlock[j]){
-                tmpIn[j]=<-inBufs[j]
-            }else{
-                tmpIn[j]=zeroPkt
-            }
-        }
-        fmt.Printf("%v",tmpIn)
-        if(needRepair){
-            err:=enc.Repair(tmpIn)
-            print("&&&&&")
-            if err != nil {
-                fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
-            }
-        }
-        //fmt.Printf("%v",tmpIn)
+func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
+	fmt.Println("decode ")
+	var tmpIn [][]byte
+	var zeroPkt []byte
+	tmpIn = make([][]byte, len(inBufs))
+	hasBlock := map[int]bool{}
+	for j := 0; j < len(blockSeq); j++ {
+		hasBlock[blockSeq[j]] = true
+	}
+	needRepair := false //检测是否传入了所有数据块
+	for j := 0; j < len(outBufs); j++ {
+		if blockSeq[j] != j {
+			needRepair = true
+		}
+	}
+	enc := ec.NewRsEnc(ecK, len(inBufs))
+	for i := 0; int64(i) < numPacket; i++ {
+		for j := 0; j < len(inBufs); j++ { //3
+			if hasBlock[j] {
+				tmpIn[j] = <-inBufs[j]
+			} else {
+				tmpIn[j] = zeroPkt
+			}
+		}
+		fmt.Printf("%v", tmpIn)
+		if needRepair {
+			err := enc.Repair(tmpIn)
+			print("&&&&&")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
+			}
+		}
+		//fmt.Printf("%v",tmpIn)
 
-        for j := 0; j < len(outBufs); j++{//1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])  
-            outBufs[j]<-tmpIn[j]
-        }
-    }
-    fmt.Println("decode over")
-    for i:=0;i<len(outBufs);i++{
-        close(outBufs[i])
-    }
+		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
+			outBufs[j] <- tmpIn[j]
+		}
+	}
+	fmt.Println("decode over")
+	for i := 0; i < len(outBufs); i++ {
+		close(outBufs[i])
+	}
 }
 
 func EcMove(command rabbitmq.EcMoveCommand) {
@@ -208,20 +207,20 @@ func EcMove(command rabbitmq.EcMoveCommand) {
 	ecK := ecPolicy.GetK()
 	ecN := ecPolicy.GetN()
 	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
-	
+
 	getBufs := make([]chan []byte, ecN)
-    decodeBufs := make([]chan []byte, ecK)
-    for i := 0; i < ecN; i++ {
-        getBufs[i] = make(chan []byte)
-    }
-    for i := 0; i < ecK; i++ {
-        decodeBufs[i] = make(chan []byte)
-    }
+	decodeBufs := make([]chan []byte, ecK)
+	for i := 0; i < ecN; i++ {
+		getBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < ecK; i++ {
+		decodeBufs[i] = make(chan []byte)
+	}
 
 	wg.Add(1)
-	
+
 	//执行调度操作
-	for i:= 0; i<len(blockIds); i++{
+	for i := 0; i < len(blockIds); i++ {
 		go get(hashs[i], getBufs[blockIds[i]], numPacket)
 	}
 	go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
@@ -246,10 +245,10 @@ func EcMove(command rabbitmq.EcMoveCommand) {
 	rabbit.Destroy()
 }
 
-func get(blockHash string, getBuf chan []byte, numPacket int64){
+func get(blockHash string, getBuf chan []byte, numPacket int64) {
 	data := CatIPFS(blockHash)
-	for i:=0; int64(i)<numPacket; i++{
-		buf := []byte(data[i*packetSizeInBytes:i*packetSizeInBytes+packetSizeInBytes])
+	for i := 0; int64(i) < numPacket; i++ {
+		buf := []byte(data[i*packetSizeInBytes : i*packetSizeInBytes+packetSizeInBytes])
 		getBuf <- buf
 	}
 	close(getBuf)

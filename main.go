@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+//TODO xh: 读取配置文件，初始化变量，获取packetSizeInBytes、grpc port、ipfs port、最大副本数、本机公网Ip等信息，参照src/utils/config.go
+
 const (
 	Port              = ":5010"
 	packetSizeInBytes = 10
