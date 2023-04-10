@@ -15,6 +15,8 @@ import (
 	//"google.golang.org/grpc"
 )
 
+//TODO xh: 读取配置文件，初始化变量
+
 func main() {
 	//TODO xh:解析配置文件
 	rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
