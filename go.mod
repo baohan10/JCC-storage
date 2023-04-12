@@ -1,12 +1,11 @@
 module gitlink.org.cn/cloudream/agent
 
 require (
-	ec v0.0.0
 	github.com/ipfs/go-ipfs-api v0.6.0
+	gitlink.org.cn/cloudream/ec v0.0.0
 	gitlink.org.cn/cloudream/rabbitmq v0.0.0
 	gitlink.org.cn/cloudream/utils v0.0.0
 	google.golang.org/grpc v1.54.0
-	proto v0.0.0
 )
 
 require (
@@ -54,7 +53,10 @@ require (
 go 1.18
 
 // 运行go mod tidy时需要将下面几行取消注释
-//replace ec => ../ec
-//replace proto => ../proto
-//replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
-//replace gitlink.org.cn/cloudream/utils => ../utils
+// replace gitlink.org.cn/cloudream/ec => ../ec
+// 
+// replace gitlink.org.cn/cloudream/proto => ../proto
+// 
+// replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
+// 
+// replace gitlink.org.cn/cloudream/utils => ../utils

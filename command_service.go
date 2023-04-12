@@ -1,13 +1,14 @@
 package main
 
 import (
-	"ec"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
-	"utils"
+
+	"gitlink.org.cn/cloudream/ec"
+	"gitlink.org.cn/cloudream/utils"
 
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
