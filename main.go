@@ -1,24 +1,15 @@
 package main
 
 import (
-	//"context"
-	//"io"
 	"fmt"
 	"os"
 
-	//"path/filepath"
-	//"sync"
-	"strconv"
-	//agentcaller "proto"
-
-	//"github.com/pborman/uuid"
-	//"github.com/streadway/amqp"
-
-	//"google.golang.org/grpc"
-
 	_ "google.golang.org/grpc/balancer/grpclb"
+
+	"strconv"
 )
 
+// TODO2 配置读取
 //TODO xh: 读取配置文件，初始化变量，获取packetSizeInBytes、grpc port、ipfs port、最大副本数、本机公网Ip等信息，参照src/utils/config.go
 
 func main() {
@@ -30,19 +21,27 @@ func main() {
 
 	switch args[1] {
 	case "ecWrite":
-		EcWrite(args[2], args[3], args[4], args[5])
 		//TODO: 写入对象时，Coor判断对象是否已存在，如果存在，则直接返回
+		if err := EcWrite(args[2], args[3], args[4], args[5]); err != nil {
+			fmt.Printf("ec write failed, err: %s", err.Error())
+		}
 	case "write":
 		numRep, _ := strconv.Atoi(args[5])
 		if numRep <= 0 || numRep > 10 { //TODO xh:10改为从配置文件中读出的最大副本数
 			print("write::InputError!") //TODO xh:优化提示语
 		} else {
-			RepWrite(args[2], args[3], args[4], numRep)
+			if err := RepWrite(args[2], args[3], args[4], numRep); err != nil {
+				fmt.Printf("rep write failed, err: %s", err.Error())
+			}
 		}
 	case "read":
-		Read(args[2], args[3], args[4])
+		if err := Read(args[2], args[3], args[4]); err != nil {
+			fmt.Printf("read failed, err: %s", err.Error())
+		}
 	case "move":
-		Move(args[2], args[3], args[4]) //bucket object destination
+		if err := Move(args[2], args[3], args[4]); err != nil {
+			fmt.Printf("move failed, err: %s", err.Error())
+		}
 	}
 	/*
 		TO DO future:

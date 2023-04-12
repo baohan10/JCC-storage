@@ -1,8 +1,11 @@
-module client
+module gitlink.org.cn/cloudream/client
 
 go 1.18
 
-require google.golang.org/grpc v1.53.0
+require (
+	google.golang.org/grpc v1.53.0
+	gitlink.org.cn/cloudream/rabbitmq v0.0.0
+)
 
 require (
 	github.com/golang/protobuf v1.5.2 // indirect
@@ -13,3 +16,5 @@ require (
 	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
+
+replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq

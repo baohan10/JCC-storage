@@ -2,22 +2,24 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	agentcaller "proto"
-	"rabbitmq"
 	"strconv"
 	"sync"
-	"time"
+
+	raclient "gitlink.org.cn/cloudream/rabbitmq/client"
+	"gitlink.org.cn/cloudream/utils"
+	"gitlink.org.cn/cloudream/utils/consts"
+	"gitlink.org.cn/cloudream/utils/consts/errorcode"
+	myio "gitlink.org.cn/cloudream/utils/io"
 
 	//"reflect"
 	//"github.com/pborman/uuid"
 	//"github.com/streadway/amqp"
 	"ec"
-	"utils"
 
 	"google.golang.org/grpc"
 
@@ -25,317 +27,154 @@ import (
 )
 
 const (
+	// TODO2 改为配置文件读取
 	port              = ":5010"
 	packetSizeInBytes = 10
 )
 
-//TODO xh:调整函数顺序，以及函数名大小写
-func Move(bucketName string, objectName string, destination string) {
+func Move(bucketName string, objectName string, destination string) error {
 	//将bucketName, objectName, destination发给协调端
 	fmt.Println("move " + bucketName + "/" + objectName + " to " + destination)
+	userId := 0
+
 	//获取块hash，ip，序号，编码参数等
 	//发送写请求，分配写入节点Ip
-	userId := 0
-	command1 := rabbitmq.MoveCommand{
-		BucketName:  bucketName,
-		ObjectName:  objectName,
-		UserId:      userId,
-		Destination: destination,
+	// 先向协调端请求文件相关的数据
+	coorClient, err := raclient.NewCoordinatorClient()
+	if err != nil {
+		return fmt.Errorf("create coordinator client failed, err: %w", err)
 	}
-	c1, _ := json.Marshal(command1)
-	b1 := append([]byte("05"), c1...)
-	fmt.Println(string(b1))
-	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit1.PublishSimple(b1)
+	defer coorClient.Close()
 
-	//接收消息，赋值给ip, repHash, fileSizeInBytes
-	var res1 rabbitmq.MoveRes
-	var redundancy string
-	var hashs []string
-	var fileSizeInBytes int64
-	var ecName string
-	var ids []int
-	queueName := "coorClientQueue" + strconv.Itoa(userId)
-	rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
-	msgs := rabbit2.ConsumeSimple(time.Millisecond, true)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res1)
-			redundancy = res1.Redundancy
-			ids = res1.Ids
-			hashs = res1.Hashs
-			fileSizeInBytes = res1.FileSizeInBytes
-			ecName = res1.EcName
-			wg.Done()
-		}
-	}()
-	wg.Wait()
-	fmt.Println(redundancy)
-	fmt.Println(hashs)
-	fmt.Println(ids)
-	fmt.Println(fileSizeInBytes)
-	fmt.Println(ecName)
-	//根据redundancy调用repMove和ecMove
-
-	rabbit3 := rabbitmq.NewRabbitMQSimple("agentQueue" + destination)
-	var b2 []byte
-	switch redundancy {
-	case "rep":
-		command2 := rabbitmq.RepMoveCommand{
-			Hashs:           hashs,
-			BucketName:      bucketName,
-			ObjectName:      objectName,
-			UserId:          userId,
-			FileSizeInBytes: fileSizeInBytes,
-		}
-		c2, _ := json.Marshal(command2)
-		b2 = append([]byte("00"), c2...)
-	case "ec":
-		command2 := rabbitmq.EcMoveCommand{
-			Hashs:           hashs,
-			Ids:             ids,
-			EcName:          ecName,
-			BucketName:      bucketName,
-			ObjectName:      objectName,
-			UserId:          userId,
-			FileSizeInBytes: fileSizeInBytes,
-		}
-		c2, _ := json.Marshal(command2)
-		b2 = append([]byte("01"), c2...)
+	moveResp, err := coorClient.Move(bucketName, objectName, userId, destination)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	fmt.Println(b2)
-	rabbit3.PublishSimple(b2)
-	//接受调度成功与否的消息
-	//接受第二轮通讯结果
-	var res2 rabbitmq.AgentMoveRes
-	queueName = "agentClientQueue" + strconv.Itoa(userId)
-	rabbit4 := rabbitmq.NewRabbitMQSimple(queueName)
-	msgs = rabbit4.ConsumeSimple(time.Millisecond, true)
-	wg.Add(1)
-	go func() {
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res2)
-			if res2.MoveCode == 0 {
-				wg.Done()
-				fmt.Println("Move Success")
-			}
-		}
-	}()
-	wg.Wait()
+	if moveResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.Message)
+	}
 
-	rabbit1.Destroy()
-	rabbit2.Destroy()
-	rabbit3.Destroy()
-	rabbit4.Destroy()
+	// 然后向代理端发送移动文件的请求
+	agentClient, err := raclient.NewAgentClient(destination)
+	if err != nil {
+		return fmt.Errorf("create agent client to %s failed, err: %w", destination, err)
+	}
+	defer agentClient.Close()
+
+	switch moveResp.Redundancy {
+	case consts.REDUNDANCY_REP:
+		agentMoveResp, err := agentClient.RepMove(moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		if err != nil {
+			return fmt.Errorf("request to agent %s failed, err: %w", destination, err)
+		}
+		if agentMoveResp.ErrorCode != errorcode.OK {
+			return fmt.Errorf("agent %s operation failed, code: %s, messsage: %s", destination, agentMoveResp.ErrorCode, agentMoveResp.Message)
+		}
+
+	case consts.REDUNDANCY_EC:
+		agentMoveResp, err := agentClient.ECMove(moveResp.Hashes, moveResp.IDs, moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		if err != nil {
+			return fmt.Errorf("request to agent %s failed, err: %w", destination, err)
+		}
+		if agentMoveResp.ErrorCode != errorcode.OK {
+			return fmt.Errorf("agent %s operation failed, code: %s, messsage: %s", destination, agentMoveResp.ErrorCode, agentMoveResp.Message)
+		}
+	}
+
+	return nil
 }
 
-func Read(localFilePath string, bucketName string, objectName string) {
+func Read(localFilePath string, bucketName string, objectName string) error {
 	fmt.Println("read " + bucketName + "/" + objectName + " to " + localFilePath)
 	//获取块hash，ip，序号，编码参数等
 	//发送写请求，分配写入节点Ip
 	userId := 0
-	command1 := rabbitmq.ReadCommand{
-		BucketName: bucketName,
-		ObjectName: objectName,
-		UserId:     userId,
-	}
-	c1, _ := json.Marshal(command1)
-	//TODO xh: 用常量定义"02"等
-	b1 := append([]byte("02"), c1...)
-	fmt.Println(b1)
-	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit1.PublishSimple(b1)
 
-	//接收消息，赋值给ip, repHash, fileSizeInBytes
-	var res1 rabbitmq.ReadRes
-	var hashs []string
-	var ips []string
-	var fileSizeInBytes int64
-	var ecName string
-	var ids []int
-	var redundancy string
-	queueName := "coorClientQueue" + strconv.Itoa(userId)
-	rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
-	msgs := rabbit2.ConsumeSimple(time.Millisecond, true)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		//TODO xh: 增加消息队列等待超时机制（配置文件指定最长等待时间，超时报错返回）
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res1)
-			ips = res1.Ips
-			hashs = res1.Hashs
-			ids = res1.BlockIds
-			ecName = res1.EcName
-			fileSizeInBytes = res1.FileSizeInBytes
-			redundancy = res1.Redundancy
-			wg.Done()
-		}
-	}()
-	wg.Wait()
-	fmt.Println(redundancy)
-	fmt.Println(ips)
-	fmt.Println(hashs)
-	fmt.Println(ids)
-	fmt.Println(ecName)
-	fmt.Println(fileSizeInBytes)
-	rabbit1.Destroy()
-	rabbit2.Destroy()
-	switch redundancy {
-	//TODO xh: redundancy换为bool型，用常量EC表示ec,REP表示rep
+	// 先向协调端请求文件相关的数据
+	coorClient, err := raclient.NewCoordinatorClient()
+	if err != nil {
+		return fmt.Errorf("create coordinator client failed, err: %w", err)
+	}
+	defer coorClient.Close()
+
+	readResp, err := coorClient.Read(bucketName, objectName, userId)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if readResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", readResp.ErrorCode, readResp.Message)
+	}
+
+	switch readResp.Redundancy {
 	case "rep":
-		repRead(fileSizeInBytes, ips[0], hashs[0], localFilePath)
+		err = repRead(readResp.FileSizeInBytes, readResp.IPs[0], readResp.Hashes[0], localFilePath)
+		if err != nil {
+			return fmt.Errorf("rep read failed, err: %w", err)
+		}
+
 	case "ec":
-		ecRead(fileSizeInBytes, ips, hashs, ids, ecName, localFilePath)
+		// TODO EC部分的代码要考虑重构
+		ecRead(readResp.FileSizeInBytes, readResp.IPs, readResp.Hashes, readResp.BlockIDs, readResp.ECName, localFilePath)
 	}
 
+	return nil
 }
 
-func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath string) {
-	numPacket := (fileSizeInBytes + packetSizeInBytes - 1) / (packetSizeInBytes)
-	fmt.Println(numPacket)
-	//rpc相关
-	conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
+func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath string) error {
+	grpcAddr := ip + port
+	conn, err := grpc.Dial(grpcAddr, grpc.WithInsecure())
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
 	}
+	defer conn.Close()
+
 	client := agentcaller.NewTranBlockOrReplicaClient(conn)
 
-	fDir, err := os.Executable()
+	curExecPath, err := os.Executable()
 	if err != nil {
-		panic(err)
-	}
-	//TODO xh:删除assets，改为读到当前目录与localFilePath的叠加路径
-	fURL := filepath.Join(filepath.Dir(fDir), "assets")
-	_, err = os.Stat(fURL)
-	if os.IsNotExist(err) {
-		os.MkdirAll(fURL, os.ModePerm)
+		return fmt.Errorf("get executable directory failed, err: %w", err)
 	}
 
-	file, err := os.Create(filepath.Join(fURL, localFilePath))
+	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
+	outputFileDir := filepath.Dir(outputFilePath)
+
+	err = os.MkdirAll(outputFileDir, os.ModePerm)
 	if err != nil {
-		return
+		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
 	}
+
+	outputFile, err := os.Create(outputFilePath)
+	if err != nil {
+		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
+	}
+	defer outputFile.Close()
+
 	/*
 		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
 			如果本地有ipfs daemon且能获取相应对象的cid，则获取对象cid对应的ipfsblock的cid，通过ipfs网络获取这些ipfsblock
 			否则，像目前一样，使用grpc向指定节点获取
 	*/
-	stream, _ := client.GetBlockOrReplica(context.Background(), &agentcaller.GetReq{
+	stream, err := client.GetBlockOrReplica(context.Background(), &agentcaller.GetReq{
 		BlockOrReplicaHash: repHash,
 	})
-	fmt.Println(numPacket)
-	for i := 0; int64(i) < numPacket; i++ {
-		fmt.Println(i)
-		res, _ := stream.Recv()
-		fmt.Println(res.BlockOrReplicaData)
-		file.Write(res.BlockOrReplicaData)
-	}
-	file.Close()
-	conn.Close()
-}
-
-func RepWrite(localFilePath string, bucketName string, objectName string, numRep int) {
-	userId := 0
-	//获取文件大小
-	fileInfo, _ := os.Stat(localFilePath)
-	fileSizeInBytes := fileInfo.Size()
-	fmt.Println(fileSizeInBytes)
-
-	//写入对象的packet数
-	numWholePacket := fileSizeInBytes / packetSizeInBytes
-	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
-	numPacket := numWholePacket
-	if lastPacketInBytes > 0 {
-		numPacket++
+	if err != nil {
+		return fmt.Errorf("request grpc failed, err: %w", err)
 	}
 
-	//发送写请求，请求Coor分配写入节点Ip
-	//TO DO： 加入两个字段，本机IP和当前进程号
-	command1 := rabbitmq.RepWriteCommand{
-		BucketName:      bucketName,
-		ObjectName:      objectName,
-		FileSizeInBytes: fileSizeInBytes,
-		NumRep:          numRep,
-		UserId:          userId,
-	}
-	c1, _ := json.Marshal(command1)
-	b1 := append([]byte("03"), c1...)
-	fmt.Println(b1)
-	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit1.PublishSimple(b1)
-
-	var res1 rabbitmq.WriteRes
-	var ips []string
-	/*
-		TODO xh: 判断writeRes里的状态码
-			如果有错，就报错返回，结束程序
-			如果没错，就把得到的IP值赋给ips
-	*/
-
-	//TODO xh: queueName调整：coorClientQueue+"_"+"本机Ip"+"_"+"进程号"
-	queueName := "coorClientQueue" + strconv.Itoa(userId)
-	rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
-	msgs := rabbit2.ConsumeSimple(time.Millisecond, true)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res1)
-			ips = res1.Ips
+	numPacket := (fileSizeInBytes + packetSizeInBytes - 1) / (packetSizeInBytes)
+	for i := int64(0); i < numPacket; i++ {
+		resp, err := stream.Recv()
+		if err != nil {
+			return fmt.Errorf("read file data on grpc stream failed, err: %w", err)
 		}
-		wg.Done()
-	}()
-	wg.Wait()
 
-	//创建channel
-	loadDistributeBufs := make([]chan []byte, numRep)
-	for i := 0; i < numRep; i++ {
-		loadDistributeBufs[i] = make(chan []byte)
-	}
-
-	//正式开始写入
-	hashs := make([]string, numRep)
-	go loadDistribute(localFilePath, loadDistributeBufs[:], numWholePacket, lastPacketInBytes) //从本地文件系统加载数据
-	wg.Add(numRep)
-	for i := 0; i < numRep; i++ {
-		//TODO xh: send的第一个参数不需要了
-		go send("rep.json"+strconv.Itoa(i), ips[i], loadDistributeBufs[i], numPacket, &wg, hashs, i) //"block1.json"这样参数不需要
-	}
-	wg.Wait()
-
-	//第二轮通讯:插入元数据hashs
-	//TODO xh: 加入pid字段
-	command2 := rabbitmq.WriteHashCommand{
-		BucketName: bucketName,
-		ObjectName: objectName,
-		Hashs:      hashs,
-		Ips:        ips,
-		UserId:     userId,
-	}
-	c1, _ = json.Marshal(command2)
-	b1 = append([]byte("04"), c1...)
-	rabbit1.PublishSimple(b1)
-
-	//接受第二轮通讯结果
-	var res2 rabbitmq.WriteHashRes
-	msgs = rabbit2.ConsumeSimple(time.Millisecond, true)
-	wg.Add(1)
-	go func() {
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res2)
-			if res2.MetaCode == 0 {
-				wg.Done()
-			}
-			//TODO xh: MetaCode不为零，代表插入出错，需输出错误
+		err = myio.WriteAll(outputFile, resp.BlockOrReplicaData)
+		if err != nil {
+			return fmt.Errorf("write file data to local file failed, err: %w", err)
 		}
-	}()
-	wg.Wait()
-	rabbit1.Destroy()
-	rabbit2.Destroy()
-	//
+	}
+
+	return nil
 }
 
 func ecRead(fileSizeInBytes int64, ips []string, blockHashs []string, blockIds []int, ecName string, localFilePath string) {
@@ -369,15 +208,80 @@ func ecRead(fileSizeInBytes int64, ips []string, blockHashs []string, blockIds [
 	go decode(getBufs[:], decodeBufs[:], blockSeq, ecK, coefs, numPacket)
 	go persist(decodeBufs[:], numPacket, localFilePath, &wg)
 	wg.Wait()
-
 }
 
-func EcWrite(localFilePath string, bucketName string, objectName string, ecName string) {
-	fmt.Println("write " + localFilePath + " as " + bucketName + "/" + objectName)
+func RepWrite(localFilePath string, bucketName string, objectName string, numRep int) error {
+	userId := 0
 	//获取文件大小
-	fileInfo, _ := os.Stat(localFilePath)
+	fileInfo, err := os.Stat(localFilePath)
+	if err != nil {
+		return fmt.Errorf("get file %s state failed, err: %w", localFilePath, err)
+	}
 	fileSizeInBytes := fileInfo.Size()
-	fmt.Println(fileSizeInBytes)
+
+	//写入对象的packet数
+	numWholePacket := fileSizeInBytes / packetSizeInBytes
+	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
+	numPacket := numWholePacket
+	if lastPacketInBytes > 0 {
+		numPacket++
+	}
+
+	coorClient, err := raclient.NewCoordinatorClient()
+	if err != nil {
+		return fmt.Errorf("create coordinator client failed, err: %w", err)
+	}
+	defer coorClient.Close()
+
+	//发送写请求，请求Coor分配写入节点Ip
+	repWriteResp, err := coorClient.RepWrite(bucketName, objectName, fileSizeInBytes, numRep, userId)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if repWriteResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator RepWrite failed, err: %w", err)
+	}
+
+	//创建channel
+	loadDistributeBufs := make([]chan []byte, numRep)
+	for i := 0; i < numRep; i++ {
+		loadDistributeBufs[i] = make(chan []byte)
+	}
+
+	//正式开始写入
+	hashs := make([]string, numRep)
+	go loadDistribute(localFilePath, loadDistributeBufs[:], numWholePacket, lastPacketInBytes) //从本地文件系统加载数据
+	var wg sync.WaitGroup
+	wg.Add(numRep)
+	for i := 0; i < numRep; i++ {
+		//TODO xh: send的第一个参数不需要了
+		// TODO2 见上
+		go send("rep.json"+strconv.Itoa(i), repWriteResp.IPs[i], loadDistributeBufs[i], numPacket, &wg, hashs, i) //"block1.json"这样参数不需要
+	}
+	wg.Wait()
+
+	// 记录写入的文件的Hash
+	writeRepHashResp, err := coorClient.WriteRepHash(bucketName, objectName, hashs, repWriteResp.IPs, userId)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if writeRepHashResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator WriteRepHash failed, err: %w", err)
+	}
+
+	return nil
+}
+
+func EcWrite(localFilePath string, bucketName string, objectName string, ecName string) error {
+	fmt.Println("write " + localFilePath + " as " + bucketName + "/" + objectName)
+
+	//获取文件大小
+	fileInfo, err := os.Stat(localFilePath)
+	if err != nil {
+		return fmt.Errorf("get file %s state failed, err: %w", localFilePath, err)
+	}
+	fileSizeInBytes := fileInfo.Size()
+
 	//调用纠删码库，获取编码参数及生成矩阵
 	ecPolicies := *utils.GetEcPolicy()
 	ecPolicy := ecPolicies[ecName]
@@ -398,38 +302,21 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
 	fmt.Println(numPacket)
 
-	//发送写请求，分配写入节点
 	userId := 0
-	//发送写请求，分配写入节点Ip
-	command1 := rabbitmq.EcWriteCommand{
-		BucketName:      bucketName,
-		ObjectName:      objectName,
-		FileSizeInBytes: fileSizeInBytes,
-		EcName:          ecName,
-		UserId:          userId,
-	} //
-	c1, _ := json.Marshal(command1)
-	b1 := append([]byte("00"), c1...) //
-	fmt.Println(b1)
-	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit1.PublishSimple(b1)
+	coorClient, err := raclient.NewCoordinatorClient()
+	if err != nil {
+		return fmt.Errorf("create coordinator client failed, err: %w", err)
+	}
+	defer coorClient.Close()
 
-	//接收消息，赋值给ips
-	var res1 rabbitmq.WriteRes
-	var ips []string
-	queueName := "coorClientQueue" + strconv.Itoa(userId)
-	rabbit2 := rabbitmq.NewRabbitMQSimple(queueName)
-	msgs := rabbit2.ConsumeSimple(time.Millisecond, true)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res1)
-			ips = res1.Ips
-			wg.Done()
-		}
-	}()
-	wg.Wait()
+	//发送写请求，请求Coor分配写入节点Ip
+	ecWriteResp, err := coorClient.ECWrite(bucketName, objectName, fileSizeInBytes, ecName, userId)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if ecWriteResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator ECWrite failed, err: %w", err)
+	}
 
 	//创建channel
 	loadBufs := make([]chan []byte, ecN)
@@ -451,41 +338,24 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	go load(localFilePath, loadBufs[:ecN], ecK, numPacket*int64(ecK), fileSizeInBytes) //从本地文件系统加载数据
 	go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
 
+	var wg sync.WaitGroup
 	wg.Add(ecN)
 
 	for i := 0; i < ecN; i++ {
-		go send(blockNames[i], ips[i], encodeBufs[i], numPacket, &wg, hashs, i)
+		go send(blockNames[i], ecWriteResp.IPs[i], encodeBufs[i], numPacket, &wg, hashs, i)
 	}
 	wg.Wait()
-	//fmt.Println(hashs)
-	//第二轮通讯:插入元数据hashs
-	command2 := rabbitmq.WriteHashCommand{
-		BucketName: bucketName,
-		ObjectName: objectName,
-		Hashs:      hashs,
-		Ips:        ips,
-		UserId:     userId,
-	}
-	c1, _ = json.Marshal(command2)
-	b1 = append([]byte("01"), c1...)
-	rabbit1.PublishSimple(b1)
 
-	//接受第二轮通讯结果
-	var res2 rabbitmq.WriteHashRes
-	msgs = rabbit2.ConsumeSimple(time.Millisecond, true)
-	wg.Add(1)
-	go func() {
-		for d := range msgs {
-			_ = json.Unmarshal(d.Body, &res2)
-			if res2.MetaCode == 0 {
-				wg.Done()
-			}
-		}
-	}()
-	wg.Wait()
-	rabbit1.Destroy()
-	rabbit2.Destroy()
-	//
+	//第二轮通讯:插入元数据hashs
+	writeRepHashResp, err := coorClient.WriteECHash(bucketName, objectName, hashs, ecWriteResp.IPs, userId)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if writeRepHashResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator WriteECHash failed, err: %w", err)
+	}
+
+	return nil
 }
 
 func repMove(ip string, hash string) {
