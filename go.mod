@@ -17,4 +17,5 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 
-replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
+// 运行go mod tidy时需要将下面几行取消注释
+// replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
