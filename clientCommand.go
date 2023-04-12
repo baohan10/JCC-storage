@@ -6,20 +6,18 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	agentcaller "proto"
 	"strconv"
 	"sync"
 
-	raclient "gitlink.org.cn/cloudream/rabbitmq/client"
+	agentcaller "gitlink.org.cn/cloudream/proto"
+
+	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	myio "gitlink.org.cn/cloudream/utils/io"
 
-	//"reflect"
-	//"github.com/pborman/uuid"
-	//"github.com/streadway/amqp"
-	"ec"
+	"gitlink.org.cn/cloudream/ec"
 
 	"google.golang.org/grpc"
 
@@ -40,7 +38,7 @@ func Move(bucketName string, objectName string, destination string) error {
 	//获取块hash，ip，序号，编码参数等
 	//发送写请求，分配写入节点Ip
 	// 先向协调端请求文件相关的数据
-	coorClient, err := raclient.NewCoordinatorClient()
+	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		return fmt.Errorf("create coordinator client failed, err: %w", err)
 	}
@@ -55,7 +53,7 @@ func Move(bucketName string, objectName string, destination string) error {
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := raclient.NewAgentClient(destination)
+	agentClient, err := racli.NewAgentClient(destination)
 	if err != nil {
 		return fmt.Errorf("create agent client to %s failed, err: %w", destination, err)
 	}
@@ -91,7 +89,7 @@ func Read(localFilePath string, bucketName string, objectName string) error {
 	userId := 0
 
 	// 先向协调端请求文件相关的数据
-	coorClient, err := raclient.NewCoordinatorClient()
+	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		return fmt.Errorf("create coordinator client failed, err: %w", err)
 	}
@@ -227,7 +225,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 		numPacket++
 	}
 
-	coorClient, err := raclient.NewCoordinatorClient()
+	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		return fmt.Errorf("create coordinator client failed, err: %w", err)
 	}
@@ -303,7 +301,7 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	fmt.Println(numPacket)
 
 	userId := 0
-	coorClient, err := raclient.NewCoordinatorClient()
+	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		return fmt.Errorf("create coordinator client failed, err: %w", err)
 	}
