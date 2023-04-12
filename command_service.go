@@ -168,7 +168,8 @@ func (service *CommandService) ECWrite(msg *ramsg.ECWriteCommand) ramsg.WriteRes
 	//根据BucketName查询BucketID
 	BucketID := Query_BucketID(msg.BucketName)
 	if BucketID == -1 {
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, fmt.Sprint("bucket id not found for %s", msg.BucketName))
+		// TODO 日志
+		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("bucket id not found for %s", msg.BucketName))
 	}
 	//对象表插入Insert_Cache
 	ObjectID := Insert_EcObject(msg.ObjectName, BucketID, msg.FileSizeInBytes, msg.ECName)
