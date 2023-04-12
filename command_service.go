@@ -1,33 +1,23 @@
 package main
 
 import (
-	//"context"
-
-	"fmt"
-	"path/filepath"
-
 	"ec"
-	"encoding/json"
+	"fmt"
 	"os"
-	"rabbitmq"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"utils"
-	//agentcaller "proto"
-	//"github.com/pborman/uuid"
-	//"github.com/streadway/amqp"
-	//"google.golang.org/grpc"
+
+	racli "gitlink.org.cn/cloudream/rabbitmq/client"
+	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
+	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
-func rabbitSend(c []byte, userId int) {
-	queueName := "agentClientQueue" + strconv.Itoa(userId)
-	rabbit := rabbitmq.NewRabbitMQSimple(queueName)
-	fmt.Println(string(c))
-	rabbit.PublishSimple(c)
-	rabbit.Destroy()
+type CommandService struct {
 }
 
-func RepMove(command rabbitmq.RepMoveCommand) {
+func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMoveResp {
 	/*fmt.Println("RepMove")
 	fmt.Println(command.Hashs)
 	hashs := command.Hashs
@@ -92,12 +82,12 @@ func RepMove(command rabbitmq.RepMoveCommand) {
 	rabbit.PublishSimple(b)
 	rabbit.Destroy()*/
 	fmt.Println("RepMove")
-	fmt.Println(command.Hashs)
-	hashs := command.Hashs
-	fileSizeInBytes := command.FileSizeInBytes
+	fmt.Println(msg.Hashs)
+	hashs := msg.Hashs
+	fileSizeInBytes := msg.FileSizeInBytes
 	//执行调度操作
 	goalDir := "assets2"
-	goalName := command.BucketName + ":" + command.ObjectName + ":" + strconv.Itoa(command.UserId)
+	goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
 	//目标文件
 	fDir, err := os.Executable()
 	if err != nil {
@@ -130,23 +120,63 @@ func RepMove(command rabbitmq.RepMoveCommand) {
 		outFile.Write(buf)
 	}
 	outFile.Close()
-	//返回消息
-	res := rabbitmq.AgentMoveRes{
-		MoveCode: 0,
-	}
-	c, _ := json.Marshal(res)
-	rabbitSend(c, command.UserId)
+
 	//向coor报告临时缓存hash
-	command1 := rabbitmq.TempCacheReport{
-		Ip:    LocalIp,
-		Hashs: hashs,
+	coorClient, err := racli.NewCoordinatorClient()
+	if err != nil {
+		// TODO 日志
+		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
 	}
-	c, _ = json.Marshal(command1)
-	b := append([]byte("06"), c...)
-	fmt.Println(b)
-	rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit.PublishSimple(b)
-	rabbit.Destroy()
+	defer coorClient.Close()
+	coorClient.TempCacheReport(LocalIp, hashs)
+
+	return ramsg.NewAgentMoveRespOK()
+}
+
+func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveResp {
+	wg := sync.WaitGroup{}
+	fmt.Println("EcMove")
+	fmt.Println(msg.Hashs)
+	hashs := msg.Hashs
+	fileSizeInBytes := msg.FileSizeInBytes
+	blockIds := msg.IDs
+	ecName := msg.ECName
+	goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
+	ecPolicies := *utils.GetEcPolicy()
+	ecPolicy := ecPolicies[ecName]
+	ecK := ecPolicy.GetK()
+	ecN := ecPolicy.GetN()
+	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
+
+	getBufs := make([]chan []byte, ecN)
+	decodeBufs := make([]chan []byte, ecK)
+	for i := 0; i < ecN; i++ {
+		getBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < ecK; i++ {
+		decodeBufs[i] = make(chan []byte)
+	}
+
+	wg.Add(1)
+
+	//执行调度操作
+	for i := 0; i < len(blockIds); i++ {
+		go get(hashs[i], getBufs[blockIds[i]], numPacket)
+	}
+	go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
+	go persist(decodeBufs[:], numPacket, goalName, &wg)
+	wg.Wait()
+
+	//向coor报告临时缓存hash
+	coorClient, err := racli.NewCoordinatorClient()
+	if err != nil {
+		// TODO 日志
+		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
+	}
+	defer coorClient.Close()
+	coorClient.TempCacheReport(LocalIp, hashs)
+
+	return ramsg.NewAgentMoveRespOK()
 }
 
 func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
@@ -191,58 +221,6 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	for i := 0; i < len(outBufs); i++ {
 		close(outBufs[i])
 	}
-}
-
-func EcMove(command rabbitmq.EcMoveCommand) {
-	wg := sync.WaitGroup{}
-	fmt.Println("EcMove")
-	fmt.Println(command.Hashs)
-	hashs := command.Hashs
-	fileSizeInBytes := command.FileSizeInBytes
-	blockIds := command.Ids
-	ecName := command.EcName
-	goalName := command.BucketName + ":" + command.ObjectName + ":" + strconv.Itoa(command.UserId)
-	ecPolicies := *utils.GetEcPolicy()
-	ecPolicy := ecPolicies[ecName]
-	ecK := ecPolicy.GetK()
-	ecN := ecPolicy.GetN()
-	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
-
-	getBufs := make([]chan []byte, ecN)
-	decodeBufs := make([]chan []byte, ecK)
-	for i := 0; i < ecN; i++ {
-		getBufs[i] = make(chan []byte)
-	}
-	for i := 0; i < ecK; i++ {
-		decodeBufs[i] = make(chan []byte)
-	}
-
-	wg.Add(1)
-
-	//执行调度操作
-	for i := 0; i < len(blockIds); i++ {
-		go get(hashs[i], getBufs[blockIds[i]], numPacket)
-	}
-	go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
-	go persist(decodeBufs[:], numPacket, goalName, &wg)
-	wg.Wait()
-	//返回消息
-	res := rabbitmq.WriteHashRes{
-		MetaCode: 0,
-	}
-	c, _ := json.Marshal(res)
-	rabbitSend(c, command.UserId)
-	//向coor报告临时缓存hash
-	command1 := rabbitmq.TempCacheReport{
-		Ip:    LocalIp,
-		Hashs: hashs,
-	}
-	c, _ = json.Marshal(command1)
-	b := append([]byte("06"), c...)
-	fmt.Println(b)
-	rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit.PublishSimple(b)
-	rabbit.Destroy()
 }
 
 func get(blockHash string, getBuf chan []byte, numPacket int64) {
