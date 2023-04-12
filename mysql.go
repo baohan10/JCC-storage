@@ -6,26 +6,27 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"gitlink.org.cn/cloudream/utils/consts"
 )
 
-//数据库指针
+// 数据库指针
 var db *sqlx.DB
 
-//错误处理函数
+// 错误处理函数
 func HandleError(why string, err error) {
 	if err != nil {
 		fmt.Println(why, err)
 	}
 }
 
-//初始化数据库连接，init()方法系统会在动在main方法之前执行。
+// 初始化数据库连接，init()方法系统会在动在main方法之前执行。
 func init() {
 	database, err := sqlx.Open("mysql", "root:123456@tcp(127.0.0.1:3306)/kx?charset=utf8mb4&parseTime=true")
 	HandleError("open mysql failed,", err)
 	db = database
 }
 
-//节点延迟表插入
+// 节点延迟表插入
 func Insert_NodeDelay(innodeIP string, outnodeIP []string, delay []int) {
 	insSql := "insert into NodeDelay values(?,?,?)"
 	updateSql := "UPDATE NodeDelay SET DelayInMs=? WHERE InNodeIP=? AND OutNodeIP=?"
@@ -40,8 +41,8 @@ func Insert_NodeDelay(innodeIP string, outnodeIP []string, delay []int) {
 	}
 }
 
-//节点表插入
-func Insert_Node(nodeip string, nodelocation string, ipfsstatus bool, localdirstatus bool) {
+// 节点表插入
+func Insert_Node(nodeip string, nodelocation string, ipfsstatus string, localdirstatus string) {
 	// 根据NodeIP查询，若不存在则插入，若存在则更新
 	//查询
 	type Node struct {
@@ -52,7 +53,8 @@ func Insert_Node(nodeip string, nodelocation string, ipfsstatus bool, localdirst
 	err := db.Get(&x, sql, nodeip)
 	HandleError("Get failed: ", err)
 	//local和ipfs同时可达才可达
-	NodeStatus := ipfsstatus && localdirstatus
+	// TODO 将status字段改成字符串（枚举值）
+	NodeStatus := ipfsstatus == consts.IPFS_STATUS_OK && localdirstatus == consts.LOCAL_DIR_STATUS_OK
 	//不存在才插入
 	if x == (Node{}) {
 		sql := "insert into Node values(?,?,?)"
@@ -67,7 +69,7 @@ func Insert_Node(nodeip string, nodelocation string, ipfsstatus bool, localdirst
 	return
 }
 
-//纠删码对象表插入
+// 纠删码对象表插入
 func Insert_EcObject(Object_Name string, Bucket_ID int, FileSizeInBytes int64, EcName string) (objectid int64) {
 	// 根据objectname和bucketid查询，若不存在则插入，若存在则不操作
 	//查询
@@ -94,7 +96,7 @@ func Insert_EcObject(Object_Name string, Bucket_ID int, FileSizeInBytes int64, E
 	return
 }
 
-//多副本对象表插入
+// 多副本对象表插入
 func Insert_RepObject(Object_Name string, Bucket_ID int, FileSizeInBytes int64, NumRep int) (objectid int64) {
 	// 根据objectname和bucketid查询，若不存在则插入，若存在则不操作
 	//查询
@@ -121,7 +123,7 @@ func Insert_RepObject(Object_Name string, Bucket_ID int, FileSizeInBytes int64, 
 	return
 }
 
-//对象编码块表插入
+// 对象编码块表插入
 func Insert_EcObjectBlock(Object_ID int64, Inner_ID int) {
 	// 根据objectID查询，若不存在则插入，若存在则不操作
 	//查询
@@ -145,14 +147,14 @@ func Insert_EcObjectBlock(Object_ID int64, Inner_ID int) {
 	}
 }
 
-//对象副本表插入
+// 对象副本表插入
 func Insert_ObjectRep(Object_ID int64) {
 	sql := "insert into ObjectRep(ObjectID) values(?)"
 	_, err := db.Exec(sql, Object_ID)
 	HandleError("insert failed: ", err)
 }
 
-//对象编码块表Echash插入
+// 对象编码块表Echash插入
 func Insert_EcHash(Object_ID int, Hashs []string) {
 	for i := 0; i < len(Hashs); i++ {
 		sql := "update ObjectBlock set BlockHash =? where ObjectID = ? AND InnerID = ?"
@@ -161,14 +163,14 @@ func Insert_EcHash(Object_ID int, Hashs []string) {
 	}
 }
 
-//对象副本表rephash插入
+// 对象副本表rephash插入
 func Insert_RepHash(Object_ID int, Hashs string) {
 	sql := "update ObjectRep set RepHash =? where ObjectID = ?"
 	_, err := db.Exec(sql, Hashs, Object_ID)
 	HandleError("insert failed: ", err)
 }
 
-//缓存表插入
+// 缓存表插入
 func Insert_Cache(Hashs []string, Ips []string, TempOrPin bool) {
 	for i := 0; i < len(Hashs); i++ {
 		sql := "insert into Cache values(?,?,?,?)"
@@ -195,7 +197,7 @@ func Query_ObjectID(objectname string) (objectid int) {
 	return
 }
 
-//根据BucketName查询BucketID
+// 根据BucketName查询BucketID
 func Query_BucketID(bucketname string) (bucketid int) {
 	//桶结构体
 	type Bucket struct {
@@ -216,7 +218,7 @@ func Query_BucketID(bucketname string) (bucketid int) {
 	return
 }
 
-//根据用户id查询可用nodeip
+// 根据用户id查询可用nodeip
 func Query_UserNode(user_id int) []string {
 	//用户节点结构体
 	type UserNode struct {
@@ -235,7 +237,7 @@ func Query_UserNode(user_id int) []string {
 	return node_ip
 }
 
-//根据objectname和bucketid查询对象表,获得redundancy，EcName,fileSizeInBytes
+// 根据objectname和bucketid查询对象表,获得redundancy，EcName,fileSizeInBytes
 func Query_Object(objectname string, bucketid int) (objectid int, filesizeinbytes int64, redundancy bool, ecname string) {
 	//对象结构体
 	type Object struct {
@@ -259,7 +261,7 @@ func Query_Object(objectname string, bucketid int) (objectid int, filesizeinbyte
 	return
 }
 
-//查询对象副本表
+// 查询对象副本表
 func Query_ObjectRep(objectid int) (repHash string) {
 	//对象结构体
 	type ObjectRep struct {
@@ -283,7 +285,7 @@ type ObjectBlock struct {
 	BlockHash string `db:"BlockHash"`
 }
 
-//查询对象编码块表
+// 查询对象编码块表
 func Query_ObjectBlock(Object_ID int) (x []ObjectBlock) {
 	sql := "select InnerID, BlockHash from ObjectBlock where ObjectID=?"
 	err := db.Select(&x, sql, Object_ID)
@@ -291,7 +293,7 @@ func Query_ObjectBlock(Object_ID int) (x []ObjectBlock) {
 	return
 }
 
-//将时间字符串转化为时间戳格式（s）
+// 将时间字符串转化为时间戳格式（s）
 func Time_trans(time_string string) (timestamp int64) {
 	timeTemplate1 := "2006-01-02 15:04:05"
 	stamp, _ := time.ParseInLocation(timeTemplate1, time_string, time.Local) //使用parseInLocation将字符串格式化返回本地时区时间
@@ -299,14 +301,14 @@ func Time_trans(time_string string) (timestamp int64) {
 	return
 }
 
-//缓存结构体
+// 缓存结构体
 type Cache struct {
 	NodeIP    string `db:"NodeIP"`
 	TempOrPin bool   `db:"TempOrPin"`
 	Cachetime string `db:"Cachetime"`
 }
 
-//查询缓存表
+// 查询缓存表
 func Query_Cache(BlockHash string) (x []Cache) {
 	sql := "select NodeIP, TempOrPin, Cachetime from Cache where HashValue=?"
 	err := db.Select(&x, sql, BlockHash)
@@ -314,7 +316,7 @@ func Query_Cache(BlockHash string) (x []Cache) {
 	return
 }
 
-//更新缓存表
+// 更新缓存表
 func Update_Cache(BlockHash string, nodeip string) (x Cache) {
 	//根据hash和nodeip查询缓存表里是否存在此条记录
 	sql := "select NodeIP, TempOrPin, Cachetime from Cache where HashValue=? AND NodeIP=?"
@@ -329,7 +331,7 @@ func Update_Cache(BlockHash string, nodeip string) (x Cache) {
 	return
 }
 
-//查询节点延迟表
+// 查询节点延迟表
 func Query_NodeDelay(innodeip string, outnodeip string) (delay int) {
 	//节点延迟结构体
 	type NodeDelay struct {
