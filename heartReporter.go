@@ -1,28 +1,24 @@
 package main
 
 import (
-	//"context"
-	//"log"
-	//"os"
-	//"io"
-	//"fmt"
-	//"path/filepath"
-	//agentserver "proto"
-
-	"encoding/json"
 	"fmt"
-	"rabbitmq"
 	"sync"
 	"time"
 
-	"utils"
-	//"google.golang.org/grpc"
-	//"github.com/go-ping/ping"
+	racli "gitlink.org.cn/cloudream/rabbitmq/client"
+	"gitlink.org.cn/cloudream/utils"
+	"gitlink.org.cn/cloudream/utils/consts"
 )
 
-func heartReport(wg *sync.WaitGroup) {
-	rabbit1 := rabbitmq.NewRabbitMQSimple("coorQueue")
+func reportStatus(wg *sync.WaitGroup) {
+	coorCli, err := racli.NewCoordinatorClient()
+	if err != nil {
+		wg.Done()
+		// TODO 日志
+		return
+	}
 
+	// TODO 增加退出死循环的方法
 	for {
 		//挨个ping其他agent(AgentIpList)，记录延迟到AgentDelay
 		ips := utils.GetAgentIps()
@@ -47,23 +43,17 @@ func heartReport(wg *sync.WaitGroup) {
 		waitG.Wait()
 		fmt.Println(agentDelay)
 		//TODO: 查看本地IPFS daemon是否正常，记录到ipfsStatus
-		ipfsStatus := true
+		ipfsStatus := consts.IPFS_STATUS_OK
 		//TODO：访问自身资源目录（配置文件中获取路径），记录是否正常，记录到localDirStatus
-		localDirStatus := true
+		localDirStatus := consts.LOCAL_DIR_STATUS_OK
+
 		//发送心跳
-		command := rabbitmq.HeartReport{
-			Ip:             "localhost",
-			AgentDelay:     agentDelay,
-			IpfsStatus:     ipfsStatus,
-			LocalDirStatus: localDirStatus,
-		}
-		c, _ := json.Marshal(command)
-		b := append([]byte("07"), c...)
-		fmt.Println(string(b))
-		rabbit1.PublishSimple(b)
+		coorCli.AgentStatusReport("localhost", agentDelay, ipfsStatus, localDirStatus)
 
 		time.Sleep(time.Minute * 5)
 	}
-	rabbit1.Destroy()
+
+	coorCli.Close()
+
 	wg.Done()
 }

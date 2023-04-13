@@ -2,8 +2,9 @@ package main
 
 import (
 	"net"
-	agentserver "proto"
 	"sync"
+
+	agentserver "gitlink.org.cn/cloudream/proto"
 
 	"google.golang.org/grpc"
 
@@ -34,7 +35,7 @@ func main() {
 	}
 	go serveCommandServer(cmdSvr, &wg)
 
-	go heartReport(&wg) //网络延迟感知
+	go reportStatus(&wg) //网络延迟感知
 
 	//面向客户端收发数据
 	lis, err := net.Listen("tcp", Port)
