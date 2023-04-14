@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"io/ioutil"
 
+	"gitlink.org.cn/cloudream/agent/config"
 	agentserver "gitlink.org.cn/cloudream/proto"
 
 	shell "github.com/ipfs/go-ipfs-api"
@@ -177,8 +178,8 @@ func (s *anyOne) GetBlockOrReplica(req *agentserver.GetReq, server agentserver.T
 
 	fSize := len(data)
 	fmt.Println(fSize)
-	numPacket := fSize / packetSizeInBytes
-	lastPacketInBytes := fSize % packetSizeInBytes
+	numPacket := fSize / config.Cfg().GRCPPacketSize
+	lastPacketInBytes := fSize % config.Cfg().GRCPPacketSize
 	if lastPacketInBytes > 0 {
 		numPacket++
 	}
@@ -188,10 +189,10 @@ func (s *anyOne) GetBlockOrReplica(req *agentserver.GetReq, server agentserver.T
 		if i == numPacket-1 && lastPacketInBytes > 0 {
 			buf = make([]byte, lastPacketInBytes)
 		} else {
-			buf = make([]byte, packetSizeInBytes)
+			buf = make([]byte, config.Cfg().GRCPPacketSize)
 		}
 		fmt.Println(len(buf))
-		buf = []byte(data[i*packetSizeInBytes : i*packetSizeInBytes+packetSizeInBytes])
+		buf = []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
 		fmt.Println(buf)
 		print("#@#@#@#@#")
 

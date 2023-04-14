@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 
+	"gitlink.org.cn/cloudream/agent/config"
 	"gitlink.org.cn/cloudream/ec"
 	"gitlink.org.cn/cloudream/utils"
 
@@ -48,13 +49,13 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	fmt.Println(fURL)
 	fileInfo, _ := inFile.Stat()
 	fileSizeInBytes := fileInfo.Size()
-	numWholePacket := fileSizeInBytes / packetSizeInBytes
-	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
+	numWholePacket := fileSizeInBytes / config.Cfg().GRCPPacketSize
+	lastPacketInBytes := fileSizeInBytes % config.Cfg().GRCPPacketSize
 	fmt.Println(fileSizeInBytes)
 	fmt.Println(numWholePacket)
 	fmt.Println(lastPacketInBytes)
 	for i := 0; int64(i) < numWholePacket; i++ {
-		buf := make([]byte, packetSizeInBytes)
+		buf := make([]byte, config.Cfg().GRCPPacketSize)
 		inFile.Read(buf)
 		outFile.Write(buf)
 	}
@@ -107,17 +108,17 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	//源文件
 	data := CatIPFS(hashs[0])
 
-	numWholePacket := fileSizeInBytes / packetSizeInBytes
-	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
+	numWholePacket := fileSizeInBytes / int64(config.Cfg().GRCPPacketSize)
+	lastPacketInBytes := fileSizeInBytes % int64(config.Cfg().GRCPPacketSize)
 	fmt.Println(fileSizeInBytes)
 	fmt.Println(numWholePacket)
 	fmt.Println(lastPacketInBytes)
 	for i := 0; int64(i) < numWholePacket; i++ {
-		buf := []byte(data[i*packetSizeInBytes : i*packetSizeInBytes+packetSizeInBytes])
+		buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
 		outFile.Write(buf)
 	}
 	if lastPacketInBytes > 0 {
-		buf := []byte(data[numWholePacket*packetSizeInBytes : numWholePacket*packetSizeInBytes+lastPacketInBytes])
+		buf := []byte(data[numWholePacket*int64(config.Cfg().GRCPPacketSize) : numWholePacket*int64(config.Cfg().GRCPPacketSize)+lastPacketInBytes])
 		outFile.Write(buf)
 	}
 	outFile.Close()
@@ -129,7 +130,7 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
 	}
 	defer coorClient.Close()
-	coorClient.TempCacheReport(LocalIp, hashs)
+	coorClient.TempCacheReport(config.Cfg().LocalIP, hashs)
 
 	return ramsg.NewAgentMoveRespOK()
 }
@@ -147,7 +148,7 @@ func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveR
 	ecPolicy := ecPolicies[ecName]
 	ecK := ecPolicy.GetK()
 	ecN := ecPolicy.GetN()
-	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
+	numPacket := (fileSizeInBytes + int64(ecK)*int64(config.Cfg().GRCPPacketSize) - 1) / (int64(ecK) * int64(config.Cfg().GRCPPacketSize))
 
 	getBufs := make([]chan []byte, ecN)
 	decodeBufs := make([]chan []byte, ecK)
@@ -175,7 +176,7 @@ func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveR
 		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
 	}
 	defer coorClient.Close()
-	coorClient.TempCacheReport(LocalIp, hashs)
+	coorClient.TempCacheReport(config.Cfg().LocalIP, hashs)
 
 	return ramsg.NewAgentMoveRespOK()
 }
@@ -227,7 +228,7 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 func get(blockHash string, getBuf chan []byte, numPacket int64) {
 	data := CatIPFS(blockHash)
 	for i := 0; int64(i) < numPacket; i++ {
-		buf := []byte(data[i*packetSizeInBytes : i*packetSizeInBytes+packetSizeInBytes])
+		buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
 		getBuf <- buf
 	}
 	close(getBuf)

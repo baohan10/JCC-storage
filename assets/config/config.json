@@ -1,0 +1,10 @@
+{
+    "grpcPort": 5010,
+    "grpcPacketSize": 10,
+    "localIP": "localhost",
+    "logger": {
+        "outputFileName": "cloud-agent",
+        "outputDirectory": "log",
+        "level": "debug"
+    }
+}

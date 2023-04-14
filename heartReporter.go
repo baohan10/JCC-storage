@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	"gitlink.org.cn/cloudream/agent/config"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
@@ -14,7 +15,7 @@ func reportStatus(wg *sync.WaitGroup) {
 	coorCli, err := racli.NewCoordinatorClient()
 	if err != nil {
 		wg.Done()
-		// TODO 日志
+		log.Error("new coordinator client failed, err: %w", err)
 		return
 	}
 
@@ -27,28 +28,32 @@ func reportStatus(wg *sync.WaitGroup) {
 		waitG.Add(len(ips))
 		for i := 0; i < len(ips); i++ {
 			go func(i int, wg *sync.WaitGroup) {
-				connStatus := utils.GetConnStatus(ips[i])
-				fmt.Println(connStatus)
+				connStatus, err := utils.GetConnStatus(ips[i])
+				if err != nil {
+					wg.Done()
+					log.Warnf("ping %s failed, err: %s", ips[i], err.Error())
+					return
+				}
+
+				log.Debugf("connection status to %s: %+v", ips[i], connStatus)
+
 				if connStatus.IsReachable {
 					agentDelay[i] = int(connStatus.Delay.Milliseconds()) + 1
 				} else {
 					agentDelay[i] = -1
 				}
 
-				print(agentDelay[i])
-				//wg.Wait()
 				wg.Done()
 			}(i, &waitG)
 		}
 		waitG.Wait()
-		fmt.Println(agentDelay)
 		//TODO: 查看本地IPFS daemon是否正常，记录到ipfsStatus
 		ipfsStatus := consts.IPFS_STATUS_OK
 		//TODO：访问自身资源目录（配置文件中获取路径），记录是否正常，记录到localDirStatus
 		localDirStatus := consts.LOCAL_DIR_STATUS_OK
 
 		//发送心跳
-		coorCli.AgentStatusReport("localhost", agentDelay, ipfsStatus, localDirStatus)
+		coorCli.AgentStatusReport(config.Cfg().LocalIP, agentDelay, ipfsStatus, localDirStatus)
 
 		time.Sleep(time.Minute * 5)
 	}
