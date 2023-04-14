@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	log "github.com/sirupsen/logrus"
 	mydb "gitlink.org.cn/cloudream/db"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	"gitlink.org.cn/cloudream/utils"
@@ -32,14 +33,14 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 	bucketID, err := service.db.QueryBucketID(msg.BucketName)
 	if err != nil {
-		// TODO 日志
+		log.Warn("query BucketID failed, err: %s", err.Error())
 		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query BucketID failed")
 	}
 
 	//jh:使用command中的bucketid和objectname查询对象表,获得objectid,redundancy，EcName,fileSizeInBytes
 	object, err := service.db.QueryObject(msg.ObjectName, bucketID)
 	if err != nil {
-		// TODO 日志
+		log.Warn("query Object failed, err: %s", err.Error())
 		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
@@ -50,7 +51,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	if object.Redundancy { //rep
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
 		if err != nil {
-			// TODO 日志
+			log.Warn("query ObjectRep failed, err: %s", err.Error())
 			return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
@@ -60,7 +61,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 		redundancy = "ec"
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
-			// TODO 日志
+			log.Warn("query ObjectBlock failed, err: %s", err.Error())
 			return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectBlock failed")
 		}
 
@@ -108,12 +109,12 @@ func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteR
 	//查询用户可用的节点IP
 	nodeIPs, err := service.db.QueryUserAvailableNodeIPs(msg.UserID)
 	if err != nil {
-		// TODO2 日志
+		log.Warn("query user available node ip failed, err: %s", err.Error())
 		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user available node ip failed")
 	}
 
 	if len(nodeIPs) < msg.ReplicateNumber {
-		// TODO2 日志
+		log.Warn("user nodes are not enough, err: %s", err.Error())
 		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
 	}
 
@@ -127,7 +128,7 @@ func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteR
 
 	_, err = service.db.CreateRepObject(msg.ObjectName, msg.BucketName, msg.FileSizeInBytes, msg.ReplicateNumber)
 	if err != nil {
-		// TODO2 日志
+		log.Warn("create object failed, err: %s", err.Error())
 		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "create object failed")
 	}
 
