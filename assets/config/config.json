@@ -1,0 +1,6 @@
+{
+    "grpcPort": 5010,
+    "grpcPacketSize": 10,
+    "ipfsPort": 10,
+    "maxReplicateNumber": 10
+}

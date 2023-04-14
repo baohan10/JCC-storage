@@ -6,41 +6,48 @@ import (
 
 	_ "google.golang.org/grpc/balancer/grpclb"
 
+	"gitlink.org.cn/cloudream/client/config"
+
 	"strconv"
 )
 
-// TODO2 配置读取
 //TODO xh: 读取配置文件，初始化变量，获取packetSizeInBytes、grpc port、ipfs port、最大副本数、本机公网Ip等信息，参照src/utils/config.go
 
 func main() {
-	args := os.Args
-	arg_num := len(os.Args)
-	for i := 0; i < arg_num; i++ {
-		fmt.Println(args[i])
+	err := config.Init()
+	if err != nil {
+		fmt.Printf("init config failed, err: %s", err.Error())
+		os.Exit(1)
 	}
 
+	args := os.Args
 	switch args[1] {
 	case "ecWrite":
 		//TODO: 写入对象时，Coor判断对象是否已存在，如果存在，则直接返回
 		if err := EcWrite(args[2], args[3], args[4], args[5]); err != nil {
 			fmt.Printf("ec write failed, err: %s", err.Error())
+			os.Exit(1)
 		}
 	case "write":
 		numRep, _ := strconv.Atoi(args[5])
-		if numRep <= 0 || numRep > 10 { //TODO xh:10改为从配置文件中读出的最大副本数
-			print("write::InputError!") //TODO xh:优化提示语
-		} else {
-			if err := RepWrite(args[2], args[3], args[4], numRep); err != nil {
-				fmt.Printf("rep write failed, err: %s", err.Error())
-			}
+		if numRep <= 0 || numRep > config.Cfg().MaxReplicateNumber {
+			fmt.Printf("replicate number should not be more than %d", config.Cfg().MaxReplicateNumber)
+			os.Exit(1)
 		}
+		if err := RepWrite(args[2], args[3], args[4], numRep); err != nil {
+			fmt.Printf("rep write failed, err: %s", err.Error())
+			os.Exit(1)
+		}
+
 	case "read":
 		if err := Read(args[2], args[3], args[4]); err != nil {
 			fmt.Printf("read failed, err: %s", err.Error())
+			os.Exit(1)
 		}
 	case "move":
 		if err := Move(args[2], args[3], args[4]); err != nil {
 			fmt.Printf("move failed, err: %s", err.Error())
+			os.Exit(1)
 		}
 	}
 	/*

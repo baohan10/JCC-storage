@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 
+	"gitlink.org.cn/cloudream/client/config"
 	agentcaller "gitlink.org.cn/cloudream/proto"
 
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
@@ -22,12 +23,6 @@ import (
 	"google.golang.org/grpc"
 
 	_ "google.golang.org/grpc/balancer/grpclb"
-)
-
-const (
-	// TODO2 改为配置文件读取
-	port              = ":5010"
-	packetSizeInBytes = 10
 )
 
 func Move(bucketName string, objectName string, destination string) error {
@@ -119,7 +114,7 @@ func Read(localFilePath string, bucketName string, objectName string) error {
 }
 
 func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath string) error {
-	grpcAddr := ip + port
+	grpcAddr := fmt.Sprintf("%s:%d", ip, config.Cfg().GRPCPort)
 	conn, err := grpc.Dial(grpcAddr, grpc.WithInsecure())
 	if err != nil {
 		return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
@@ -159,7 +154,7 @@ func repRead(fileSizeInBytes int64, ip string, repHash string, localFilePath str
 		return fmt.Errorf("request grpc failed, err: %w", err)
 	}
 
-	numPacket := (fileSizeInBytes + packetSizeInBytes - 1) / (packetSizeInBytes)
+	numPacket := (fileSizeInBytes + config.Cfg().GRCPPacketSize - 1) / config.Cfg().GRCPPacketSize
 	for i := int64(0); i < numPacket; i++ {
 		resp, err := stream.Recv()
 		if err != nil {
@@ -185,7 +180,7 @@ func ecRead(fileSizeInBytes int64, ips []string, blockHashs []string, blockIds [
 	ecN := ecPolicy.GetN()
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 
-	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
+	numPacket := (fileSizeInBytes + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
 	fmt.Println(numPacket)
 	//创建channel
 	getBufs := make([]chan []byte, ecN)
@@ -218,8 +213,8 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	fileSizeInBytes := fileInfo.Size()
 
 	//写入对象的packet数
-	numWholePacket := fileSizeInBytes / packetSizeInBytes
-	lastPacketInBytes := fileSizeInBytes % packetSizeInBytes
+	numWholePacket := fileSizeInBytes / config.Cfg().GRCPPacketSize
+	lastPacketInBytes := fileSizeInBytes % config.Cfg().GRCPPacketSize
 	numPacket := numWholePacket
 	if lastPacketInBytes > 0 {
 		numPacket++
@@ -297,7 +292,7 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 
 	//计算每个块的packet数
-	numPacket := (fileSizeInBytes + int64(ecK)*packetSizeInBytes - 1) / (int64(ecK) * packetSizeInBytes)
+	numPacket := (fileSizeInBytes + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
 	fmt.Println(numPacket)
 
 	userId := 0
@@ -368,7 +363,7 @@ func loadDistribute(localFilePath string, loadDistributeBufs []chan []byte, numW
 	fmt.Println("loadDistribute " + localFilePath)
 	file, _ := os.Open(localFilePath)
 	for i := 0; int64(i) < numWholePacket; i++ {
-		buf := make([]byte, packetSizeInBytes)
+		buf := make([]byte, config.Cfg().GRCPPacketSize)
 		_, err := file.Read(buf)
 		if err != nil && err != io.EOF {
 			break
@@ -398,7 +393,7 @@ func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket 
 	for i := 0; int64(i) < totalNumPacket; i++ {
 		print(totalNumPacket)
 
-		buf := make([]byte, packetSizeInBytes)
+		buf := make([]byte, config.Cfg().GRCPPacketSize)
 		idx := i % ecK
 		print(len(loadBufs))
 		_, err := file.Read(buf)
@@ -408,7 +403,7 @@ func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket 
 			print("***")
 			for j := ecK; j < len(loadBufs); j++ {
 				print(j)
-				zeroPkt := make([]byte, packetSizeInBytes)
+				zeroPkt := make([]byte, config.Cfg().GRCPPacketSize)
 				fmt.Printf("%v", zeroPkt)
 				loadBufs[j] <- zeroPkt
 			}
@@ -502,7 +497,7 @@ func send(blockName string, ip string, inBuf chan []byte, numPacket int64, wg *s
 			否则，像目前一样，使用grpc向指定节点获取
 	*/
 	//rpc相关
-	conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, config.Cfg().GRPCPort), grpc.WithInsecure())
 	if err != nil {
 		panic(err)
 	}
@@ -535,7 +530,7 @@ func send(blockName string, ip string, inBuf chan []byte, numPacket int64, wg *s
 func get(blockHash string, ip string, getBuf chan []byte, numPacket int64) {
 	//rpc相关
 	print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-	conn, err := grpc.Dial(ip+port, grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", ip, config.Cfg().GRPCPort), grpc.WithInsecure())
 	if err != nil {
 		panic(err)
 	}
