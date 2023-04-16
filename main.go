@@ -45,6 +45,7 @@ func main() {
 			os.Exit(1)
 		}
 	case "move":
+		//TODO xh:  args[4]由destination改为BackID
 		if err := Move(args[2], args[3], args[4]); err != nil {
 			fmt.Printf("move failed, err: %s", err.Error())
 			os.Exit(1)

@@ -26,13 +26,12 @@ import (
 )
 
 func Move(bucketName string, objectName string, destination string) error {
+	//TODO xh: destination 改为BackID
 	//将bucketName, objectName, destination发给协调端
 	fmt.Println("move " + bucketName + "/" + objectName + " to " + destination)
 	userId := 0
 
-	//获取块hash，ip，序号，编码参数等
-	//发送写请求，分配写入节点Ip
-	// 先向协调端请求文件相关的数据
+	// 先向协调端请求文件相关的元数据
 	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		return fmt.Errorf("create coordinator client failed, err: %w", err)
@@ -56,6 +55,7 @@ func Move(bucketName string, objectName string, destination string) error {
 
 	switch moveResp.Redundancy {
 	case consts.REDUNDANCY_REP:
+		//TODO xh: 传入moveResp.dir(agentMoveResp中增加该字段)
 		agentMoveResp, err := agentClient.RepMove(moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
 		if err != nil {
 			return fmt.Errorf("request to agent %s failed, err: %w", destination, err)
@@ -349,14 +349,6 @@ func EcWrite(localFilePath string, bucketName string, objectName string, ecName 
 	}
 
 	return nil
-}
-
-func repMove(ip string, hash string) {
-	//TO DO: 通过消息队列发送调度命令
-}
-
-func ecMove(ip string, hashs []string, ids []int, ecName string) {
-	//TO DO: 通过消息队列发送调度命令
 }
 
 func loadDistribute(localFilePath string, loadDistributeBufs []chan []byte, numWholePacket int64, lastPacketInBytes int64) {
