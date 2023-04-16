@@ -88,6 +88,7 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	hashs := msg.Hashs
 	fileSizeInBytes := msg.FileSizeInBytes
 	//执行调度操作
+	//TODO xh: 调度到BackID对应的dir中，即goalDir改为传过来的agentMoveResp.dir
 	goalDir := "assets2"
 	goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
 	//目标文件
