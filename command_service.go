@@ -7,6 +7,7 @@ import (
 	mydb "gitlink.org.cn/cloudream/db"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	"gitlink.org.cn/cloudream/utils"
+
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
@@ -31,6 +32,10 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//--查询缓存表，获得每个hash的nodeIps、TempOrPins、Times
 	//--查询节点延迟表，得到command.destination与各个nodeIps的的延迟，存到一个map类型中（Delay）
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
+
+	//TODO xh: 查询UserBackend表，BackID是否可供用户使用，若不可，则直接返回报错；若可，则返回对应的Dir
+
+	//TODO xh: QueryBucketID和QueryObject考虑合并
 	bucketID, err := service.db.QueryBucketID(msg.BucketName)
 	if err != nil {
 		log.Warn("query BucketID failed, err: %s", err.Error())
@@ -95,7 +100,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 			//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 		}*/
 	}
-
+	//TODO xh: 增加一个dir字段（调度目的地本地文件夹目录）
 	return ramsg.NewCoorMoveRespOK(
 		redundancy,
 		object.ECName,
