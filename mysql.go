@@ -66,7 +66,6 @@ func Insert_Node(nodeip string, nodelocation string, ipfsstatus string, localdir
 		_, err := db.Exec(sql, NodeStatus, nodeip)
 		HandleError("update failed: ", err)
 	}
-	return
 }
 
 // 纠删码对象表插入
