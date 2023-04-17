@@ -2,6 +2,7 @@
     "grpcPort": 5010,
     "grpcPacketSize": 10,
     "localIP": "localhost",
+    "ipfsPort": 5001,
     "logger": {
         "outputFileName": "cloud-agent",
         "outputDirectory": "log",

@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/agent/config"
 	"gitlink.org.cn/cloudream/ec"
 	"gitlink.org.cn/cloudream/utils"
@@ -14,79 +16,22 @@ import (
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
+	myio "gitlink.org.cn/cloudream/utils/io"
+	"gitlink.org.cn/cloudream/utils/ipfs"
 )
 
 type CommandService struct {
+	ipfs *ipfs.IPFS
+}
+
+func NewCommandService(ipfs *ipfs.IPFS) *CommandService {
+	return &CommandService{
+		ipfs: ipfs,
+	}
 }
 
 func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMoveResp {
-	/*fmt.Println("RepMove")
-	fmt.Println(command.Hashs)
-	hashs := command.Hashs
-	//执行调度操作
-	ipfsDir := "assets"
-	goalDir := "assets2"
-	goalName := command.BucketName + ":" + command.ObjectName + ":" + strconv.Itoa(command.UserId)
-	//目标文件
-	fDir, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	fURL := filepath.Join(filepath.Dir(fDir), goalDir)
-
-	_, err = os.Stat(fURL)
-	if os.IsNotExist(err) {
-		os.MkdirAll(fURL, os.ModePerm)
-	}
-	fURL = filepath.Join(fURL, goalName)
-	outFile, err := os.Create(fURL)
-
-	fmt.Println(fURL)
-	//源文件
-	fURL = filepath.Join(filepath.Dir(fDir), ipfsDir)
-	fURL = filepath.Join(fURL, hashs[0])
-	inFile, _ := os.Open(fURL)
-	fmt.Println(fURL)
-	fileInfo, _ := inFile.Stat()
-	fileSizeInBytes := fileInfo.Size()
-	numWholePacket := fileSizeInBytes / config.Cfg().GRCPPacketSize
-	lastPacketInBytes := fileSizeInBytes % config.Cfg().GRCPPacketSize
-	fmt.Println(fileSizeInBytes)
-	fmt.Println(numWholePacket)
-	fmt.Println(lastPacketInBytes)
-	for i := 0; int64(i) < numWholePacket; i++ {
-		buf := make([]byte, config.Cfg().GRCPPacketSize)
-		inFile.Read(buf)
-		outFile.Write(buf)
-	}
-	if lastPacketInBytes > 0 {
-		buf := make([]byte, lastPacketInBytes)
-		inFile.Read(buf)
-		outFile.Write(buf)
-	}
-	inFile.Close()
-	outFile.Close()
-	//返回消息
-	res := rabbitmq.AgentMoveRes{
-		MoveCode: 0,
-	}
-	c, _ := json.Marshal(res)
-	rabbitSend(c, command.UserId)
-	//向coor报告临时缓存hash
-	command1 := rabbitmq.TempCacheReport{
-		Ip:    LocalIp,
-		Hashs: hashs,
-	}
-	c, _ = json.Marshal(command1)
-	b := append([]byte("06"), c...)
-	fmt.Println(b)
-	rabbit := rabbitmq.NewRabbitMQSimple("coorQueue")
-	rabbit.PublishSimple(b)
-	rabbit.Destroy()*/
-	fmt.Println("RepMove")
-	fmt.Println(msg.Hashs)
 	hashs := msg.Hashs
-	fileSizeInBytes := msg.FileSizeInBytes
 	//执行调度操作
 	//TODO xh: 调度到BackID对应的dir中，即goalDir改为传过来的agentMoveResp.dir
 	goalDir := "assets2"
@@ -97,32 +42,47 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 		panic(err)
 	}
 	fURL := filepath.Join(filepath.Dir(fDir), goalDir)
-
+	// TODO2 这一块代码需要优化
 	_, err = os.Stat(fURL)
 	if os.IsNotExist(err) {
 		os.MkdirAll(fURL, os.ModePerm)
 	}
 	fURL = filepath.Join(fURL, goalName)
+
 	outFile, err := os.Create(fURL)
-
-	fmt.Println(fURL)
-	//源文件
-	data := CatIPFS(hashs[0])
-
-	numWholePacket := fileSizeInBytes / int64(config.Cfg().GRCPPacketSize)
-	lastPacketInBytes := fileSizeInBytes % int64(config.Cfg().GRCPPacketSize)
-	fmt.Println(fileSizeInBytes)
-	fmt.Println(numWholePacket)
-	fmt.Println(lastPacketInBytes)
-	for i := 0; int64(i) < numWholePacket; i++ {
-		buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
-		outFile.Write(buf)
+	if err != nil {
+		log.Warnf("create file %s failed, err: %s", fURL, err.Error())
+		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file failed"))
 	}
-	if lastPacketInBytes > 0 {
-		buf := []byte(data[numWholePacket*int64(config.Cfg().GRCPPacketSize) : numWholePacket*int64(config.Cfg().GRCPPacketSize)+lastPacketInBytes])
-		outFile.Write(buf)
+	defer outFile.Close()
+
+	fileHash := hashs[0]
+	ipfsRd, err := service.ipfs.OpenRead(fileHash)
+	if err != nil {
+		log.Warnf("read ipfs file %s failed, err: %s", fileHash, err.Error())
+		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file failed"))
 	}
-	outFile.Close()
+
+	buf := make([]byte, 1024)
+	for {
+		readCnt, err := ipfsRd.Read(buf)
+
+		// 文件读取完毕
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			log.Warnf("read ipfs file %s data failed, err: %s", fileHash, err.Error())
+			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file data failed"))
+		}
+
+		err = myio.WriteAll(outFile, buf[:readCnt])
+		if err != nil {
+			log.Warnf("write data to file %s failed, err: %s", fURL, err.Error())
+			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("write data to file failed"))
+		}
+	}
 
 	//向coor报告临时缓存hash
 	coorClient, err := racli.NewCoordinatorClient()

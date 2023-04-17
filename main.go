@@ -6,8 +6,10 @@ import (
 	"os"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/agent/config"
 	agentserver "gitlink.org.cn/cloudream/proto"
+	"gitlink.org.cn/cloudream/utils/ipfs"
 	"gitlink.org.cn/cloudream/utils/logger"
 
 	"google.golang.org/grpc"
@@ -19,6 +21,9 @@ import (
 var AgentIpList []string
 
 func main() {
+	// TODO 放到配置里读取
+	AgentIpList = []string{"pcm01", "pcm1", "pcm2"}
+
 	err := config.Init()
 	if err != nil {
 		fmt.Printf("init config failed, err: %s", err.Error())
@@ -31,29 +36,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	AgentIpList = []string{"pcm01", "pcm1", "pcm2"}
+	ipfs, err := ipfs.NewIPFS(config.Cfg().IPFSPort)
+	if err != nil {
+		log.Fatalf("new ipfs failed, err: %s", err.Error())
+	}
+
 	//处置协调端、客户端命令（可多建几个）
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
 	// 启动命令服务器
-	cmdSvr, err := rasvr.NewAgentServer(&CommandService{}, config.Cfg().LocalIP)
+	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().LocalIP)
 	if err != nil {
-		// TODO 错误日志
-		return
+		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
 	go serveCommandServer(cmdSvr, &wg)
 
 	go reportStatus(&wg) //网络延迟感知
 
 	//面向客户端收发数据
-	lis, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", config.Cfg().GRPCPort))
+	listenAddr := fmt.Sprintf("127.0.0.1:%d", config.Cfg().GRPCPort)
+	lis, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		panic(err)
+		log.Fatalf("listen on %s failed, err: %s", listenAddr, err.Error())
 	}
+
 	s := grpc.NewServer()
-	agentserver.RegisterTranBlockOrReplicaServer(s, &anyOne{})
+	agentserver.RegisterTranBlockOrReplicaServer(s, NewGPRCService(ipfs))
 	s.Serve(lis)
+
 	wg.Wait()
 }
 
