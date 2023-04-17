@@ -123,8 +123,9 @@ func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveR
 	wg.Add(1)
 
 	//执行调度操作
+	// TODO 这一块需要改写以适配IPFS流式读取
 	for i := 0; i < len(blockIds); i++ {
-		go get(hashs[i], getBufs[blockIds[i]], numPacket)
+		go service.get(hashs[i], getBufs[blockIds[i]], numPacket)
 	}
 	go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
 	go persist(decodeBufs[:], numPacket, goalName, &wg)
@@ -186,7 +187,7 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	}
 }
 
-func get(blockHash string, getBuf chan []byte, numPacket int64) {
+func (service *CommandService) get(blockHash string, getBuf chan []byte, numPacket int64) {
 	data := CatIPFS(blockHash)
 	for i := 0; int64(i) < numPacket; i++ {
 		buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
