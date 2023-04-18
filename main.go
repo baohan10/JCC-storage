@@ -46,7 +46,8 @@ func main() {
 	wg.Add(2)
 
 	// 启动命令服务器
-	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().LocalIP)
+	// TODO 需要设计AgentID持久化机制
+	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), 0)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}

@@ -31,31 +31,24 @@ func NewCommandService(ipfs *ipfs.IPFS) *CommandService {
 }
 
 func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMoveResp {
-	hashs := msg.Hashs
-	//执行调度操作
-	//TODO xh: 调度到BackID对应的dir中，即goalDir改为传过来的agentMoveResp.dir
-	goalDir := "assets2"
-	goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
-	//目标文件
-	fDir, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	fURL := filepath.Join(filepath.Dir(fDir), goalDir)
-	// TODO2 这一块代码需要优化
-	_, err = os.Stat(fURL)
-	if os.IsNotExist(err) {
-		os.MkdirAll(fURL, os.ModePerm)
-	}
-	fURL = filepath.Join(fURL, goalName)
+	outFileName := utils.MakeMoveOperationFileName(msg.BucketName, msg.ObjectName, msg.UserID)
+	outFileDir := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory)
+	outFilePath := filepath.Join(outFileDir, outFileName)
 
-	outFile, err := os.Create(fURL)
+	err := os.MkdirAll(outFileDir, 0644)
 	if err != nil {
-		log.Warnf("create file %s failed, err: %s", fURL, err.Error())
+		log.Warnf("create file directory %s failed, err: %s", outFileDir, err.Error())
+		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file directory failed"))
+	}
+
+	outFile, err := os.Create(outFilePath)
+	if err != nil {
+		log.Warnf("create file %s failed, err: %s", outFilePath, err.Error())
 		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file failed"))
 	}
 	defer outFile.Close()
 
+	hashs := msg.Hashs
 	fileHash := hashs[0]
 	ipfsRd, err := service.ipfs.OpenRead(fileHash)
 	if err != nil {
@@ -79,7 +72,7 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 
 		err = myio.WriteAll(outFile, buf[:readCnt])
 		if err != nil {
-			log.Warnf("write data to file %s failed, err: %s", fURL, err.Error())
+			log.Warnf("write data to file %s failed, err: %s", outFilePath, err.Error())
 			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("write data to file failed"))
 		}
 	}
@@ -87,10 +80,11 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	//向coor报告临时缓存hash
 	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
-		// TODO 日志
-		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
+		log.Warnf("new coordinator client failed, err: %s", err.Error())
+		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("new coordinator client failed"))
 	}
 	defer coorClient.Close()
+
 	coorClient.TempCacheReport(config.Cfg().LocalIP, hashs)
 
 	return ramsg.NewAgentMoveRespOK()
@@ -128,6 +122,7 @@ func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveR
 		go service.get(hashs[i], getBufs[blockIds[i]], numPacket)
 	}
 	go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
+	// TODO 写入的文件路径需要带上msg中的Directory字段，参考RepMove
 	go persist(decodeBufs[:], numPacket, goalName, &wg)
 	wg.Wait()
 

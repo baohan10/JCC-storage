@@ -10,6 +10,7 @@ type Config struct {
 	GRCPPacketSize int        `json:"grpcPacketSize"`
 	LocalIP        string     `json:"localIP"`
 	IPFSPort       int        `json:"ipfsPort"`
+	StorageBaseDir string     `json:"storageBaseDir"`
 	Logger         log.Config `json:"logger"`
 }
 

@@ -3,6 +3,7 @@
     "grpcPacketSize": 10,
     "localIP": "localhost",
     "ipfsPort": 5001,
+    "storageBaseDir": ".",
     "logger": {
         "outputFileName": "cloud-agent",
         "outputDirectory": "log",
