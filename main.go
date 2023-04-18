@@ -45,8 +45,13 @@ func main() {
 			os.Exit(1)
 		}
 	case "move":
-		//TODO xh:  args[4]由destination改为BackID
-		if err := Move(args[2], args[3], args[4]); err != nil {
+		stgID, err := strconv.Atoi(args[4])
+		if err != nil {
+			fmt.Printf("invalid storage id %s, err: %s", args[4], err.Error())
+			os.Exit(1)
+		}
+
+		if err := Move(args[2], args[3], stgID); err != nil {
 			fmt.Printf("move failed, err: %s", err.Error())
 			os.Exit(1)
 		}

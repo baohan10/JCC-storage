@@ -25,10 +25,8 @@ import (
 	_ "google.golang.org/grpc/balancer/grpclb"
 )
 
-func Move(bucketName string, objectName string, destination string) error {
-	//TODO xh: destination 改为BackID
-	//将bucketName, objectName, destination发给协调端
-	fmt.Println("move " + bucketName + "/" + objectName + " to " + destination)
+func Move(bucketName string, objectName string, stgID int) error {
+	// TODO 此处是写死的常量
 	userId := 0
 
 	// 先向协调端请求文件相关的元数据
@@ -38,7 +36,7 @@ func Move(bucketName string, objectName string, destination string) error {
 	}
 	defer coorClient.Close()
 
-	moveResp, err := coorClient.Move(bucketName, objectName, userId, destination)
+	moveResp, err := coorClient.Move(bucketName, objectName, userId, stgID)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -47,30 +45,29 @@ func Move(bucketName string, objectName string, destination string) error {
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := racli.NewAgentClient(destination)
+	agentClient, err := racli.NewAgentClient(moveResp.NodeID)
 	if err != nil {
-		return fmt.Errorf("create agent client to %s failed, err: %w", destination, err)
+		return fmt.Errorf("create agent client to %d failed, err: %w", stgID, err)
 	}
 	defer agentClient.Close()
 
 	switch moveResp.Redundancy {
 	case consts.REDUNDANCY_REP:
-		//TODO xh: 传入moveResp.dir(agentMoveResp中增加该字段)
-		agentMoveResp, err := agentClient.RepMove(moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
 		if err != nil {
-			return fmt.Errorf("request to agent %s failed, err: %w", destination, err)
+			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %s operation failed, code: %s, messsage: %s", destination, agentMoveResp.ErrorCode, agentMoveResp.Message)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
 		}
 
 	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(moveResp.Hashes, moveResp.IDs, moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
 		if err != nil {
-			return fmt.Errorf("request to agent %s failed, err: %w", destination, err)
+			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %s operation failed, code: %s, messsage: %s", destination, agentMoveResp.ErrorCode, agentMoveResp.Message)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
 		}
 	}
 
