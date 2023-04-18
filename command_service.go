@@ -33,25 +33,28 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//--查询节点延迟表，得到command.destination与各个nodeIps的的延迟，存到一个map类型中（Delay）
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 
-	//TODO xh: 查询UserBackend表，BackID是否可供用户使用，若不可，则直接返回报错；若可，则返回对应的Dir
-
-	//TODO xh: QueryBucketID和QueryObject考虑合并
-	bucketID, err := service.db.QueryBucketID(msg.BucketName)
+	// 查询用户关联的存储服务
+	stg, err := service.db.QueryUserStorage(msg.UserID, msg.StorageID)
 	if err != nil {
-		log.Warn("query BucketID failed, err: %s", err.Error())
-		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query BucketID failed")
+		log.WithField("UserID", msg.UserID).
+			WithField("StorageID", msg.StorageID).
+			Warn("query storage directory failed, err: %s", err.Error())
+		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query storage directory failed")
 	}
 
-	//jh:使用command中的bucketid和objectname查询对象表,获得objectid,redundancy，EcName,fileSizeInBytes
-	object, err := service.db.QueryObject(msg.ObjectName, bucketID)
+	// 查询文件对象
+	object, err := service.db.QueryObjectByFullName(msg.BucketName, msg.ObjectName)
 	if err != nil {
-		log.Warn("query Object failed, err: %s", err.Error())
+		log.WithField("BucketName", msg.BucketName).
+			WithField("ObjectName", msg.ObjectName).
+			Warn("query Object failed, err: %s", err.Error())
 		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
 	//-若redundancy是rep，查询对象副本表, 获得repHash
 	var hashs []string
 	ids := []int{0}
+	// TODO 这里是写死的常量
 	redundancy := "rep"
 	if object.Redundancy { //rep
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
@@ -100,8 +103,10 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 			//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 		}*/
 	}
-	//TODO xh: 增加一个dir字段（调度目的地本地文件夹目录）
+
 	return ramsg.NewCoorMoveRespOK(
+		stg.NodeID,
+		stg.Directory,
 		redundancy,
 		object.ECName,
 		hashs,
