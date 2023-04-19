@@ -8,6 +8,7 @@ import (
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	"gitlink.org.cn/cloudream/utils"
 
+	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
@@ -54,9 +55,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//-若redundancy是rep，查询对象副本表, 获得repHash
 	var hashs []string
 	ids := []int{0}
-	// TODO 这里是写死的常量
-	redundancy := "rep"
-	if object.Redundancy { //rep
+	if object.Redundancy == consts.REDUNDANCY_REP {
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
 		if err != nil {
 			log.Warn("query ObjectRep failed, err: %s", err.Error())
@@ -65,8 +64,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 
 		hashs = append(hashs, objectRep.RepHash)
 
-	} else { //ec
-		redundancy = "ec"
+	} else {
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			log.Warn("query ObjectBlock failed, err: %s", err.Error())
@@ -107,7 +105,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	return ramsg.NewCoorMoveRespOK(
 		stg.NodeID,
 		stg.Directory,
-		redundancy,
+		object.Redundancy,
 		object.ECName,
 		hashs,
 		ids,
@@ -117,46 +115,40 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 
 func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
 	//查询用户可用的节点IP
-	nodeIPs, err := service.db.QueryUserAvailableNodeIPs(msg.UserID)
+	nodes, err := service.db.QueryUserNodes(msg.UserID)
 	if err != nil {
-		log.Warn("query user available node ip failed, err: %s", err.Error())
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user available node ip failed")
+		log.Warn("query user nodes failed, err: %s", err.Error())
+		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
 	}
 
-	if len(nodeIPs) < msg.ReplicateNumber {
+	if len(nodes) < msg.ReplicateNumber {
 		log.Warn("user nodes are not enough, err: %s", err.Error())
 		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
 	}
 
 	numRep := msg.ReplicateNumber
+	ids := make([]int, numRep)
 	ips := make([]string, numRep)
 	//随机选取numRep个nodeIp
-	start := utils.GetRandInt(len(nodeIPs))
+	start := utils.GetRandInt(len(nodes))
 	for i := 0; i < numRep; i++ {
-		ips[i] = nodeIPs[(start+i)%len(nodeIPs)]
+		index := (start + i) % len(nodes)
+		ips[i] = nodes[index].IP
+		ids[i] = nodes[index].NodeID
 	}
 
-	_, err = service.db.CreateRepObject(msg.ObjectName, msg.BucketName, msg.FileSizeInBytes, msg.ReplicateNumber)
-	if err != nil {
-		log.Warn("create object failed, err: %s", err.Error())
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "create object failed")
-	}
-
-	return ramsg.NewCoorWriteRespOK(ips)
+	return ramsg.NewCoorWriteRespOK(ids, ips)
 }
 
 func (service *CommandService) WriteRepHash(msg *ramsg.WriteRepHashCommand) ramsg.WriteHashResp {
-	//jh：根据command中的信息，插入对象副本表中的Hash字段，并完成缓存表的插入
-	//插入对象副本表中的Hash字段
+	_, err := service.db.CreateRepObject(msg.BucketName, msg.ObjectName, msg.FileSizeInBytes, msg.ReplicateNumber, msg.NodeIDs, msg.Hashes)
+	if err != nil {
+		log.WithField("BucketName", msg.BucketName).
+			WithField("ObjectName", msg.ObjectName).
+			Warnf("create rep object failed, err: %s", err.Error())
+		return ramsg.NewCoorWriteHashRespFailed(errorcode.OPERATION_FAILED, "create rep object failed")
+	}
 
-	//TODO xh: objectID的查询合并到Insert_RepHash函数中去
-	ObjectId := Query_ObjectID(msg.ObjectName)
-	Insert_RepHash(ObjectId, msg.Hashes[0])
-
-	//缓存表的插入
-	Insert_Cache(msg.Hashes, msg.IPs, false)
-
-	//返回消息
 	return ramsg.NewCoorWriteHashRespOK()
 }
 
@@ -201,72 +193,100 @@ func (service *CommandService) WriteECHash(msg *ramsg.WriteECHashCommand) ramsg.
 	ObjectId := Query_ObjectID(msg.ObjectName)
 	Insert_EcHash(ObjectId, msg.Hashes)
 	//缓存表的插入
-	Insert_Cache(msg.Hashes, msg.IPs, false)
+	Insert_Cache(msg.Hashes, msg.NodeIDs, false)
 
 	return ramsg.NewCoorWriteHashRespOK()
 }
 
 func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
-	var ips, hashs []string
-	blockIds := []int{0}
-	//先查询
-	BucketID := Query_BucketID(msg.BucketName)
-	//jh:使用command中的bucketid和objectname查询对象表,获得objectid,redundancy，EcName,fileSizeInBytes
-	/*
-		TODO xh:
-		redundancyy（bool型）这个变量名不规范（应该是为了与redundancy（字符型）分开而随意取的名），需调整：
-			只用redundancy变量，且将其类型调整为bool（用常量EC表示false,REP表示true），ReadRes结构体的定义做相应修改
-	*/
-	ObjectID, fileSizeInBytes, redundancyy, ecName := Query_Object(msg.ObjectName, BucketID)
+	var hashes []string
+	blockIDs := []int{0}
+
+	// 查询文件对象
+	object, err := service.db.QueryObjectByFullName(msg.BucketName, msg.ObjectName)
+	if err != nil {
+		log.WithField("BucketName", msg.BucketName).
+			WithField("ObjectName", msg.ObjectName).
+			Warn("query Object failed, err: %s", err.Error())
+		return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
+	}
+
+	var nodeIPs []string
 	//-若redundancy是rep，查询对象副本表, 获得repHash
-	redundancy := "rep"
-	if redundancyy { //rep
-		repHash := Query_ObjectRep(ObjectID)
-		hashs[0] = repHash
-		caches := Query_Cache(repHash)
-		//TODO xh: 所有错误消息均不可吃掉，记录到日志里
-		for _, cache := range caches {
-			ip := cache.NodeIP
-			ips = append(ips, ip)
+	if object.Redundancy == consts.REDUNDANCY_REP {
+		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
+		if err != nil {
+			log.WithField("ObjectID", object.ObjectID).
+				Warn("query ObjectRep failed, err: %s", err.Error())
+			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
-	} else { //ec
-		redundancy = "ec"
-		blockHashs := Query_ObjectBlock(ObjectID)
+		hashes = append(hashes, objectRep.RepHash)
+
+		nodes, err := service.db.QueryCacheNodeByBlockHash(objectRep.RepHash)
+		if err != nil {
+			log.WithField("RepHash", objectRep.RepHash).
+				Warn("query Cache failed, err: %s", err.Error())
+			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
+		}
+
+		for _, node := range nodes {
+			nodeIPs = append(nodeIPs, node.IP)
+		}
+
+	} else {
+		blocks, err := service.db.QueryObjectBlock(object.ObjectID)
+		if err != nil {
+			log.WithField("ObjectID", object.ObjectID).
+				Warn("query Object Block failed, err: %s", err.Error())
+			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object Block failed")
+		}
+
 		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[ecName]
+		ecPolicy := ecPolicies[object.ECName]
 		ecN := ecPolicy.GetN()
 		ecK := ecPolicy.GetK()
-		for i := 0; i < ecN; i++ {
-			ips = append(ips, "-1")
-			hashs = append(hashs, "-1")
-		}
-		for _, tt := range blockHashs {
+		nodeIPs = make([]string, ecN)
+		hashes = make([]string, ecN)
+
+		for _, tt := range blocks {
 			id := tt.InnerID
 			hash := tt.BlockHash
-			hashs[id] = hash //这里有问题，采取的其实是直接顺序读的方式，等待加入自适应读模块
-			cache := Query_Cache(hash)
-			ip := cache[0].NodeIP
-			ips[id] = ip
+			hashes[id] = hash //这里有问题，采取的其实是直接顺序读的方式，等待加入自适应读模块
+
+			nodes, err := service.db.QueryCacheNodeByBlockHash(hash)
+			if err != nil {
+				log.WithField("BlockHash", hash).
+					Warn("query Cache failed, err: %s", err.Error())
+				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
+			}
+
+			if len(nodes) == 0 {
+				log.WithField("BlockHash", hash).
+					Warn("No node cache the block data for the BlockHash")
+				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
+			}
+
+			nodeIPs[id] = nodes[0].IP
 		}
 		//这里也有和上面一样的问题
 		for i := 1; i < ecK; i++ {
-			blockIds = append(blockIds, i)
+			blockIDs = append(blockIDs, i)
 		}
 	}
 
 	return ramsg.NewCoorReadRespOK(
-		redundancy,
-		ips,
-		hashs,
-		blockIds,
-		ecName,
-		fileSizeInBytes,
+		object.Redundancy,
+		nodeIPs,
+		hashes,
+		blockIDs,
+		object.ECName,
+		object.FileSizeInBytes,
 	)
 }
 
 func (service *CommandService) TempCacheReport(msg *ramsg.TempCacheReport) {
-	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.IP)
+	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
 }
 
 func (service *CommandService) AgentStatusReport(msg *ramsg.AgentStatusReport) {
