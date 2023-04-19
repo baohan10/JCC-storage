@@ -55,6 +55,7 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 		log.Warnf("read ipfs file %s failed, err: %s", fileHash, err.Error())
 		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file failed"))
 	}
+	defer ipfsRd.Close()
 
 	buf := make([]byte, 1024)
 	for {
@@ -85,7 +86,8 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	}
 	defer coorClient.Close()
 
-	coorClient.TempCacheReport(config.Cfg().LocalIP, hashs)
+	// TODO 这里更新失败残留下的文件是否要删除？
+	coorClient.TempCacheReport(NodeID, hashs)
 
 	return ramsg.NewAgentMoveRespOK()
 }
@@ -133,7 +135,7 @@ func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveR
 		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
 	}
 	defer coorClient.Close()
-	coorClient.TempCacheReport(config.Cfg().LocalIP, hashs)
+	coorClient.TempCacheReport(NodeID, hashs)
 
 	return ramsg.NewAgentMoveRespOK()
 }

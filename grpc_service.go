@@ -12,7 +12,7 @@ import (
 )
 
 type GRPCService struct {
-	agentserver.TranBlockOrReplicaServer
+	agentserver.FileTransportServer
 	ipfs *ipfs.IPFS
 }
 
@@ -22,18 +22,42 @@ func NewGPRCService(ipfs *ipfs.IPFS) *GRPCService {
 	}
 }
 
-func (s *GRPCService) SendBlockOrReplica(server agentserver.TranBlockOrReplica_SendBlockOrReplicaServer) error {
+func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) error {
 	writer, err := s.ipfs.CreateFile()
 	if err != nil {
 		log.Warnf("create file failed, err: %s", err.Error())
 		return fmt.Errorf("create file failed, err: %w", err)
 	}
 
+	// 然后读取文件数据
+	var recvSize int64
 	for {
 		msg, err := server.Recv()
 
-		// 客户端数据发送完毕，则停止文件写入，获得文件Hash
-		if err == io.EOF {
+		// 读取客户端数据失败
+		// 即使err是io.EOF，只要没有收到客户端包含EOF数据包就被断开了连接，就认为接收失败
+		if err != nil {
+			// 关闭文件写入，不需要返回的hash和error
+			// TODO 需要研究一下通过错误中断写入后，已发送的文件数据能不能自动删除
+			writer.Finish(io.ErrClosedPipe)
+			log.WithField("ReceiveSize", recvSize).
+				Warnf("recv message failed, err: %s", err.Error())
+			return fmt.Errorf("recv message failed, err: %w", err)
+		}
+
+		if msg.Type == agentserver.FileDataPacketType_Data {
+			err = myio.WriteAll(writer, msg.Data)
+			if err != nil {
+				// 关闭文件写入，不需要返回的hash和error
+				writer.Finish(io.ErrClosedPipe)
+				log.Warnf("write data to file failed, err: %s", err.Error())
+				return fmt.Errorf("write data to file failed, err: %w", err)
+			}
+
+			recvSize += int64(len(msg.Data))
+
+		} else if msg.Type == agentserver.FileDataPacketType_EOF {
+			// 客户端明确说明文件传输已经结束，那么结束写入，获得文件Hash
 			hash, err := writer.Finish(io.EOF)
 			if err != nil {
 				log.Warnf("finish writing failed, err: %s", err.Error())
@@ -41,36 +65,24 @@ func (s *GRPCService) SendBlockOrReplica(server agentserver.TranBlockOrReplica_S
 			}
 
 			// 并将结果返回到客户端
-			server.SendAndClose(&agentserver.SendRes{
-				BlockOrReplicaName: msg.BlockOrReplicaName,
-				BlockOrReplicaHash: hash,
+			err = server.SendAndClose(&agentserver.SendResp{
+				FileHash: hash,
 			})
+			if err != nil {
+				// TODO 文件已经完整写入，需要考虑是否删除此文件
+				log.Warnf("send response failed, err: %s", err.Error())
+				return fmt.Errorf("send response failed, err: %w", err)
+			}
+
 			return nil
-		}
-
-		// 读取客户端数据失败
-		if err != nil {
-			// 关闭文件写入，不需要返回的hash和error
-			writer.Finish(io.ErrClosedPipe)
-			log.Warnf("recv message failed, err: %s", err.Error())
-			return fmt.Errorf("recv message failed, err: %w", err)
-		}
-
-		// 写入到文件失败
-		err = myio.WriteAll(writer, msg.BlockOrReplicaData)
-		if err != nil {
-			// 关闭文件写入，不需要返回的hash和error
-			writer.Finish(io.ErrClosedPipe)
-			log.Warnf("write data to file failed, err: %s", err.Error())
-			return fmt.Errorf("write data to file failed, err: %w", err)
 		}
 	}
 }
 
-func (s *GRPCService) GetBlockOrReplica(req *agentserver.GetReq, server agentserver.TranBlockOrReplica_GetBlockOrReplicaServer) error {
-	reader, err := s.ipfs.OpenRead(req.BlockOrReplicaHash)
+func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTransport_GetFileServer) error {
+	reader, err := s.ipfs.OpenRead(req.FileHash)
 	if err != nil {
-		log.Warnf("open file %s to read failed, err: %s", req.BlockOrReplicaHash, err.Error())
+		log.Warnf("open file %s to read failed, err: %s", req.FileHash, err.Error())
 		return fmt.Errorf("open file to read failed, err: %w", err)
 	}
 	defer reader.Close()
@@ -81,20 +93,27 @@ func (s *GRPCService) GetBlockOrReplica(req *agentserver.GetReq, server agentser
 
 		// 文件读取完毕
 		if err == io.EOF {
+			// 发送EOF消息
+			server.Send(&agentserver.FileDataPacket{
+				Type: agentserver.FileDataPacketType_EOF,
+			})
 			return nil
 		}
 
 		// io.ErrUnexpectedEOF没有读满整个buf就遇到了EOF，此时正常发送剩余数据即可。除了这两个错误之外，其他错误都中断操作
 		if err != io.ErrUnexpectedEOF {
-			log.Warnf("read file %s data failed, err: %s", req.BlockOrReplicaHash, err.Error())
+			log.Warnf("read file %s data failed, err: %s", req.FileHash, err.Error())
 			return fmt.Errorf("read file data failed, err: %w", err)
 		}
 
-		server.Send(&agentserver.BlockOrReplica{
-			BlockOrReplicaName: "json",
-			BlockOrReplicaHash: "json",
-			BlockOrReplicaData: buf[:readCnt],
+		err = server.Send(&agentserver.FileDataPacket{
+			Type: agentserver.FileDataPacketType_Data,
+			Data: buf[:readCnt],
 		})
+		if err != nil {
+			log.WithField("FileHash", req.FileHash).
+				Warnf("send file data failed, err: %s", err.Error())
+			return fmt.Errorf("send file data failed, err: %w", err)
+		}
 	}
-	return nil
 }

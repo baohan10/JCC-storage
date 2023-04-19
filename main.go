@@ -20,6 +20,11 @@ import (
 // TODO 此数据是否在运行时会发生变化？
 var AgentIpList []string
 
+const (
+	// TODO 考虑从保存的配置文件中读取
+	NodeID = 0
+)
+
 func main() {
 	// TODO 放到配置里读取
 	AgentIpList = []string{"pcm01", "pcm1", "pcm2"}
@@ -47,7 +52,7 @@ func main() {
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), 0)
+	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), NodeID)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -63,7 +68,7 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	agentserver.RegisterTranBlockOrReplicaServer(s, NewGPRCService(ipfs))
+	agentserver.RegisterFileTransportServer(s, NewGPRCService(ipfs))
 	s.Serve(lis)
 
 	wg.Wait()
