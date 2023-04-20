@@ -5,7 +5,6 @@ import (
 	"io"
 
 	log "github.com/sirupsen/logrus"
-	"gitlink.org.cn/cloudream/agent/config"
 	agentserver "gitlink.org.cn/cloudream/proto"
 	myio "gitlink.org.cn/cloudream/utils/io"
 	"gitlink.org.cn/cloudream/utils/ipfs"
@@ -87,9 +86,9 @@ func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTr
 	}
 	defer reader.Close()
 
-	buf := make([]byte, 0, config.Cfg().GRCPPacketSize)
+	buf := make([]byte, 1024)
 	for {
-		readCnt, err := io.ReadFull(reader, buf)
+		readCnt, err := reader.Read(buf)
 
 		// 文件读取完毕
 		if err == io.EOF {
@@ -101,7 +100,7 @@ func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTr
 		}
 
 		// io.ErrUnexpectedEOF没有读满整个buf就遇到了EOF，此时正常发送剩余数据即可。除了这两个错误之外，其他错误都中断操作
-		if err != io.ErrUnexpectedEOF {
+		if err != nil && err != io.ErrUnexpectedEOF {
 			log.Warnf("read file %s data failed, err: %s", req.FileHash, err.Error())
 			return fmt.Errorf("read file data failed, err: %w", err)
 		}
