@@ -104,7 +104,7 @@ func Read(localFilePath string, bucketName string, objectName string) error {
 
 	case consts.REDUNDANCY_EC:
 		// TODO EC部分的代码要考虑重构
-		//ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, readResp.ECName, localFilePath)
+		ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, readResp.ECName, localFilePath)
 	}
 
 	return nil
