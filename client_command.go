@@ -59,7 +59,7 @@ func Move(bucketName string, objectName string, stgID int) error {
 		}
 
 	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
 		if err != nil {
 			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
 		}
@@ -104,7 +104,7 @@ func Read(localFilePath string, bucketName string, objectName string) error {
 
 	case consts.REDUNDANCY_EC:
 		// TODO EC部分的代码要考虑重构
-		ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, readResp.ECName, localFilePath)
+		ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName, localFilePath)
 	}
 
 	return nil
@@ -204,7 +204,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if repWriteResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator RepWrite failed, err: %w", err)
+		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.Message)
 	}
 
 	file, err := os.Open(localFilePath)
@@ -252,7 +252,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if writeRepHashResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator WriteRepHash failed, err: %w", err)
+		return fmt.Errorf("coordinator WriteRepHash failed, code: %s, message: %s", writeRepHashResp.ErrorCode, writeRepHashResp.Message)
 	}
 
 	return nil
