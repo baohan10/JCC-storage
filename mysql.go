@@ -1,5 +1,8 @@
 package main
 
+// TODO 这里面的代码要移动到db库的db.go中
+
+/*
 import (
 	"fmt"
 	"time"
@@ -347,52 +350,4 @@ func Query_NodeDelay(innodeip string, outnodeip string) (delay int) {
 	}
 	return
 }
-
-/*
-func main(){
-	// Insert_RepHash(1,"aaa")
-	// Hashs := []string{"aaa","bbb","ddd"}
-	// // ObjectId := Query_ObjectID(ObjectName)
-	// // Insert_EcHash(ObjectId, Hashs)
-	// // fmt.Println(BlockID[0])
-	// Ips := []string{"chengdu","beijing","changsha"}
-	// Insert_Cache(Hashs, Ips, false)
-
-	// var BucketName string = "bucket01"
-	// var ObjectName string = "bucket01"
-	// BucketID := Query_BucketID(BucketName)
-	// ObjectID, fileSizeInBytes, redundancy, EcName := Query_Object(ObjectName, BucketID)
-	// fmt.Println(ObjectID,fileSizeInBytes,redundancy,EcName)
-	// // repHash := Query_ObjectRep(ObjectID)
-    // // fmt.Println(repHash)
-	// if redundancy == false{
-	// 	objectblock := Query_ObjectBlock(ObjectID)
-	// 	var Destination string = "shanghai"
-	// 	for _,value := range objectblock{
-	// 		Cache := Query_Cache(value.BlockHash)
-	// 		Delay := make(map[string]int) // 延迟集合
-	// 		for i:=0; i<len(Cache); i++{
-	// 			Delay[Cache[i].NodeIP] = Query_NodeDelay(Destination, Cache[i].NodeIP)
-	// 		}
-	// 		fmt.Println(len(Delay))
-	// 		fmt.Println(value.InnerID, value.BlockHash, Cache[0].NodeIP, Cache[0].TempOrPin, Time_trans(Cache[0].Cachetime))
-	// 		fmt.Println(value.InnerID, value.BlockHash, Cache[1].NodeIP, Cache[1].TempOrPin, Time_trans(Cache[1].Cachetime))
-	// 	}
-	// }
-
-	// var ecN int = 5
-	// for i:=0; i<ecN; i++{
-	// 	Insert_EcObjectBlock(1, i)
-	// }
-
-	// fmt.Println(Query_BucketID("bucket01"))
-
-	// a,b,d := "bucket01",123456,"Ec01"
-	// var c int64 = 12345678987654321
-	// fmt.Println(Insert_EcObject(a, b, c, d))
-
-	// var s int
-	// s = 123
-	// c := Query_UserNode(s)
-	// fmt.Println(c)
-}*/
+*/
