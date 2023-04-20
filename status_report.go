@@ -5,7 +5,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"gitlink.org.cn/cloudream/agent/config"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
@@ -22,6 +21,7 @@ func reportStatus(wg *sync.WaitGroup) {
 	// TODO 增加退出死循环的方法
 	for {
 		//挨个ping其他agent(AgentIpList)，记录延迟到AgentDelay
+		// TODO AgentIP考虑放到配置文件里或者启动时从coor获取
 		ips := utils.GetAgentIps()
 		agentDelay := make([]int, len(ips))
 		waitG := sync.WaitGroup{}
@@ -53,7 +53,8 @@ func reportStatus(wg *sync.WaitGroup) {
 		localDirStatus := consts.LOCAL_DIR_STATUS_OK
 
 		//发送心跳
-		coorCli.AgentStatusReport(config.Cfg().LocalIP, agentDelay, ipfsStatus, localDirStatus)
+		// TODO 由于数据结构未定，暂时不发送真实数据
+		coorCli.AgentStatusReport(NodeID, []int{}, []int{}, ipfsStatus, localDirStatus)
 
 		time.Sleep(time.Minute * 5)
 	}
