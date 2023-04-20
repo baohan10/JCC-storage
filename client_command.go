@@ -212,7 +212,7 @@ func ecRead(fileSizeInBytes int64, nodeIPs []string, blockHashs []string, blockI
 type fileSender struct {
 	grpcCon  *grpc.ClientConn
 	stream   agentcaller.FileTransport_SendFileClient
-	nodeIP   string
+	nodeID   int
 	fileHash string
 	err      error
 }
@@ -258,7 +258,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	senders := make([]fileSender, numRep)
 
 	// 建立grpc连接，发送请求
-	startSendFile(numRep, senders, repWriteResp.NodeIPs)
+	startSendFile(numRep, senders, repWriteResp.NodeIDs, repWriteResp.NodeIPs)
 
 	// 向每个节点发送数据
 	err = sendFileData(file, numRep, senders)
@@ -270,20 +270,20 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	sendFinish(numRep, senders)
 
 	// 收集发送成功的节点以及返回的hash
-	var sucNodeIPs []string
+	var sucNodeIDs []int
 	var sucFileHashes []string
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
 		if sender.err == nil {
-			sucNodeIPs = append(sucNodeIPs, sender.nodeIP)
+			sucNodeIDs = append(sucNodeIDs, sender.nodeID)
 			sucFileHashes = append(sucFileHashes, sender.fileHash)
 		}
 	}
 
 	// 记录写入的文件的Hash
 	// TODO 如果一个都没有写成功，那么是否要发送这个请求？
-	writeRepHashResp, err := coorClient.WriteRepHash(bucketName, objectName, sucFileHashes, sucNodeIPs, userId)
+	writeRepHashResp, err := coorClient.WriteRepHash(bucketName, objectName, fileSizeInBytes, numRep, userId, sucNodeIDs, sucFileHashes)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -294,11 +294,11 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	return nil
 }
 
-func startSendFile(numRep int, senders []fileSender, nodeIPs []string) {
+func startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []string) {
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
-		sender.nodeIP = nodeIPs[i]
+		sender.nodeID = nodeIDs[i]
 
 		grpcAddr := fmt.Sprintf("%s:%d", nodeIPs[i], config.Cfg().GRPCPort)
 		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
