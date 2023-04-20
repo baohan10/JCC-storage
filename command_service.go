@@ -37,7 +37,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	if err != nil {
 		log.WithField("UserID", msg.UserID).
 			WithField("StorageID", msg.StorageID).
-			Warn("query storage directory failed, err: %s", err.Error())
+			Warnf("query storage directory failed, err: %s", err.Error())
 		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query storage directory failed")
 	}
 
@@ -46,7 +46,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	if err != nil {
 		log.WithField("BucketName", msg.BucketName).
 			WithField("ObjectName", msg.ObjectName).
-			Warn("query Object failed, err: %s", err.Error())
+			Warnf("query Object failed, err: %s", err.Error())
 		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
@@ -56,7 +56,7 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	if object.Redundancy == consts.REDUNDANCY_REP {
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
 		if err != nil {
-			log.Warn("query ObjectRep failed, err: %s", err.Error())
+			log.Warnf("query ObjectRep failed, err: %s", err.Error())
 			return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
@@ -65,12 +65,12 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	} else {
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
-			log.Warn("query ObjectBlock failed, err: %s", err.Error())
+			log.Warnf("query ObjectBlock failed, err: %s", err.Error())
 			return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectBlock failed")
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[object.ECName]
+		ecPolicy := ecPolicies[*object.ECName]
 		ecN := ecPolicy.GetN()
 		ecK := ecPolicy.GetK()
 		ids = make([]int, ecK)
@@ -112,15 +112,20 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 }
 
 func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
+	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
+	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
+
 	//查询用户可用的节点IP
 	nodes, err := service.db.QueryUserNodes(msg.UserID)
 	if err != nil {
-		log.Warn("query user nodes failed, err: %s", err.Error())
+		log.Warnf("query user nodes failed, err: %s", err.Error())
 		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
 	}
 
 	if len(nodes) < msg.ReplicateNumber {
-		log.Warn("user nodes are not enough, err: %s", err.Error())
+		log.WithField("UserID", msg.UserID).
+			WithField("ReplicateNumber", msg.ReplicateNumber).
+			Warnf("user nodes are not enough")
 		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
 	}
 
@@ -159,7 +164,7 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	if err != nil {
 		log.WithField("BucketName", msg.BucketName).
 			WithField("ObjectName", msg.ObjectName).
-			Warn("query Object failed, err: %s", err.Error())
+			Warnf("query Object failed, err: %s", err.Error())
 		return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
@@ -169,7 +174,7 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
 		if err != nil {
 			log.WithField("ObjectID", object.ObjectID).
-				Warn("query ObjectRep failed, err: %s", err.Error())
+				Warnf("query ObjectRep failed, err: %s", err.Error())
 			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
@@ -178,7 +183,7 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		nodes, err := service.db.QueryCacheNodeByBlockHash(objectRep.RepHash)
 		if err != nil {
 			log.WithField("RepHash", objectRep.RepHash).
-				Warn("query Cache failed, err: %s", err.Error())
+				Warnf("query Cache failed, err: %s", err.Error())
 			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
 		}
 
@@ -190,12 +195,12 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		blocks, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			log.WithField("ObjectID", object.ObjectID).
-				Warn("query Object Block failed, err: %s", err.Error())
+				Warnf("query Object Block failed, err: %s", err.Error())
 			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object Block failed")
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[object.ECName]
+		ecPolicy := ecPolicies[*object.ECName]
 		ecN := ecPolicy.GetN()
 		ecK := ecPolicy.GetK()
 		nodeIPs = make([]string, ecN)
@@ -209,13 +214,13 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 			nodes, err := service.db.QueryCacheNodeByBlockHash(hash)
 			if err != nil {
 				log.WithField("BlockHash", hash).
-					Warn("query Cache failed, err: %s", err.Error())
+					Warnf("query Cache failed, err: %s", err.Error())
 				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
 			}
 
 			if len(nodes) == 0 {
 				log.WithField("BlockHash", hash).
-					Warn("No node cache the block data for the BlockHash")
+					Warnf("No node cache the block data for the BlockHash")
 				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
 			}
 

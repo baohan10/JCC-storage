@@ -15,7 +15,7 @@ func (service *CommandService) ECWrite(msg *ramsg.ECWriteCommand) ramsg.WriteRes
 		//查询用户可用的节点IP
 		nodes, err := service.db.QueryUserNodes(msg.UserID)
 		if err != nil {
-			log.Warn("query user nodes failed, err: %s", err.Error())
+			log.Warnf("query user nodes failed, err: %s", err.Error())
 			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
 		}
 
@@ -25,7 +25,7 @@ func (service *CommandService) ECWrite(msg *ramsg.ECWriteCommand) ramsg.WriteRes
 		ecN := ecPolicy.GetN()
 
 		if len(nodes) < ecN {
-			log.Warn("user nodes are not enough, err: %s", err.Error())
+			log.Warnf("user nodes are not enough, err: %s", err.Error())
 			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
 		}
 
