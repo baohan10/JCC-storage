@@ -1,67 +1,64 @@
 package main
 
-/*
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 
-	"gitlink.org.cn/cloudream/agent/config"
 	"gitlink.org.cn/cloudream/ec"
-	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
-	"gitlink.org.cn/cloudream/utils"
-	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
 func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveResp {
-	wg := sync.WaitGroup{}
-	fmt.Println("EcMove")
-	fmt.Println(msg.Hashs)
-	hashs := msg.Hashs
-	fileSizeInBytes := msg.FileSizeInBytes
-	blockIds := msg.IDs
-	ecName := msg.ECName
-	goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
-	ecPolicies := *utils.GetEcPolicy()
-	ecPolicy := ecPolicies[ecName]
-	ecK := ecPolicy.GetK()
-	ecN := ecPolicy.GetN()
-	numPacket := (fileSizeInBytes + int64(ecK)*int64(config.Cfg().GRCPPacketSize) - 1) / (int64(ecK) * int64(config.Cfg().GRCPPacketSize))
+	panic("not implement yet!")
+	/*
+		wg := sync.WaitGroup{}
+		fmt.Println("EcMove")
+		fmt.Println(msg.Hashs)
+		hashs := msg.Hashs
+		fileSizeInBytes := msg.FileSizeInBytes
+		blockIds := msg.IDs
+		ecName := msg.ECName
+		goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
+		ecPolicies := *utils.GetEcPolicy()
+		ecPolicy := ecPolicies[ecName]
+		ecK := ecPolicy.GetK()
+		ecN := ecPolicy.GetN()
+		numPacket := (fileSizeInBytes + int64(ecK)*int64(config.Cfg().GRCPPacketSize) - 1) / (int64(ecK) * int64(config.Cfg().GRCPPacketSize))
 
-	getBufs := make([]chan []byte, ecN)
-	decodeBufs := make([]chan []byte, ecK)
-	for i := 0; i < ecN; i++ {
-		getBufs[i] = make(chan []byte)
-	}
-	for i := 0; i < ecK; i++ {
-		decodeBufs[i] = make(chan []byte)
-	}
+		getBufs := make([]chan []byte, ecN)
+		decodeBufs := make([]chan []byte, ecK)
+		for i := 0; i < ecN; i++ {
+			getBufs[i] = make(chan []byte)
+		}
+		for i := 0; i < ecK; i++ {
+			decodeBufs[i] = make(chan []byte)
+		}
 
-	wg.Add(1)
+		wg.Add(1)
 
-	//执行调度操作
-	// TODO 这一块需要改写以适配IPFS流式读取
-	for i := 0; i < len(blockIds); i++ {
-		go service.get(hashs[i], getBufs[blockIds[i]], numPacket)
-	}
-	go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
-	// TODO 写入的文件路径需要带上msg中的Directory字段，参考RepMove
-	go persist(decodeBufs[:], numPacket, goalName, &wg)
-	wg.Wait()
+		//执行调度操作
+		// TODO 这一块需要改写以适配IPFS流式读取
+		for i := 0; i < len(blockIds); i++ {
+			go service.get(hashs[i], getBufs[blockIds[i]], numPacket)
+		}
+		go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
+		// TODO 写入的文件路径需要带上msg中的Directory字段，参考RepMove
+		go persist(decodeBufs[:], numPacket, goalName, &wg)
+		wg.Wait()
 
-	//向coor报告临时缓存hash
-	coorClient, err := racli.NewCoordinatorClient()
-	if err != nil {
-		// TODO 日志
-		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
-	}
-	defer coorClient.Close()
-	coorClient.TempCacheReport(NodeID, hashs)
+		//向coor报告临时缓存hash
+		coorClient, err := racli.NewCoordinatorClient()
+		if err != nil {
+			// TODO 日志
+			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
+		}
+		defer coorClient.Close()
+		coorClient.TempCacheReport(NodeID, hashs)
 
-	return ramsg.NewAgentMoveRespOK()
+		return ramsg.NewAgentMoveRespOK()
+	*/
 }
 
 func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
@@ -109,12 +106,14 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 }
 
 func (service *CommandService) get(blockHash string, getBuf chan []byte, numPacket int64) {
-	data := CatIPFS(blockHash)
-	for i := 0; int64(i) < numPacket; i++ {
-		buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
-		getBuf <- buf
-	}
-	close(getBuf)
+	/*
+		data := CatIPFS(blockHash)
+		for i := 0; int64(i) < numPacket; i++ {
+			buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
+			getBuf <- buf
+		}
+		close(getBuf)
+	*/
 }
 
 func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *sync.WaitGroup) {
@@ -144,4 +143,3 @@ func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *syn
 	file.Close()
 	wg.Done()
 }
-*/
