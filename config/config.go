@@ -6,12 +6,12 @@ import (
 )
 
 type Config struct {
-	GRPCPort       int        `json:"grpcPort"`
-	GRCPPacketSize int        `json:"grpcPacketSize"`
-	LocalIP        string     `json:"localIP"`
-	IPFSPort       int        `json:"ipfsPort"`
-	StorageBaseDir string     `json:"storageBaseDir"`
-	Logger         log.Config `json:"logger"`
+	ID                int        `json:"id"`
+	GRPCListenAddress string     `json:"grpcListenAddress"`
+	LocalIP           string     `json:"localIP"`
+	IPFSPort          int        `json:"ipfsPort"`
+	StorageBaseDir    string     `json:"storageBaseDir"`
+	Logger            log.Config `json:"logger"`
 }
 
 var cfg Config

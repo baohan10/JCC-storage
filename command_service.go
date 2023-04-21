@@ -84,7 +84,7 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	defer coorClient.Close()
 
 	// TODO 这里更新失败残留下的文件是否要删除？
-	coorClient.TempCacheReport(NodeID, hashs)
+	coorClient.TempCacheReport(config.Cfg().ID, hashs)
 
 	return ramsg.NewAgentMoveRespOK()
 }

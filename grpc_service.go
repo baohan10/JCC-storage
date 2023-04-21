@@ -22,6 +22,8 @@ func NewGPRCService(ipfs *ipfs.IPFS) *GRPCService {
 }
 
 func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) error {
+	log.Debugf("client upload file")
+
 	writer, err := s.ipfs.CreateFile()
 	if err != nil {
 		log.Warnf("create file failed, err: %s", err.Error())
@@ -79,6 +81,8 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 }
 
 func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTransport_GetFileServer) error {
+	log.WithField("FileHash", req.FileHash).Debugf("client download file")
+
 	reader, err := s.ipfs.OpenRead(req.FileHash)
 	if err != nil {
 		log.Warnf("open file %s to read failed, err: %s", req.FileHash, err.Error())

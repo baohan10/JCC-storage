@@ -20,11 +20,6 @@ import (
 // TODO 此数据是否在运行时会发生变化？
 var AgentIpList []string
 
-const (
-	// TODO 考虑从保存的配置文件中读取
-	NodeID = 0
-)
-
 func main() {
 	// TODO 放到配置里读取
 	AgentIpList = []string{"pcm01", "pcm1", "pcm2"}
@@ -52,7 +47,7 @@ func main() {
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), NodeID)
+	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().ID)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -61,7 +56,7 @@ func main() {
 	go reportStatus(&wg) //网络延迟感知
 
 	//面向客户端收发数据
-	listenAddr := fmt.Sprintf("127.0.0.1:%d", config.Cfg().GRPCPort)
+	listenAddr := config.Cfg().GRPCListenAddress
 	lis, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatalf("listen on %s failed, err: %s", listenAddr, err.Error())
