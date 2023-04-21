@@ -20,12 +20,23 @@ func main() {
 
 	args := os.Args
 	switch args[1] {
-	case "ecWrite":
-		//TODO: 写入对象时，Coor判断对象是否已存在，如果存在，则直接返回
-		if err := EcWrite(args[2], args[3], args[4], args[5]); err != nil {
-			fmt.Printf("ec write failed, err: %s", err.Error())
+	case "read":
+		bucketID, err := strconv.Atoi(args[3])
+		if err != nil {
+			fmt.Printf("invalid bucket id %s, err: %s", args[3], err.Error())
 			os.Exit(1)
 		}
+		objectID, err := strconv.Atoi(args[4])
+		if err != nil {
+			fmt.Printf("invalid object id %s, err: %s", args[4], err.Error())
+			os.Exit(1)
+		}
+
+		if err := Read(args[2], bucketID, objectID); err != nil {
+			fmt.Printf("read failed, err: %s", err.Error())
+			os.Exit(1)
+		}
+
 	case "write":
 		numRep, _ := strconv.Atoi(args[5])
 		if numRep <= 0 || numRep > config.Cfg().MaxReplicateNumber {
@@ -36,12 +47,13 @@ func main() {
 			fmt.Printf("rep write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
-
-	case "read":
-		if err := Read(args[2], args[3], args[4]); err != nil {
-			fmt.Printf("read failed, err: %s", err.Error())
+	case "ecWrite":
+		//TODO: 写入对象时，Coor判断对象是否已存在，如果存在，则直接返回
+		if err := EcWrite(args[2], args[3], args[4], args[5]); err != nil {
+			fmt.Printf("ec write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
+
 	case "move":
 		stgID, err := strconv.Atoi(args[4])
 		if err != nil {

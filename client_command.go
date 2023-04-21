@@ -22,56 +22,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func Move(bucketName string, objectName string, stgID int) error {
-	// TODO 此处是写死的常量
-	userId := 0
-
-	// 先向协调端请求文件相关的元数据
-	coorClient, err := racli.NewCoordinatorClient()
-	if err != nil {
-		return fmt.Errorf("create coordinator client failed, err: %w", err)
-	}
-	defer coorClient.Close()
-
-	moveResp, err := coorClient.Move(bucketName, objectName, userId, stgID)
-	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if moveResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.Message)
-	}
-
-	// 然后向代理端发送移动文件的请求
-	agentClient, err := racli.NewAgentClient(moveResp.NodeID)
-	if err != nil {
-		return fmt.Errorf("create agent client to %d failed, err: %w", stgID, err)
-	}
-	defer agentClient.Close()
-
-	switch moveResp.Redundancy {
-	case consts.REDUNDANCY_REP:
-		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
-		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
-		}
-		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
-		}
-
-	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
-		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
-		}
-		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
-		}
-	}
-
-	return nil
-}
-
-func Read(localFilePath string, bucketName string, objectName string) error {
+func Read(localFilePath string, bucketID int, objectID int) error {
 	// TODO 此处是写死的常量
 	userId := 0
 
@@ -82,7 +33,7 @@ func Read(localFilePath string, bucketName string, objectName string) error {
 	}
 	defer coorClient.Close()
 
-	readResp, err := coorClient.Read(bucketName, objectName, userId)
+	readResp, err := coorClient.Read(bucketID, objectID, userId)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -387,4 +338,53 @@ func sendFinish(numRep int, senders []fileSender) {
 		sender.fileHash = resp.FileHash
 		sender.grpcCon.Close()
 	}
+}
+
+func Move(bucketName string, objectName string, stgID int) error {
+	// TODO 此处是写死的常量
+	userId := 0
+
+	// 先向协调端请求文件相关的元数据
+	coorClient, err := racli.NewCoordinatorClient()
+	if err != nil {
+		return fmt.Errorf("create coordinator client failed, err: %w", err)
+	}
+	defer coorClient.Close()
+
+	moveResp, err := coorClient.Move(bucketName, objectName, userId, stgID)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if moveResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.Message)
+	}
+
+	// 然后向代理端发送移动文件的请求
+	agentClient, err := racli.NewAgentClient(moveResp.NodeID)
+	if err != nil {
+		return fmt.Errorf("create agent client to %d failed, err: %w", stgID, err)
+	}
+	defer agentClient.Close()
+
+	switch moveResp.Redundancy {
+	case consts.REDUNDANCY_REP:
+		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		if err != nil {
+			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
+		}
+		if agentMoveResp.ErrorCode != errorcode.OK {
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
+		}
+
+	case consts.REDUNDANCY_EC:
+		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		if err != nil {
+			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
+		}
+		if agentMoveResp.ErrorCode != errorcode.OK {
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
+		}
+	}
+
+	return nil
 }
