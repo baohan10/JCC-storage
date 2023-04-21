@@ -107,6 +107,50 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	)
 }
 
+func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
+	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
+	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
+
+	//查询用户可用的节点IP
+	nodes, err := service.db.QueryUserNodes(msg.UserID)
+	if err != nil {
+		log.Warnf("query user nodes failed, err: %s", err.Error())
+		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
+	}
+
+	if len(nodes) < msg.ReplicateNumber {
+		log.WithField("UserID", msg.UserID).
+			WithField("ReplicateNumber", msg.ReplicateNumber).
+			Warnf("user nodes are not enough")
+		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
+	}
+
+	numRep := msg.ReplicateNumber
+	ids := make([]int, numRep)
+	ips := make([]string, numRep)
+	//随机选取numRep个nodeIp
+	start := utils.GetRandInt(len(nodes))
+	for i := 0; i < numRep; i++ {
+		index := (start + i) % len(nodes)
+		ids[i] = nodes[index].NodeID
+		ips[i] = nodes[index].IP
+	}
+
+	return ramsg.NewCoorWriteRespOK(ids, ips)
+}
+
+func (service *CommandService) WriteRepHash(msg *ramsg.WriteRepHashCommand) ramsg.WriteHashResp {
+	_, err := service.db.CreateRepObject(msg.BucketID, msg.ObjectName, msg.FileSizeInBytes, msg.ReplicateNumber, msg.NodeIDs, msg.Hashes)
+	if err != nil {
+		log.WithField("BucketName", msg.BucketID).
+			WithField("ObjectName", msg.ObjectName).
+			Warnf("create rep object failed, err: %s", err.Error())
+		return ramsg.NewCoorWriteHashRespFailed(errorcode.OPERATION_FAILED, "create rep object failed")
+	}
+
+	return ramsg.NewCoorWriteHashRespOK()
+}
+
 func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
@@ -195,50 +239,6 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 		ids,
 		object.FileSizeInBytes,
 	)
-}
-
-func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
-	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
-	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
-
-	//查询用户可用的节点IP
-	nodes, err := service.db.QueryUserNodes(msg.UserID)
-	if err != nil {
-		log.Warnf("query user nodes failed, err: %s", err.Error())
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
-	}
-
-	if len(nodes) < msg.ReplicateNumber {
-		log.WithField("UserID", msg.UserID).
-			WithField("ReplicateNumber", msg.ReplicateNumber).
-			Warnf("user nodes are not enough")
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
-	}
-
-	numRep := msg.ReplicateNumber
-	ids := make([]int, numRep)
-	ips := make([]string, numRep)
-	//随机选取numRep个nodeIp
-	start := utils.GetRandInt(len(nodes))
-	for i := 0; i < numRep; i++ {
-		index := (start + i) % len(nodes)
-		ids[i] = nodes[index].NodeID
-		ips[i] = nodes[index].IP
-	}
-
-	return ramsg.NewCoorWriteRespOK(ids, ips)
-}
-
-func (service *CommandService) WriteRepHash(msg *ramsg.WriteRepHashCommand) ramsg.WriteHashResp {
-	_, err := service.db.CreateRepObject(msg.BucketName, msg.ObjectName, msg.FileSizeInBytes, msg.ReplicateNumber, msg.NodeIDs, msg.Hashes)
-	if err != nil {
-		log.WithField("BucketName", msg.BucketName).
-			WithField("ObjectName", msg.ObjectName).
-			Warnf("create rep object failed, err: %s", err.Error())
-		return ramsg.NewCoorWriteHashRespFailed(errorcode.OPERATION_FAILED, "create rep object failed")
-	}
-
-	return ramsg.NewCoorWriteHashRespOK()
 }
 
 func (service *CommandService) TempCacheReport(msg *ramsg.TempCacheReport) {
