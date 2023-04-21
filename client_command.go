@@ -22,7 +22,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func Read(localFilePath string, bucketID int, objectID int) error {
+func Read(localFilePath string, objectID int) error {
 	// TODO 此处是写死的常量
 	userId := 0
 
@@ -33,7 +33,7 @@ func Read(localFilePath string, bucketID int, objectID int) error {
 	}
 	defer coorClient.Close()
 
-	readResp, err := coorClient.Read(bucketID, objectID, userId)
+	readResp, err := coorClient.Read(objectID, userId)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -340,7 +340,7 @@ func sendFinish(numRep int, senders []fileSender) {
 	}
 }
 
-func Move(bucketName string, objectName string, stgID int) error {
+func Move(objectID int, stgID int) error {
 	// TODO 此处是写死的常量
 	userId := 0
 
@@ -351,7 +351,7 @@ func Move(bucketName string, objectName string, stgID int) error {
 	}
 	defer coorClient.Close()
 
-	moveResp, err := coorClient.Move(bucketName, objectName, userId, stgID)
+	moveResp, err := coorClient.Move(objectID, stgID, userId)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -368,7 +368,7 @@ func Move(bucketName string, objectName string, stgID int) error {
 
 	switch moveResp.Redundancy {
 	case consts.REDUNDANCY_REP:
-		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, objectID, userId, moveResp.FileSizeInBytes)
 		if err != nil {
 			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
 		}
@@ -377,7 +377,7 @@ func Move(bucketName string, objectName string, stgID int) error {
 		}
 
 	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, bucketName, objectName, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, objectID, userId, moveResp.FileSizeInBytes)
 		if err != nil {
 			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
 		}

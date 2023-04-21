@@ -12,7 +12,7 @@ import (
 	"gitlink.org.cn/cloudream/utils"
 )
 
-func EcWrite(localFilePath string, bucketName string, objectName string, ecName string) error {
+func EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
 	panic("not implement yet!")
 	/*
 		fmt.Println("write " + localFilePath + " as " + bucketName + "/" + objectName)

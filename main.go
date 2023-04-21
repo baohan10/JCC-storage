@@ -21,18 +21,13 @@ func main() {
 	args := os.Args
 	switch args[1] {
 	case "read":
-		bucketID, err := strconv.Atoi(args[3])
+		objectID, err := strconv.Atoi(args[3])
 		if err != nil {
-			fmt.Printf("invalid bucket id %s, err: %s", args[3], err.Error())
-			os.Exit(1)
-		}
-		objectID, err := strconv.Atoi(args[4])
-		if err != nil {
-			fmt.Printf("invalid object id %s, err: %s", args[4], err.Error())
+			fmt.Printf("invalid object id %s, err: %s", args[3], err.Error())
 			os.Exit(1)
 		}
 
-		if err := Read(args[2], bucketID, objectID); err != nil {
+		if err := Read(args[2], objectID); err != nil {
 			fmt.Printf("read failed, err: %s", err.Error())
 			os.Exit(1)
 		}
@@ -54,20 +49,29 @@ func main() {
 			os.Exit(1)
 		}
 	case "ecWrite":
-		//TODO: 写入对象时，Coor判断对象是否已存在，如果存在，则直接返回
-		if err := EcWrite(args[2], args[3], args[4], args[5]); err != nil {
+		bucketID, err := strconv.Atoi(args[3])
+		if err != nil {
+			fmt.Printf("invalid bucket id %s, err: %s", args[3], err.Error())
+			os.Exit(1)
+		}
+		if err := EcWrite(args[2], bucketID, args[4], args[5]); err != nil {
 			fmt.Printf("ec write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
 
 	case "move":
-		stgID, err := strconv.Atoi(args[4])
+		objectID, err := strconv.Atoi(args[2])
 		if err != nil {
-			fmt.Printf("invalid storage id %s, err: %s", args[4], err.Error())
+			fmt.Printf("invalid object id %s, err: %s", args[2], err.Error())
+			os.Exit(1)
+		}
+		stgID, err := strconv.Atoi(args[3])
+		if err != nil {
+			fmt.Printf("invalid storage id %s, err: %s", args[3], err.Error())
 			os.Exit(1)
 		}
 
-		if err := Move(args[2], args[3], stgID); err != nil {
+		if err := Move(objectID, stgID); err != nil {
 			fmt.Printf("move failed, err: %s", err.Error())
 			os.Exit(1)
 		}
