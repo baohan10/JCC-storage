@@ -28,7 +28,7 @@ func NewCommandService(ipfs *ipfs.IPFS) *CommandService {
 }
 
 func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMoveResp {
-	outFileName := utils.MakeMoveOperationFileName(msg.BucketName, msg.ObjectName, msg.UserID)
+	outFileName := utils.MakeMoveOperationFileName(msg.ObjectID, msg.UserID)
 	outFileDir := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory)
 	outFilePath := filepath.Join(outFileDir, outFileName)
 
