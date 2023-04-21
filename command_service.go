@@ -20,7 +20,6 @@ func NewCommandService(db *mydb.DB) *CommandService {
 	}
 }
 
-// TODO 需要考虑数据库操作的事务性
 func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
