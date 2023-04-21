@@ -20,6 +20,93 @@ func NewCommandService(db *mydb.DB) *CommandService {
 	}
 }
 
+func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
+	var hashes []string
+	blockIDs := []int{0}
+
+	// 查询文件对象
+	object, err := service.db.QueryObjectByID(msg.BucketID, msg.ObjectID)
+	if err != nil {
+		log.WithField("BucketID", msg.BucketID).
+			WithField("ObjectID", msg.ObjectID).
+			Warnf("query Object failed, err: %s", err.Error())
+		return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
+	}
+
+	var nodeIPs []string
+	//-若redundancy是rep，查询对象副本表, 获得repHash
+	if object.Redundancy == consts.REDUNDANCY_REP {
+		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
+		if err != nil {
+			log.WithField("ObjectID", object.ObjectID).
+				Warnf("query ObjectRep failed, err: %s", err.Error())
+			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
+		}
+
+		hashes = append(hashes, objectRep.RepHash)
+
+		nodes, err := service.db.QueryCacheNodeByBlockHash(objectRep.RepHash)
+		if err != nil {
+			log.WithField("RepHash", objectRep.RepHash).
+				Warnf("query Cache failed, err: %s", err.Error())
+			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
+		}
+
+		for _, node := range nodes {
+			nodeIPs = append(nodeIPs, node.IP)
+		}
+
+	} else {
+		blocks, err := service.db.QueryObjectBlock(object.ObjectID)
+		if err != nil {
+			log.WithField("ObjectID", object.ObjectID).
+				Warnf("query Object Block failed, err: %s", err.Error())
+			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object Block failed")
+		}
+
+		ecPolicies := *utils.GetEcPolicy()
+		ecPolicy := ecPolicies[*object.ECName]
+		ecN := ecPolicy.GetN()
+		ecK := ecPolicy.GetK()
+		nodeIPs = make([]string, ecN)
+		hashes = make([]string, ecN)
+
+		for _, tt := range blocks {
+			id := tt.InnerID
+			hash := tt.BlockHash
+			hashes[id] = hash //这里有问题，采取的其实是直接顺序读的方式，等待加入自适应读模块
+
+			nodes, err := service.db.QueryCacheNodeByBlockHash(hash)
+			if err != nil {
+				log.WithField("BlockHash", hash).
+					Warnf("query Cache failed, err: %s", err.Error())
+				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
+			}
+
+			if len(nodes) == 0 {
+				log.WithField("BlockHash", hash).
+					Warnf("No node cache the block data for the BlockHash")
+				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
+			}
+
+			nodeIPs[id] = nodes[0].IP
+		}
+		//这里也有和上面一样的问题
+		for i := 1; i < ecK; i++ {
+			blockIDs = append(blockIDs, i)
+		}
+	}
+
+	return ramsg.NewCoorReadRespOK(
+		object.Redundancy,
+		nodeIPs,
+		hashes,
+		blockIDs,
+		object.ECName,
+		object.FileSizeInBytes,
+	)
+}
+
 func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
@@ -152,93 +239,6 @@ func (service *CommandService) WriteRepHash(msg *ramsg.WriteRepHashCommand) rams
 	}
 
 	return ramsg.NewCoorWriteHashRespOK()
-}
-
-func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
-	var hashes []string
-	blockIDs := []int{0}
-
-	// 查询文件对象
-	object, err := service.db.QueryObjectByFullName(msg.BucketName, msg.ObjectName)
-	if err != nil {
-		log.WithField("BucketName", msg.BucketName).
-			WithField("ObjectName", msg.ObjectName).
-			Warnf("query Object failed, err: %s", err.Error())
-		return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
-	}
-
-	var nodeIPs []string
-	//-若redundancy是rep，查询对象副本表, 获得repHash
-	if object.Redundancy == consts.REDUNDANCY_REP {
-		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
-		if err != nil {
-			log.WithField("ObjectID", object.ObjectID).
-				Warnf("query ObjectRep failed, err: %s", err.Error())
-			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
-		}
-
-		hashes = append(hashes, objectRep.RepHash)
-
-		nodes, err := service.db.QueryCacheNodeByBlockHash(objectRep.RepHash)
-		if err != nil {
-			log.WithField("RepHash", objectRep.RepHash).
-				Warnf("query Cache failed, err: %s", err.Error())
-			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
-		}
-
-		for _, node := range nodes {
-			nodeIPs = append(nodeIPs, node.IP)
-		}
-
-	} else {
-		blocks, err := service.db.QueryObjectBlock(object.ObjectID)
-		if err != nil {
-			log.WithField("ObjectID", object.ObjectID).
-				Warnf("query Object Block failed, err: %s", err.Error())
-			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object Block failed")
-		}
-
-		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[*object.ECName]
-		ecN := ecPolicy.GetN()
-		ecK := ecPolicy.GetK()
-		nodeIPs = make([]string, ecN)
-		hashes = make([]string, ecN)
-
-		for _, tt := range blocks {
-			id := tt.InnerID
-			hash := tt.BlockHash
-			hashes[id] = hash //这里有问题，采取的其实是直接顺序读的方式，等待加入自适应读模块
-
-			nodes, err := service.db.QueryCacheNodeByBlockHash(hash)
-			if err != nil {
-				log.WithField("BlockHash", hash).
-					Warnf("query Cache failed, err: %s", err.Error())
-				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
-			}
-
-			if len(nodes) == 0 {
-				log.WithField("BlockHash", hash).
-					Warnf("No node cache the block data for the BlockHash")
-				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
-			}
-
-			nodeIPs[id] = nodes[0].IP
-		}
-		//这里也有和上面一样的问题
-		for i := 1; i < ecK; i++ {
-			blockIDs = append(blockIDs, i)
-		}
-	}
-
-	return ramsg.NewCoorReadRespOK(
-		object.Redundancy,
-		nodeIPs,
-		hashes,
-		blockIDs,
-		object.ECName,
-		object.FileSizeInBytes,
-	)
 }
 
 func (service *CommandService) TempCacheReport(msg *ramsg.TempCacheReport) {
