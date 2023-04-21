@@ -132,7 +132,7 @@ type fileSender struct {
 	err      error
 }
 
-func RepWrite(localFilePath string, bucketName string, objectName string, numRep int) error {
+func RepWrite(localFilePath string, bucketID int, objectName string, numRep int) error {
 	// TODO 此处是写死的常量
 	userId := 0
 
@@ -150,7 +150,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 	defer coorClient.Close()
 
 	//发送写请求，请求Coor分配写入节点Ip
-	repWriteResp, err := coorClient.RepWrite(bucketName, objectName, fileSizeInBytes, numRep, userId)
+	repWriteResp, err := coorClient.RepWrite(bucketID, objectName, fileSizeInBytes, numRep, userId)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -198,7 +198,7 @@ func RepWrite(localFilePath string, bucketName string, objectName string, numRep
 
 	// 记录写入的文件的Hash
 	// TODO 如果一个都没有写成功，那么是否要发送这个请求？
-	writeRepHashResp, err := coorClient.WriteRepHash(bucketName, objectName, fileSizeInBytes, numRep, userId, sucNodeIDs, sucFileHashes)
+	writeRepHashResp, err := coorClient.WriteRepHash(bucketID, objectName, fileSizeInBytes, numRep, userId, sucNodeIDs, sucFileHashes)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}

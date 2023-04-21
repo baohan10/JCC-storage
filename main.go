@@ -38,12 +38,18 @@ func main() {
 		}
 
 	case "write":
+		bucketID, err := strconv.Atoi(args[3])
+		if err != nil {
+			fmt.Printf("invalid bucket id %s, err: %s", args[3], err.Error())
+			os.Exit(1)
+		}
 		numRep, _ := strconv.Atoi(args[5])
 		if numRep <= 0 || numRep > config.Cfg().MaxReplicateNumber {
 			fmt.Printf("replicate number should not be more than %d", config.Cfg().MaxReplicateNumber)
 			os.Exit(1)
 		}
-		if err := RepWrite(args[2], args[3], args[4], numRep); err != nil {
+
+		if err := RepWrite(args[2], bucketID, args[4], numRep); err != nil {
 			fmt.Printf("rep write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
