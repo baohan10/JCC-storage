@@ -25,10 +25,9 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	blockIDs := []int{0}
 
 	// 查询文件对象
-	object, err := service.db.QueryObjectByID(msg.BucketID, msg.ObjectID)
+	object, err := service.db.QueryObjectByID(msg.ObjectID)
 	if err != nil {
-		log.WithField("BucketID", msg.BucketID).
-			WithField("ObjectID", msg.ObjectID).
+		log.WithField("ObjectID", msg.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
 		return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
@@ -172,10 +171,9 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	}
 
 	// 查询文件对象
-	object, err := service.db.QueryObjectByFullName(msg.BucketName, msg.ObjectName)
+	object, err := service.db.QueryObjectByID(msg.ObjectID)
 	if err != nil {
-		log.WithField("BucketName", msg.BucketName).
-			WithField("ObjectName", msg.ObjectName).
+		log.WithField("ObjectID", msg.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
 		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
