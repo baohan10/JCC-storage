@@ -7,9 +7,10 @@ import (
 	_ "google.golang.org/grpc/balancer/grpclb"
 
 	"gitlink.org.cn/cloudream/client/config"
-
-	"strconv"
+	"gitlink.org.cn/cloudream/client/services"
 )
+
+var svc services.Service
 
 func main() {
 	err := config.Init()
@@ -19,63 +20,7 @@ func main() {
 	}
 
 	args := os.Args
-	switch args[1] {
-	case "read":
-		objectID, err := strconv.Atoi(args[3])
-		if err != nil {
-			fmt.Printf("invalid object id %s, err: %s", args[3], err.Error())
-			os.Exit(1)
-		}
-
-		if err := Read(args[2], objectID); err != nil {
-			fmt.Printf("read failed, err: %s", err.Error())
-			os.Exit(1)
-		}
-
-	case "write":
-		bucketID, err := strconv.Atoi(args[3])
-		if err != nil {
-			fmt.Printf("invalid bucket id %s, err: %s", args[3], err.Error())
-			os.Exit(1)
-		}
-		numRep, _ := strconv.Atoi(args[5])
-		if numRep <= 0 || numRep > config.Cfg().MaxReplicateNumber {
-			fmt.Printf("replicate number should not be more than %d", config.Cfg().MaxReplicateNumber)
-			os.Exit(1)
-		}
-
-		if err := RepWrite(args[2], bucketID, args[4], numRep); err != nil {
-			fmt.Printf("rep write failed, err: %s", err.Error())
-			os.Exit(1)
-		}
-	case "ecWrite":
-		bucketID, err := strconv.Atoi(args[3])
-		if err != nil {
-			fmt.Printf("invalid bucket id %s, err: %s", args[3], err.Error())
-			os.Exit(1)
-		}
-		if err := EcWrite(args[2], bucketID, args[4], args[5]); err != nil {
-			fmt.Printf("ec write failed, err: %s", err.Error())
-			os.Exit(1)
-		}
-
-	case "move":
-		objectID, err := strconv.Atoi(args[2])
-		if err != nil {
-			fmt.Printf("invalid object id %s, err: %s", args[2], err.Error())
-			os.Exit(1)
-		}
-		stgID, err := strconv.Atoi(args[3])
-		if err != nil {
-			fmt.Printf("invalid storage id %s, err: %s", args[3], err.Error())
-			os.Exit(1)
-		}
-
-		if err := Move(objectID, stgID); err != nil {
-			fmt.Printf("move failed, err: %s", err.Error())
-			os.Exit(1)
-		}
-	}
+	DispatchCommand(args[1], args[2:])
 	/*
 		TO DO future:
 		1. ls命令，显示用户指定桶下的所有对象，及相关的元数据

@@ -1,94 +1,76 @@
-package main
+package services
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"sync"
 
 	"gitlink.org.cn/cloudream/client/config"
+	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
-
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
+	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
 	myio "gitlink.org.cn/cloudream/utils/io"
-
 	"google.golang.org/grpc"
-
-	_ "google.golang.org/grpc/balancer/grpclb"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func Read(localFilePath string, objectID int) error {
-	// TODO 此处是写死的常量
-	userId := 0
+type BucketService = Service
+
+func (svc *BucketService) GetObject(userID int, objectID int) (model.Object, error) {
+	// TODO
+	panic("not implement yet")
+}
+
+func (svc *BucketService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
 
 	// 先向协调端请求文件相关的数据
 	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
-		return fmt.Errorf("create coordinator client failed, err: %w", err)
+		return nil, fmt.Errorf("create coordinator client failed, err: %w", err)
 	}
 	defer coorClient.Close()
 
-	readResp, err := coorClient.Read(objectID, userId)
+	readResp, err := coorClient.Read(objectID, userID)
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
+		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if readResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", readResp.ErrorCode, readResp.Message)
+		return nil, fmt.Errorf("coordinator operation failed, code: %s, message: %s", readResp.ErrorCode, readResp.Message)
 	}
 
 	switch readResp.Redundancy {
 	case consts.REDUNDANCY_REP:
 		if len(readResp.NodeIPs) == 0 {
-			return fmt.Errorf("no node has this file")
+			return nil, fmt.Errorf("no node has this file")
 		}
 
 		// 随便选第一个节点下载文件
-		err = repRead(readResp.FileSizeInBytes, readResp.NodeIPs[0], readResp.Hashes[0], localFilePath)
+		reader, err := svc.downloadAsRepObject(readResp.NodeIPs[0], readResp.Hashes[0])
 		if err != nil {
-			return fmt.Errorf("rep read failed, err: %w", err)
+			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
 
-	case consts.REDUNDANCY_EC:
+		return reader, nil
+
+		//case consts.REDUNDANCY_EC:
 		// TODO EC部分的代码要考虑重构
-		ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName, localFilePath)
+		//	ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
 	}
 
-	return nil
+	return nil, fmt.Errorf("unsupported redundancy type: %s", readResp.Redundancy)
 }
 
-func repRead(fileSizeInBytes int64, nodeIP string, repHash string, localFilePath string) error {
+func (svc *BucketService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
 	// 连接grpc
 	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
 	conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
+		return nil, fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
 	}
 	defer conn.Close()
-
-	// 创建本地文件
-	curExecPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("get executable directory failed, err: %w", err)
-	}
-
-	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
-	outputFileDir := filepath.Dir(outputFilePath)
-
-	err = os.MkdirAll(outputFileDir, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
-	}
-
-	outputFile, err := os.Create(outputFilePath)
-	if err != nil {
-		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
-	}
-	defer outputFile.Close()
 
 	/*
 		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
@@ -97,52 +79,14 @@ func repRead(fileSizeInBytes int64, nodeIP string, repHash string, localFilePath
 	*/
 	// 下载文件
 	client := agentcaller.NewFileTransportClient(conn)
-	stream, err := client.GetFile(context.Background(), &agentcaller.GetReq{
-		FileHash: repHash,
-	})
+	reader, err := mygrpc.GetFileAsStream(client, fileHash)
 	if err != nil {
-		return fmt.Errorf("request grpc failed, err: %w", err)
+		return nil, fmt.Errorf("request to get file failed, err: %w", err)
 	}
-	defer stream.CloseSend()
-
-	for {
-		resp, err := stream.Recv()
-		if err != nil {
-			return fmt.Errorf("read file data on grpc stream failed, err: %w", err)
-		}
-
-		if resp.Type == agentcaller.FileDataPacketType_Data {
-			err = myio.WriteAll(outputFile, resp.Data)
-			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
-			if err != nil {
-				return fmt.Errorf("write file data to local file failed, err: %w", err)
-			}
-
-		} else if resp.Type == agentcaller.FileDataPacketType_EOF {
-			return nil
-		}
-	}
+	return reader, nil
 }
 
-type fileSender struct {
-	grpcCon  *grpc.ClientConn
-	stream   agentcaller.FileTransport_SendFileClient
-	nodeID   int
-	fileHash string
-	err      error
-}
-
-func RepWrite(localFilePath string, bucketID int, objectName string, numRep int) error {
-	// TODO 此处是写死的常量
-	userId := 0
-
-	//获取文件大小
-	fileInfo, err := os.Stat(localFilePath)
-	if err != nil {
-		return fmt.Errorf("get file %s state failed, err: %w", localFilePath, err)
-	}
-	fileSizeInBytes := fileInfo.Size()
-
+func (svc *BucketService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repNum int) error {
 	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		return fmt.Errorf("create coordinator client failed, err: %w", err)
@@ -150,7 +94,7 @@ func RepWrite(localFilePath string, bucketID int, objectName string, numRep int)
 	defer coorClient.Close()
 
 	//发送写请求，请求Coor分配写入节点Ip
-	repWriteResp, err := coorClient.RepWrite(bucketID, objectName, fileSizeInBytes, numRep, userId)
+	repWriteResp, err := coorClient.RepWrite(bucketID, objectName, fileSize, repNum, userID)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -158,36 +102,30 @@ func RepWrite(localFilePath string, bucketID int, objectName string, numRep int)
 		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.Message)
 	}
 
-	file, err := os.Open(localFilePath)
-	if err != nil {
-		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)
-	}
-	defer file.Close()
-
 	/*
 		TO DO ss: 判断本地有没有ipfs daemon、能否与目标agent的ipfs daemon连通、本地ipfs目录空间是否充足
 			如果本地有ipfs daemon、能与目标agent的ipfs daemon连通、本地ipfs目录空间充足，将所有内容写入本地ipfs目录，得到对象的cid，发送cid给目标agent让其pin相应的对象
 			否则，像目前一样，使用grpc向指定节点获取
 	*/
 
-	senders := make([]fileSender, numRep)
+	senders := make([]fileSender, repNum)
 
 	// 建立grpc连接，发送请求
-	startSendFile(numRep, senders, repWriteResp.NodeIDs, repWriteResp.NodeIPs)
+	svc.startSendFile(repNum, senders, repWriteResp.NodeIDs, repWriteResp.NodeIPs)
 
 	// 向每个节点发送数据
-	err = sendFileData(file, numRep, senders)
+	err = svc.sendFileData(file, repNum, senders)
 	if err != nil {
 		return err
 	}
 
 	// 发送EOF消息，并获得FileHash
-	sendFinish(numRep, senders)
+	svc.sendFinish(repNum, senders)
 
 	// 收集发送成功的节点以及返回的hash
 	var sucNodeIDs []int
 	var sucFileHashes []string
-	for i := 0; i < numRep; i++ {
+	for i := 0; i < repNum; i++ {
 		sender := &senders[i]
 
 		if sender.err == nil {
@@ -198,7 +136,7 @@ func RepWrite(localFilePath string, bucketID int, objectName string, numRep int)
 
 	// 记录写入的文件的Hash
 	// TODO 如果一个都没有写成功，那么是否要发送这个请求？
-	writeRepHashResp, err := coorClient.WriteRepHash(bucketID, objectName, fileSizeInBytes, numRep, userId, sucNodeIDs, sucFileHashes)
+	writeRepHashResp, err := coorClient.WriteRepHash(bucketID, objectName, fileSize, repNum, userID, sucNodeIDs, sucFileHashes)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -209,7 +147,15 @@ func RepWrite(localFilePath string, bucketID int, objectName string, numRep int)
 	return nil
 }
 
-func startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []string) {
+type fileSender struct {
+	grpcCon  *grpc.ClientConn
+	stream   mygrpc.FileWriteCloser[string]
+	nodeID   int
+	fileHash string
+	err      error
+}
+
+func (svc *BucketService) startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []string) {
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
@@ -224,7 +170,7 @@ func startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []st
 		}
 
 		client := agentcaller.NewFileTransportClient(conn)
-		stream, err := client.SendFile(context.Background())
+		stream, err := mygrpc.SendFileAsStream(client)
 		if err != nil {
 			conn.Close()
 			sender.err = fmt.Errorf("request to send file failed, err: %w", err)
@@ -236,7 +182,7 @@ func startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []st
 	}
 }
 
-func sendFileData(file *os.File, numRep int, senders []fileSender) error {
+func (svc *BucketService) sendFileData(file io.ReadCloser, numRep int, senders []fileSender) error {
 
 	// 共用的发送数据缓冲区
 	buf := make([]byte, 2048)
@@ -259,7 +205,7 @@ func sendFileData(file *os.File, numRep int, senders []fileSender) error {
 					continue
 				}
 
-				sender.stream.CloseSend()
+				sender.stream.Abort(io.ErrClosedPipe)
 				sender.grpcCon.Close()
 				sender.err = fmt.Errorf("read file data failed, err: %w", err)
 			}
@@ -282,14 +228,11 @@ func sendFileData(file *os.File, numRep int, senders []fileSender) error {
 
 			sendWg.Add(1)
 			go func() {
-				err := sender.stream.Send(&agentcaller.FileDataPacket{
-					Type: agentcaller.FileDataPacketType_Data,
-					Data: buf[:readCnt],
-				})
+				err := myio.WriteAll(sender.stream, buf[:readCnt])
 
 				// 发生错误则关闭连接
 				if err != nil {
-					sender.stream.CloseSend()
+					sender.stream.Abort(io.ErrClosedPipe)
 					sender.grpcCon.Close()
 					sender.err = fmt.Errorf("send file data failed, err: %w", err)
 				}
@@ -309,7 +252,7 @@ func sendFileData(file *os.File, numRep int, senders []fileSender) error {
 	return nil
 }
 
-func sendFinish(numRep int, senders []fileSender) {
+func (svc *BucketService) sendFinish(numRep int, senders []fileSender) {
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
@@ -318,32 +261,26 @@ func sendFinish(numRep int, senders []fileSender) {
 			continue
 		}
 
-		err := sender.stream.Send(&agentcaller.FileDataPacket{
-			Type: agentcaller.FileDataPacketType_EOF,
-		})
+		fileHash, err := sender.stream.Finish()
 		if err != nil {
-			sender.stream.CloseSend()
-			sender.grpcCon.Close()
-			sender.err = fmt.Errorf("send file data failed, err: %w", err)
-			continue
-		}
-
-		resp, err := sender.stream.CloseAndRecv()
-		if err != nil {
-			sender.err = fmt.Errorf("receive response failed, err: %w", err)
+			sender.err = err
+			sender.stream.Abort(io.ErrClosedPipe)
 			sender.grpcCon.Close()
 			continue
 		}
 
-		sender.fileHash = resp.FileHash
+		sender.fileHash = fileHash
+		sender.err = err
 		sender.grpcCon.Close()
 	}
 }
 
-func Move(objectID int, stgID int) error {
-	// TODO 此处是写死的常量
-	userId := 0
+func (svc *BucketService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
+	// TODO
+	panic("not implement yet")
+}
 
+func (svc *BucketService) MoveObjectToStorage(userID int, objectID int, storageID int) error {
 	// 先向协调端请求文件相关的元数据
 	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
@@ -351,7 +288,7 @@ func Move(objectID int, stgID int) error {
 	}
 	defer coorClient.Close()
 
-	moveResp, err := coorClient.Move(objectID, stgID, userId)
+	moveResp, err := coorClient.Move(objectID, storageID, userID)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -362,27 +299,27 @@ func Move(objectID int, stgID int) error {
 	// 然后向代理端发送移动文件的请求
 	agentClient, err := racli.NewAgentClient(moveResp.NodeID)
 	if err != nil {
-		return fmt.Errorf("create agent client to %d failed, err: %w", stgID, err)
+		return fmt.Errorf("create agent client to %d failed, err: %w", storageID, err)
 	}
 	defer agentClient.Close()
 
 	switch moveResp.Redundancy {
 	case consts.REDUNDANCY_REP:
-		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, objectID, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, objectID, userID, moveResp.FileSizeInBytes)
 		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
+			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.Message)
 		}
 
 	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, objectID, userId, moveResp.FileSizeInBytes)
+		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, objectID, userID, moveResp.FileSizeInBytes)
 		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", stgID, err)
+			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", stgID, agentMoveResp.ErrorCode, agentMoveResp.Message)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.Message)
 		}
 	}
 

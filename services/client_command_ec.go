@@ -1,4 +1,6 @@
-package main
+package services
+
+// TODO 将这里的逻辑拆分到services中实现
 
 import (
 	"fmt"
