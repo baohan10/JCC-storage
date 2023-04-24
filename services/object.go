@@ -25,15 +25,7 @@ func (svc *BucketService) GetObject(userID int, objectID int) (model.Object, err
 }
 
 func (svc *BucketService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
-
-	// 先向协调端请求文件相关的数据
-	coorClient, err := racli.NewCoordinatorClient()
-	if err != nil {
-		return nil, fmt.Errorf("create coordinator client failed, err: %w", err)
-	}
-	defer coorClient.Close()
-
-	readResp, err := coorClient.Read(objectID, userID)
+	readResp, err := svc.coordinator.Read(objectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -87,14 +79,9 @@ func (svc *BucketService) downloadAsRepObject(nodeIP string, fileHash string) (i
 }
 
 func (svc *BucketService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repNum int) error {
-	coorClient, err := racli.NewCoordinatorClient()
-	if err != nil {
-		return fmt.Errorf("create coordinator client failed, err: %w", err)
-	}
-	defer coorClient.Close()
 
 	//发送写请求，请求Coor分配写入节点Ip
-	repWriteResp, err := coorClient.RepWrite(bucketID, objectName, fileSize, repNum, userID)
+	repWriteResp, err := svc.coordinator.RepWrite(bucketID, objectName, fileSize, repNum, userID)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -136,7 +123,7 @@ func (svc *BucketService) UploadRepObject(userID int, bucketID int, objectName s
 
 	// 记录写入的文件的Hash
 	// TODO 如果一个都没有写成功，那么是否要发送这个请求？
-	writeRepHashResp, err := coorClient.WriteRepHash(bucketID, objectName, fileSize, repNum, userID, sucNodeIDs, sucFileHashes)
+	writeRepHashResp, err := svc.coordinator.WriteRepHash(bucketID, objectName, fileSize, repNum, userID, sucNodeIDs, sucFileHashes)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -282,13 +269,7 @@ func (svc *BucketService) UploadECObject(userID int, file io.ReadCloser, fileSiz
 
 func (svc *BucketService) MoveObjectToStorage(userID int, objectID int, storageID int) error {
 	// 先向协调端请求文件相关的元数据
-	coorClient, err := racli.NewCoordinatorClient()
-	if err != nil {
-		return fmt.Errorf("create coordinator client failed, err: %w", err)
-	}
-	defer coorClient.Close()
-
-	moveResp, err := coorClient.Move(objectID, storageID, userID)
+	moveResp, err := svc.coordinator.Move(objectID, storageID, userID)
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}

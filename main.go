@@ -8,14 +8,27 @@ import (
 
 	"gitlink.org.cn/cloudream/client/config"
 	"gitlink.org.cn/cloudream/client/services"
+	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 )
 
-var svc services.Service
+var svc *services.Service
 
 func main() {
 	err := config.Init()
 	if err != nil {
 		fmt.Printf("init config failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
+	coorClient, err := racli.NewCoordinatorClient()
+	if err != nil {
+		fmt.Printf("new coordinator client failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
+	svc, err = services.NewService(coorClient)
+	if err != nil {
+		fmt.Printf("new services failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/client/config"
 	myio "gitlink.org.cn/cloudream/utils/io"
 )
@@ -67,6 +68,25 @@ func DispatchCommand(cmd string, args []string) {
 		if err := Move(objectID, stgID); err != nil {
 			fmt.Printf("move failed, err: %s", err.Error())
 			os.Exit(1)
+		}
+
+	case "ls":
+		if len(args) == 0 {
+			if err := GetUserBuckets(); err != nil {
+				fmt.Printf("get user buckets failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+		} else {
+			bucketID, err := strconv.Atoi(args[0])
+			if err != nil {
+				fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
+				os.Exit(1)
+			}
+
+			if err := GetBucketObjects(bucketID); err != nil {
+				fmt.Printf("get bucket objects failed, err: %s", err.Error())
+				os.Exit(1)
+			}
 		}
 	}
 }
@@ -151,4 +171,46 @@ func Move(objectID int, storageID int) error {
 func EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
 	// TODO
 	panic("not implement yet")
+}
+
+func GetUserBuckets() error {
+	userID := 0
+
+	buckets, err := svc.GetUserBuckets(userID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Find %d buckets for user %d:\n", len(buckets), userID)
+
+	tb := table.NewWriter()
+	tb.AppendHeader(table.Row{"ID", "Name", "CreatorID"})
+
+	for _, bucket := range buckets {
+		tb.AppendRow(table.Row{bucket.BucketID, bucket.Name, bucket.CreatorID})
+	}
+
+	fmt.Print(tb.Render())
+	return nil
+}
+
+func GetBucketObjects(bucketID int) error {
+	userID := 0
+
+	objects, err := svc.GetBucketObjects(userID, bucketID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Find %d objects in bucket %d for user %d:\n", len(objects), bucketID, userID)
+
+	tb := table.NewWriter()
+	tb.AppendHeader(table.Row{"ID", "Name", "Size", "Redundancy", "NumRep", "ECName"})
+
+	for _, obj := range objects {
+		tb.AppendRow(table.Row{obj.ObjectID, obj.Name, obj.FileSizeInBytes, obj.Redundancy, obj.NumRep, obj.ECName})
+	}
+
+	fmt.Print(tb.Render())
+	return nil
 }
