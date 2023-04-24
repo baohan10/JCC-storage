@@ -1,10 +1,10 @@
-package main
+package services
 
 import (
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 )
 
-func (service *CommandService) ECWrite(msg *ramsg.ECWriteCommand) ramsg.WriteResp {
+func (service *Service) ECWrite(msg *ramsg.ECWriteCommand) ramsg.WriteResp {
 	panic("not implement yet!")
 
 	/*
@@ -56,7 +56,7 @@ func (service *CommandService) ECWrite(msg *ramsg.ECWriteCommand) ramsg.WriteRes
 	*/
 }
 
-func (service *CommandService) WriteECHash(msg *ramsg.WriteECHashCommand) ramsg.WriteHashResp {
+func (service *Service) WriteECHash(msg *ramsg.WriteECHashCommand) ramsg.WriteHashResp {
 	panic("not implement yet!")
 
 	/*

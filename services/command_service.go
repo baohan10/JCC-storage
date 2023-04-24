@@ -1,8 +1,7 @@
-package main
+package services
 
 import (
 	log "github.com/sirupsen/logrus"
-	mydb "gitlink.org.cn/cloudream/db"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	"gitlink.org.cn/cloudream/utils"
 
@@ -10,17 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
-type CommandService struct {
-	db *mydb.DB
-}
-
-func NewCommandService(db *mydb.DB) *CommandService {
-	return &CommandService{
-		db: db,
-	}
-}
-
-func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
+func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	var hashes []string
 	blockIDs := []int{0}
 
@@ -106,7 +95,7 @@ func (service *CommandService) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	)
 }
 
-func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
+func (service *Service) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
 	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
 	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
 
@@ -138,7 +127,7 @@ func (service *CommandService) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteR
 	return ramsg.NewCoorWriteRespOK(ids, ips)
 }
 
-func (service *CommandService) WriteRepHash(msg *ramsg.WriteRepHashCommand) ramsg.WriteHashResp {
+func (service *Service) WriteRepHash(msg *ramsg.WriteRepHashCommand) ramsg.WriteHashResp {
 	_, err := service.db.CreateRepObject(msg.BucketID, msg.ObjectName, msg.FileSizeInBytes, msg.ReplicateNumber, msg.NodeIDs, msg.Hashes)
 	if err != nil {
 		log.WithField("BucketName", msg.BucketID).
@@ -150,7 +139,7 @@ func (service *CommandService) WriteRepHash(msg *ramsg.WriteRepHashCommand) rams
 	return ramsg.NewCoorWriteHashRespOK()
 }
 
-func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
+func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -239,11 +228,11 @@ func (service *CommandService) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	)
 }
 
-func (service *CommandService) TempCacheReport(msg *ramsg.TempCacheReport) {
+func (service *Service) TempCacheReport(msg *ramsg.TempCacheReport) {
 	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
 }
 
-func (service *CommandService) AgentStatusReport(msg *ramsg.AgentStatusReport) {
+func (service *Service) AgentStatusReport(msg *ramsg.AgentStatusReport) {
 	//jh：根据command中的Ip，插入节点延迟表，和节点表的NodeStatus
 	//根据command中的Ip，插入节点延迟表
 

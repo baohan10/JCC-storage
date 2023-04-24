@@ -6,6 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/coordinator/config"
+	"gitlink.org.cn/cloudream/coordinator/services"
 	mydb "gitlink.org.cn/cloudream/db"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server"
 	"gitlink.org.cn/cloudream/utils/logger"
@@ -29,7 +30,7 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	cmdSvr, err := rasvr.NewCoordinatorServer(NewCommandService(db))
+	cmdSvr, err := rasvr.NewCoordinatorServer(services.NewService(db))
 	if err != nil {
 		log.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
