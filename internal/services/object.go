@@ -272,7 +272,7 @@ func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSiz
 	panic("not implement yet")
 }
 
-func (svc *ObjectService) Delete(userID int, objectID int) error {
+func (svc *ObjectService) DeleteObject(userID int, objectID int) error {
 	// TODO
 	panic("not implement yet")
 }
