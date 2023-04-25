@@ -1,4 +1,4 @@
-package main
+package cmdline
 
 import (
 	"fmt"
@@ -7,13 +7,22 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
 	myio "gitlink.org.cn/cloudream/utils/io"
 )
 
-func DispatchCommand(cmd string, args []string) {
+type Commandline struct {
+	svc *services.Service
+}
+
+func NewCommandline(svc *services.Service) (*Commandline, error) {
+	return &Commandline{
+		svc: svc,
+	}, nil
+}
+
+func (c *Commandline) DispatchCommand(cmd string, args []string) {
 	switch cmd {
 	case "read":
 		objectID, err := strconv.Atoi(args[1])
@@ -22,7 +31,7 @@ func DispatchCommand(cmd string, args []string) {
 			os.Exit(1)
 		}
 
-		if err := Read(args[0], objectID); err != nil {
+		if err := c.Read(args[0], objectID); err != nil {
 			fmt.Printf("read failed, err: %s", err.Error())
 			os.Exit(1)
 		}
@@ -39,7 +48,7 @@ func DispatchCommand(cmd string, args []string) {
 			os.Exit(1)
 		}
 
-		if err := RepWrite(args[0], bucketID, args[2], numRep); err != nil {
+		if err := c.RepWrite(args[0], bucketID, args[2], numRep); err != nil {
 			fmt.Printf("rep write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
@@ -49,7 +58,7 @@ func DispatchCommand(cmd string, args []string) {
 			fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
 			os.Exit(1)
 		}
-		if err := EcWrite(args[0], bucketID, args[2], args[3]); err != nil {
+		if err := c.EcWrite(args[0], bucketID, args[2], args[3]); err != nil {
 			fmt.Printf("ec write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
@@ -66,14 +75,14 @@ func DispatchCommand(cmd string, args []string) {
 			os.Exit(1)
 		}
 
-		if err := Move(objectID, stgID); err != nil {
+		if err := c.Move(objectID, stgID); err != nil {
 			fmt.Printf("move failed, err: %s", err.Error())
 			os.Exit(1)
 		}
 
 	case "ls":
 		if len(args) == 0 {
-			if err := GetUserBuckets(); err != nil {
+			if err := c.GetUserBuckets(); err != nil {
 				fmt.Printf("get user buckets failed, err: %s", err.Error())
 				os.Exit(1)
 			}
@@ -84,15 +93,46 @@ func DispatchCommand(cmd string, args []string) {
 				os.Exit(1)
 			}
 
-			if err := GetBucketObjects(bucketID); err != nil {
+			if err := c.GetBucketObjects(bucketID); err != nil {
 				fmt.Printf("get bucket objects failed, err: %s", err.Error())
 				os.Exit(1)
 			}
 		}
+	case "bucket":
+		if len(args) == 0 {
+			fmt.Printf("need more arg")
+			os.Exit(1)
+		}
+		if args[0] == "new" {
+			if err := c.CreateBucket(args[1]); err != nil {
+				fmt.Printf("create bucket failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+		}
+
+	case "object":
+		if len(args) == 0 {
+			fmt.Printf("need more arg")
+			os.Exit(1)
+		}
+
+		if args[0] == "delete" {
+			objectID, err := strconv.Atoi(args[1])
+			if err != nil {
+				fmt.Printf("invalid object id %s, err: %s", args[1], err.Error())
+				os.Exit(1)
+			}
+
+			if err := c.DeleteObject(objectID); err != nil {
+				fmt.Printf("delete object failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+		}
 	}
+
 }
 
-func Read(localFilePath string, objectID int) error {
+func (c *Commandline) Read(localFilePath string, objectID int) error {
 	// 创建本地文件
 	curExecPath, err := os.Executable()
 	if err != nil {
@@ -119,7 +159,7 @@ func Read(localFilePath string, objectID int) error {
 			否则，像目前一样，使用grpc向指定节点获取
 	*/
 	// 下载文件
-	reader, err := services.ObjectSvc(svc).DownloadObject(0, objectID)
+	reader, err := services.ObjectSvc(c.svc).DownloadObject(0, objectID)
 	if err != nil {
 		return fmt.Errorf("download object failed, err: %w", err)
 	}
@@ -144,7 +184,7 @@ func Read(localFilePath string, objectID int) error {
 	}
 }
 
-func RepWrite(localFilePath string, bucketID int, objectName string, repNum int) error {
+func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName string, repNum int) error {
 	file, err := os.Open(localFilePath)
 	if err != nil {
 		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)
@@ -157,7 +197,7 @@ func RepWrite(localFilePath string, bucketID int, objectName string, repNum int)
 	}
 	fileSize := fileInfo.Size()
 
-	err = services.ObjectSvc(svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repNum)
+	err = services.ObjectSvc(c.svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repNum)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
@@ -165,65 +205,11 @@ func RepWrite(localFilePath string, bucketID int, objectName string, repNum int)
 	return nil
 }
 
-func Move(objectID int, storageID int) error {
-	return services.StorageSvc(svc).MoveObjectToStorage(0, objectID, storageID)
+func (c *Commandline) Move(objectID int, storageID int) error {
+	return services.StorageSvc(c.svc).MoveObjectToStorage(0, objectID, storageID)
 }
 
-func EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
+func (c *Commandline) EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
 	// TODO
 	panic("not implement yet")
-}
-
-func GetUserBuckets() error {
-	userID := 0
-
-	buckets, err := services.BucketSvc(svc).GetUserBuckets(userID)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Find %d buckets for user %d:\n", len(buckets), userID)
-
-	tb := table.NewWriter()
-	tb.AppendHeader(table.Row{"ID", "Name", "CreatorID"})
-
-	for _, bucket := range buckets {
-		tb.AppendRow(table.Row{bucket.BucketID, bucket.Name, bucket.CreatorID})
-	}
-
-	fmt.Print(tb.Render())
-	return nil
-}
-
-func GetBucketObjects(bucketID int) error {
-	userID := 0
-
-	objects, err := services.BucketSvc(svc).GetBucketObjects(userID, bucketID)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Find %d objects in bucket %d for user %d:\n", len(objects), bucketID, userID)
-
-	tb := table.NewWriter()
-	tb.AppendHeader(table.Row{"ID", "Name", "Size", "Redundancy", "NumRep", "ECName"})
-
-	for _, obj := range objects {
-		tb.AppendRow(table.Row{obj.ObjectID, obj.Name, obj.FileSizeInBytes, obj.Redundancy, obj.NumRep, obj.ECName})
-	}
-
-	fmt.Print(tb.Render())
-	return nil
-}
-
-func CreateBucket(bucketName string) error {
-	userID := 0
-
-	bucketID, err := services.BucketSvc(svc).CreateBucket(userID, bucketName)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Create bucket %s success, id: %d", bucketName, bucketID)
-	return nil
 }

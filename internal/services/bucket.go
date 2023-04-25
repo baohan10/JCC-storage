@@ -46,7 +46,7 @@ func (svc *BucketService) GetBucketObjects(userID int, bucketID int) ([]model.Ob
 func (svc *BucketService) CreateBucket(userID int, bucketName string) (int, error) {
 	resp, err := svc.coordinator.CreateBucket(userID, bucketName)
 	if err != nil {
-		return 0, fmt.Errorf("create bucket objects failed, err: %w", err)
+		return 0, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if !resp.IsOK() {
 		return 0, fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.Message)

@@ -6,12 +6,11 @@ import (
 
 	_ "google.golang.org/grpc/balancer/grpclb"
 
+	"gitlink.org.cn/cloudream/client/internal/cmdline"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 )
-
-var svc *services.Service
 
 func main() {
 	err := config.Init()
@@ -26,14 +25,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	svc, err = services.NewService(coorClient)
+	svc, err := services.NewService(coorClient)
 	if err != nil {
 		fmt.Printf("new services failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 
+	cmds, err := cmdline.NewCommandline(svc)
+	if err != nil {
+		fmt.Printf("new command line failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
 	args := os.Args
-	DispatchCommand(args[1], args[2:])
+	cmds.DispatchCommand(args[1], args[2:])
 	/*
 		TO DO future:
 		1. ls命令，显示用户指定桶下的所有对象，及相关的元数据

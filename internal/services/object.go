@@ -273,6 +273,13 @@ func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSiz
 }
 
 func (svc *ObjectService) DeleteObject(userID int, objectID int) error {
-	// TODO
-	panic("not implement yet")
+	resp, err := svc.coordinator.DeleteObject(userID, objectID)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if !resp.IsOK() {
+		return fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.Message)
+	}
+
+	return nil
 }
