@@ -50,7 +50,15 @@ func (svc *Service) CreateBucket(msg *coormsg.CreateBucketCommand) *coormsg.Crea
 	return coormsg.NewCreateBucketRespOK(bucketID)
 }
 
-func (src *Service) DeleteBucket(userID int, bucketID int) error {
-	// TODO
-	panic("not implement yet")
+func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucketCommand) *coormsg.DeleteBucketResp {
+	err := svc.db.DeleteBucket(msg.UserID, msg.BucketID)
+
+	if err != nil {
+		log.WithField("UserID", msg.UserID).
+			WithField("BucketID", msg.BucketID).
+			Warnf("delete bucket failed, err: %s", err.Error())
+		return coormsg.NewDeleteBucketRespFailed(errorcode.OPERATION_FAILED, "delete bucket failed")
+	}
+
+	return coormsg.NewDeleteBucketRespOK()
 }
