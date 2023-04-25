@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/ec"
-	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )
 
-func (service *CommandService) ECMove(msg *ramsg.ECMoveCommand) ramsg.AgentMoveResp {
+func (service *CommandService) ECMove(msg *agtmsg.ECMoveCommand) agtmsg.AgentMoveResp {
 	panic("not implement yet!")
 	/*
 		wg := sync.WaitGroup{}

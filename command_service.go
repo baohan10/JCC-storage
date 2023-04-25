@@ -11,7 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/utils"
 
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
-	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	myio "gitlink.org.cn/cloudream/utils/io"
 	"gitlink.org.cn/cloudream/utils/ipfs"
@@ -27,7 +27,7 @@ func NewCommandService(ipfs *ipfs.IPFS) *CommandService {
 	}
 }
 
-func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMoveResp {
+func (service *CommandService) RepMove(msg *agtmsg.RepMoveCommand) agtmsg.AgentMoveResp {
 	outFileName := utils.MakeMoveOperationFileName(msg.ObjectID, msg.UserID)
 	outFileDir := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory)
 	outFilePath := filepath.Join(outFileDir, outFileName)
@@ -35,13 +35,13 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	err := os.MkdirAll(outFileDir, 0644)
 	if err != nil {
 		log.Warnf("create file directory %s failed, err: %s", outFileDir, err.Error())
-		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file directory failed"))
+		return agtmsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file directory failed"))
 	}
 
 	outFile, err := os.Create(outFilePath)
 	if err != nil {
 		log.Warnf("create file %s failed, err: %s", outFilePath, err.Error())
-		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file failed"))
+		return agtmsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create local file failed"))
 	}
 	defer outFile.Close()
 
@@ -50,7 +50,7 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	ipfsRd, err := service.ipfs.OpenRead(fileHash)
 	if err != nil {
 		log.Warnf("read ipfs file %s failed, err: %s", fileHash, err.Error())
-		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file failed"))
+		return agtmsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file failed"))
 	}
 	defer ipfsRd.Close()
 
@@ -65,13 +65,13 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 
 		if err != nil {
 			log.Warnf("read ipfs file %s data failed, err: %s", fileHash, err.Error())
-			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file data failed"))
+			return agtmsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("read ipfs file data failed"))
 		}
 
 		err = myio.WriteAll(outFile, buf[:readCnt])
 		if err != nil {
 			log.Warnf("write data to file %s failed, err: %s", outFilePath, err.Error())
-			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("write data to file failed"))
+			return agtmsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("write data to file failed"))
 		}
 	}
 
@@ -79,12 +79,12 @@ func (service *CommandService) RepMove(msg *ramsg.RepMoveCommand) ramsg.AgentMov
 	coorClient, err := racli.NewCoordinatorClient()
 	if err != nil {
 		log.Warnf("new coordinator client failed, err: %s", err.Error())
-		return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("new coordinator client failed"))
+		return agtmsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("new coordinator client failed"))
 	}
 	defer coorClient.Close()
 
 	// TODO 这里更新失败残留下的文件是否要删除？
 	coorClient.TempCacheReport(config.Cfg().ID, hashs)
 
-	return ramsg.NewAgentMoveRespOK()
+	return agtmsg.NewAgentMoveRespOK()
 }
