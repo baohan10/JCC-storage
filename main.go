@@ -14,7 +14,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	rasvr "gitlink.org.cn/cloudream/rabbitmq/server"
+	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/agent"
 )
 
 // TODO 此数据是否在运行时会发生变化？
