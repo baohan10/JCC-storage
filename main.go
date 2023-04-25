@@ -5,8 +5,8 @@ import (
 	"os"
 
 	log "github.com/sirupsen/logrus"
-	"gitlink.org.cn/cloudream/coordinator/config"
-	"gitlink.org.cn/cloudream/coordinator/services"
+	"gitlink.org.cn/cloudream/coordinator/internal/config"
+	"gitlink.org.cn/cloudream/coordinator/internal/services"
 	mydb "gitlink.org.cn/cloudream/db"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/coordinator"
 	"gitlink.org.cn/cloudream/utils/logger"
