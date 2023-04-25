@@ -2,14 +2,14 @@ package services
 
 import (
 	log "github.com/sirupsen/logrus"
-	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
+	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
 
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
-func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
+func (service *Service) Read(msg *coormsg.ReadCommand) coormsg.ReadResp {
 	var hashes []string
 	blockIDs := []int{0}
 
@@ -18,7 +18,7 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	if err != nil {
 		log.WithField("ObjectID", msg.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
-		return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
+		return coormsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
 	var nodeIPs []string
@@ -28,7 +28,7 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		if err != nil {
 			log.WithField("ObjectID", object.ObjectID).
 				Warnf("query ObjectRep failed, err: %s", err.Error())
-			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
+			return coormsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
 		hashes = append(hashes, objectRep.RepHash)
@@ -37,7 +37,7 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		if err != nil {
 			log.WithField("RepHash", objectRep.RepHash).
 				Warnf("query Cache failed, err: %s", err.Error())
-			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
+			return coormsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
 		}
 
 		for _, node := range nodes {
@@ -49,7 +49,7 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		if err != nil {
 			log.WithField("ObjectID", object.ObjectID).
 				Warnf("query Object Block failed, err: %s", err.Error())
-			return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object Block failed")
+			return coormsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Object Block failed")
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
@@ -68,13 +68,13 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 			if err != nil {
 				log.WithField("BlockHash", hash).
 					Warnf("query Cache failed, err: %s", err.Error())
-				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
+				return coormsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "query Cache failed")
 			}
 
 			if len(nodes) == 0 {
 				log.WithField("BlockHash", hash).
 					Warnf("No node cache the block data for the BlockHash")
-				return ramsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
+				return coormsg.NewCoorReadRespFailed(errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
 			}
 
 			nodeIPs[id] = nodes[0].IP
@@ -85,7 +85,7 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 		}
 	}
 
-	return ramsg.NewCoorReadRespOK(
+	return coormsg.NewCoorReadRespOK(
 		object.Redundancy,
 		nodeIPs,
 		hashes,
@@ -95,7 +95,7 @@ func (service *Service) Read(msg *ramsg.ReadCommand) ramsg.ReadResp {
 	)
 }
 
-func (service *Service) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
+func (service *Service) RepWrite(msg *coormsg.RepWriteCommand) coormsg.WriteResp {
 	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
 	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
 
@@ -103,14 +103,14 @@ func (service *Service) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
 	nodes, err := service.db.QueryUserNodes(msg.UserID)
 	if err != nil {
 		log.Warnf("query user nodes failed, err: %s", err.Error())
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
+		return coormsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
 	}
 
 	if len(nodes) < msg.ReplicateNumber {
 		log.WithField("UserID", msg.UserID).
 			WithField("ReplicateNumber", msg.ReplicateNumber).
 			Warnf("user nodes are not enough")
-		return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
+		return coormsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "user nodes are not enough")
 	}
 
 	numRep := msg.ReplicateNumber
@@ -124,22 +124,22 @@ func (service *Service) RepWrite(msg *ramsg.RepWriteCommand) ramsg.WriteResp {
 		ips[i] = nodes[index].IP
 	}
 
-	return ramsg.NewCoorWriteRespOK(ids, ips)
+	return coormsg.NewCoorWriteRespOK(ids, ips)
 }
 
-func (service *Service) WriteRepHash(msg *ramsg.WriteRepHashCommand) ramsg.WriteHashResp {
+func (service *Service) WriteRepHash(msg *coormsg.WriteRepHashCommand) coormsg.WriteHashResp {
 	_, err := service.db.CreateRepObject(msg.BucketID, msg.ObjectName, msg.FileSizeInBytes, msg.ReplicateNumber, msg.NodeIDs, msg.Hashes)
 	if err != nil {
 		log.WithField("BucketName", msg.BucketID).
 			WithField("ObjectName", msg.ObjectName).
 			Warnf("create rep object failed, err: %s", err.Error())
-		return ramsg.NewCoorWriteHashRespFailed(errorcode.OPERATION_FAILED, "create rep object failed")
+		return coormsg.NewCoorWriteHashRespFailed(errorcode.OPERATION_FAILED, "create rep object failed")
 	}
 
-	return ramsg.NewCoorWriteHashRespOK()
+	return coormsg.NewCoorWriteHashRespOK()
 }
 
-func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
+func (service *Service) Move(msg *coormsg.MoveCommand) coormsg.MoveResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -158,7 +158,7 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 		log.WithField("UserID", msg.UserID).
 			WithField("StorageID", msg.StorageID).
 			Warnf("query storage directory failed, err: %s", err.Error())
-		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query storage directory failed")
+		return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query storage directory failed")
 	}
 
 	// 查询文件对象
@@ -166,7 +166,7 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	if err != nil {
 		log.WithField("ObjectID", msg.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
-		return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
+		return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -176,7 +176,7 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectRep failed, err: %s", err.Error())
-			return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
+			return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
 		hashs = append(hashs, objectRep.RepHash)
@@ -185,7 +185,7 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectBlock failed, err: %s", err.Error())
-			return ramsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectBlock failed")
+			return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectBlock failed")
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
@@ -219,7 +219,7 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 		}*/
 	}
 
-	return ramsg.NewCoorMoveRespOK(
+	return coormsg.NewCoorMoveRespOK(
 		stg.NodeID,
 		stg.Directory,
 		object.Redundancy,
@@ -230,11 +230,11 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	)
 }
 
-func (service *Service) TempCacheReport(msg *ramsg.TempCacheReport) {
+func (service *Service) TempCacheReport(msg *coormsg.TempCacheReport) {
 	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
 }
 
-func (service *Service) AgentStatusReport(msg *ramsg.AgentStatusReport) {
+func (service *Service) AgentStatusReport(msg *coormsg.AgentStatusReport) {
 	//jh：根据command中的Ip，插入节点延迟表，和节点表的NodeStatus
 	//根据command中的Ip，插入节点延迟表
 
