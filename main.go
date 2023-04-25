@@ -8,7 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/coordinator/config"
 	"gitlink.org.cn/cloudream/coordinator/services"
 	mydb "gitlink.org.cn/cloudream/db"
-	rasvr "gitlink.org.cn/cloudream/rabbitmq/server"
+	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/coordinator"
 	"gitlink.org.cn/cloudream/utils/logger"
 )
 

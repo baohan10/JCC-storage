@@ -150,6 +150,8 @@ func (service *Service) Move(msg *ramsg.MoveCommand) ramsg.MoveResp {
 	//--查询节点延迟表，得到command.destination与各个nodeIps的的延迟，存到一个map类型中（Delay）
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 
+	// TODO 需要在StorageData中增加记录
+
 	// 查询用户关联的存储服务
 	stg, err := service.db.QueryUserStorage(msg.UserID, msg.StorageID)
 	if err != nil {
