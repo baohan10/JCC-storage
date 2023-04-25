@@ -1,7 +1,7 @@
 package services
 
 import (
-	racli "gitlink.org.cn/cloudream/rabbitmq/client"
+	racli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 )
 
 type Service struct {

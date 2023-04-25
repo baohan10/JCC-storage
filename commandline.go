@@ -9,6 +9,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/client/config"
+	"gitlink.org.cn/cloudream/client/services"
 	myio "gitlink.org.cn/cloudream/utils/io"
 )
 
@@ -118,7 +119,7 @@ func Read(localFilePath string, objectID int) error {
 			否则，像目前一样，使用grpc向指定节点获取
 	*/
 	// 下载文件
-	reader, err := svc.DownloadObject(0, objectID)
+	reader, err := services.ObjectSvc(svc).DownloadObject(0, objectID)
 	if err != nil {
 		return fmt.Errorf("download object failed, err: %w", err)
 	}
@@ -156,7 +157,7 @@ func RepWrite(localFilePath string, bucketID int, objectName string, repNum int)
 	}
 	fileSize := fileInfo.Size()
 
-	err = svc.UploadRepObject(0, bucketID, objectName, file, fileSize, repNum)
+	err = services.ObjectSvc(svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repNum)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
@@ -165,7 +166,7 @@ func RepWrite(localFilePath string, bucketID int, objectName string, repNum int)
 }
 
 func Move(objectID int, storageID int) error {
-	return svc.MoveObjectToStorage(0, objectID, storageID)
+	return services.StorageSvc(svc).MoveObjectToStorage(0, objectID, storageID)
 }
 
 func EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
@@ -176,7 +177,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 func GetUserBuckets() error {
 	userID := 0
 
-	buckets, err := svc.GetUserBuckets(userID)
+	buckets, err := services.BucketSvc(svc).GetUserBuckets(userID)
 	if err != nil {
 		return err
 	}
@@ -197,7 +198,7 @@ func GetUserBuckets() error {
 func GetBucketObjects(bucketID int) error {
 	userID := 0
 
-	objects, err := svc.GetBucketObjects(userID, bucketID)
+	objects, err := services.BucketSvc(svc).GetBucketObjects(userID, bucketID)
 	if err != nil {
 		return err
 	}
@@ -212,5 +213,17 @@ func GetBucketObjects(bucketID int) error {
 	}
 
 	fmt.Print(tb.Render())
+	return nil
+}
+
+func CreateBucket(bucketName string) error {
+	userID := 0
+
+	bucketID, err := services.BucketSvc(svc).CreateBucket(userID, bucketName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Create bucket %s success, id: %d", bucketName, bucketID)
 	return nil
 }

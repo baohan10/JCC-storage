@@ -8,7 +8,6 @@ import (
 	"gitlink.org.cn/cloudream/client/config"
 	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
-	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
@@ -17,14 +16,20 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type BucketService = Service
+type ObjectService struct {
+	*Service
+}
 
-func (svc *BucketService) GetObject(userID int, objectID int) (model.Object, error) {
+func ObjectSvc(svc *Service) *ObjectService {
+	return &ObjectService{Service: svc}
+}
+
+func (svc *ObjectService) GetObject(userID int, objectID int) (model.Object, error) {
 	// TODO
 	panic("not implement yet")
 }
 
-func (svc *BucketService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
+func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
 	readResp, err := svc.coordinator.Read(objectID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
@@ -55,7 +60,7 @@ func (svc *BucketService) DownloadObject(userID int, objectID int) (io.ReadClose
 	return nil, fmt.Errorf("unsupported redundancy type: %s", readResp.Redundancy)
 }
 
-func (svc *BucketService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
+func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
 	// 连接grpc
 	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
 	conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -78,7 +83,7 @@ func (svc *BucketService) downloadAsRepObject(nodeIP string, fileHash string) (i
 	return reader, nil
 }
 
-func (svc *BucketService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repNum int) error {
+func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repNum int) error {
 
 	//发送写请求，请求Coor分配写入节点Ip
 	repWriteResp, err := svc.coordinator.RepWrite(bucketID, objectName, fileSize, repNum, userID)
@@ -142,7 +147,7 @@ type fileSender struct {
 	err      error
 }
 
-func (svc *BucketService) startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []string) {
+func (svc *ObjectService) startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []string) {
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
@@ -169,7 +174,7 @@ func (svc *BucketService) startSendFile(numRep int, senders []fileSender, nodeID
 	}
 }
 
-func (svc *BucketService) sendFileData(file io.ReadCloser, numRep int, senders []fileSender) error {
+func (svc *ObjectService) sendFileData(file io.ReadCloser, numRep int, senders []fileSender) error {
 
 	// 共用的发送数据缓冲区
 	buf := make([]byte, 2048)
@@ -239,7 +244,7 @@ func (svc *BucketService) sendFileData(file io.ReadCloser, numRep int, senders [
 	return nil
 }
 
-func (svc *BucketService) sendFinish(numRep int, senders []fileSender) {
+func (svc *ObjectService) sendFinish(numRep int, senders []fileSender) {
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
@@ -262,47 +267,12 @@ func (svc *BucketService) sendFinish(numRep int, senders []fileSender) {
 	}
 }
 
-func (svc *BucketService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
+func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
 	// TODO
 	panic("not implement yet")
 }
 
-func (svc *BucketService) MoveObjectToStorage(userID int, objectID int, storageID int) error {
-	// 先向协调端请求文件相关的元数据
-	moveResp, err := svc.coordinator.Move(objectID, storageID, userID)
-	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if moveResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.Message)
-	}
-
-	// 然后向代理端发送移动文件的请求
-	agentClient, err := racli.NewAgentClient(moveResp.NodeID)
-	if err != nil {
-		return fmt.Errorf("create agent client to %d failed, err: %w", storageID, err)
-	}
-	defer agentClient.Close()
-
-	switch moveResp.Redundancy {
-	case consts.REDUNDANCY_REP:
-		agentMoveResp, err := agentClient.RepMove(moveResp.Directory, moveResp.Hashes, objectID, userID, moveResp.FileSizeInBytes)
-		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
-		}
-		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.Message)
-		}
-
-	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(moveResp.Directory, moveResp.Hashes, moveResp.IDs, *moveResp.ECName, objectID, userID, moveResp.FileSizeInBytes)
-		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
-		}
-		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.Message)
-		}
-	}
-
-	return nil
+func (svc *ObjectService) Delete(userID int, objectID int) error {
+	// TODO
+	panic("not implement yet")
 }
