@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	log "github.com/sirupsen/logrus"
-	"gitlink.org.cn/cloudream/agent/config"
+	"gitlink.org.cn/cloudream/agent/internal/config"
 	agentserver "gitlink.org.cn/cloudream/proto"
 	"gitlink.org.cn/cloudream/utils/ipfs"
 	"gitlink.org.cn/cloudream/utils/logger"

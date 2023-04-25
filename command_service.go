@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
-	"gitlink.org.cn/cloudream/agent/config"
+	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/utils"
 
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
