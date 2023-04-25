@@ -6,8 +6,8 @@ import (
 
 	_ "google.golang.org/grpc/balancer/grpclb"
 
-	"gitlink.org.cn/cloudream/client/config"
-	"gitlink.org.cn/cloudream/client/services"
+	"gitlink.org.cn/cloudream/client/internal/config"
+	"gitlink.org.cn/cloudream/client/internal/services"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
 )
 

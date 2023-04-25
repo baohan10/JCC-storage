@@ -8,8 +8,8 @@ import (
 	"strconv"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"gitlink.org.cn/cloudream/client/config"
-	"gitlink.org.cn/cloudream/client/services"
+	"gitlink.org.cn/cloudream/client/internal/config"
+	"gitlink.org.cn/cloudream/client/internal/services"
 	myio "gitlink.org.cn/cloudream/utils/io"
 )
 

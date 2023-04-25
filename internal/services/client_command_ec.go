@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"gitlink.org.cn/cloudream/client/config"
+	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/ec"
 	"gitlink.org.cn/cloudream/utils"
 )

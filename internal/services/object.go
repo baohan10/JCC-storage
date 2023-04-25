@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"gitlink.org.cn/cloudream/client/config"
+	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
 	"gitlink.org.cn/cloudream/utils/consts"
