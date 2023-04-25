@@ -39,3 +39,15 @@ func (c *Commandline) CreateBucket(bucketName string) error {
 	fmt.Printf("Create bucket %s success, id: %d", bucketName, bucketID)
 	return nil
 }
+
+func (c *Commandline) DeleteBucket(bucketID int) error {
+	userID := 0
+
+	err := services.BucketSvc(c.svc).DeleteBucket(userID, bucketID)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Delete bucket %d success ", bucketID)
+	return nil
+}

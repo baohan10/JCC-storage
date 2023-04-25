@@ -55,7 +55,14 @@ func (svc *BucketService) CreateBucket(userID int, bucketName string) (int, erro
 	return resp.BucketID, nil
 }
 
-func (src *BucketService) DeleteBucket(userID int, bucketID int) error {
-	// TODO
-	panic("not implement yet")
+func (svc *BucketService) DeleteBucket(userID int, bucketID int) error {
+	resp, err := svc.coordinator.DeleteBucket(userID, bucketID)
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if !resp.IsOK() {
+		return fmt.Errorf("delete bucket failed, code: %s, message: %s", resp.ErrorCode, resp.Message)
+	}
+
+	return nil
 }

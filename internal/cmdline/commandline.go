@@ -103,9 +103,22 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 			fmt.Printf("need more arg")
 			os.Exit(1)
 		}
-		if args[0] == "new" {
+		cmd := args[0]
+
+		if cmd == "new" {
 			if err := c.CreateBucket(args[1]); err != nil {
 				fmt.Printf("create bucket failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+		} else if cmd == "delete" {
+			bucketID, err := strconv.Atoi(args[1])
+			if err != nil {
+				fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
+				os.Exit(1)
+			}
+
+			if err := c.DeleteBucket(bucketID); err != nil {
+				fmt.Printf("delete bucket failed, err: %s", err.Error())
 				os.Exit(1)
 			}
 		}
