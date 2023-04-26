@@ -30,19 +30,23 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	cmdSvr, err := rasvr.NewCoordinatorServer(services.NewService(db))
+	coorSvr, err := rasvr.NewCoordinatorServer(services.NewService(db))
 	if err != nil {
 		log.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
 
-	// 启动命令服务器
-	go serveCommandServer(cmdSvr)
+	coorSvr.OnError = func(err error) {
+		log.Warnf("coordinator server err: %s", err.Error())
+	}
+
+	// 启动服务
+	go serveCoorServer(coorSvr)
 
 	forever := make(chan bool)
 	<-forever
 }
 
-func serveCommandServer(server *rasvr.CoordinatorServer) {
+func serveCoorServer(server *rasvr.CoordinatorServer) {
 	log.Info("start serving command server")
 
 	err := server.Serve()

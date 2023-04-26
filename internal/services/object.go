@@ -142,6 +142,9 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjec
 	err := svc.db.SetObjectDeleted(msg.UserID, msg.ObjectID)
 
 	if err != nil {
+		log.WithField("UserID", msg.UserID).
+			WithField("ObjectID", msg.ObjectID).
+			Warnf("set object deleted failed, err: %s", err.Error())
 		return coormsg.NewDeleteObjectRespFailed(errorcode.OPERATION_FAILED, "set object deleted failed")
 	}
 
