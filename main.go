@@ -47,11 +47,14 @@ func main() {
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	cmdSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().ID)
+	agtSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().ID)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
-	go serveCommandServer(cmdSvr, &wg)
+	agtSvr.OnError = func(err error) {
+		log.Warnf("agent server err: %s", err.Error())
+	}
+	go serveAgentServer(agtSvr, &wg)
 
 	go reportStatus(&wg) //网络延迟感知
 
@@ -69,7 +72,7 @@ func main() {
 	wg.Wait()
 }
 
-func serveCommandServer(server *rasvr.AgentServer, wg *sync.WaitGroup) {
+func serveAgentServer(server *rasvr.AgentServer, wg *sync.WaitGroup) {
 	server.Serve()
 	wg.Done()
 }
