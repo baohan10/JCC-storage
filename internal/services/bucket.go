@@ -12,7 +12,7 @@ func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {
 	panic("not implement yet")
 }
 
-func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBucketsCommand) *coormsg.GetUserBucketsResp {
+func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) *coormsg.GetUserBucketsResp {
 	buckets, err := svc.db.GetUserBuckets(msg.UserID)
 
 	if err != nil {
@@ -24,7 +24,7 @@ func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBucketsCommand) *coormsg.
 	return coormsg.NewGetUserBucketsRespOK(buckets)
 }
 
-func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjectsCommand) *coormsg.GetBucketObjectsResp {
+func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.GetBucketObjectsResp {
 	objects, err := svc.db.GetBucketObjects(msg.UserID, msg.BucketID)
 
 	if err != nil {
@@ -37,7 +37,7 @@ func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjectsCommand) *coor
 	return coormsg.NewGetBucketObjectsRespOK(objects)
 }
 
-func (svc *Service) CreateBucket(msg *coormsg.CreateBucketCommand) *coormsg.CreateBucketResp {
+func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucketResp {
 	bucketID, err := svc.db.CreateBucket(msg.UserID, msg.BucketName)
 
 	if err != nil {
@@ -50,7 +50,7 @@ func (svc *Service) CreateBucket(msg *coormsg.CreateBucketCommand) *coormsg.Crea
 	return coormsg.NewCreateBucketRespOK(bucketID)
 }
 
-func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucketCommand) *coormsg.DeleteBucketResp {
+func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucket) *coormsg.DeleteBucketResp {
 	err := svc.db.DeleteBucket(msg.UserID, msg.BucketID)
 
 	if err != nil {

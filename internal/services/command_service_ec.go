@@ -4,7 +4,7 @@ import (
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
 
-func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) coormsg.WriteResp {
+func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.WriteResp {
 	panic("not implement yet!")
 
 	/*
@@ -56,7 +56,7 @@ func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) coormsg.WriteResp {
 	*/
 }
 
-func (service *Service) WriteECHash(msg *coormsg.WriteECHashCommand) coormsg.WriteHashResp {
+func (service *Service) WriteECHash(msg *coormsg.WriteECHashCommand) *coormsg.WriteHashResp {
 	panic("not implement yet!")
 
 	/*
