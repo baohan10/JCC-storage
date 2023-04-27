@@ -2,6 +2,7 @@ package services
 
 import (
 	log "github.com/sirupsen/logrus"
+	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
@@ -22,20 +23,20 @@ func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObje
 	// TODO 需要在StorageData中增加记录
 
 	// 查询用户关联的存储服务
-	stg, err := service.db.QueryUserStorage(msg.UserID, msg.StorageID)
+	stg, err := service.db.QueryUserStorage(msg.Body.UserID, msg.Body.StorageID)
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
-			WithField("StorageID", msg.StorageID).
+		log.WithField("UserID", msg.Body.UserID).
+			WithField("StorageID", msg.Body.StorageID).
 			Warnf("query storage directory failed, err: %s", err.Error())
-		return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query storage directory failed")
+		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query storage directory failed")
 	}
 
 	// 查询文件对象
-	object, err := service.db.QueryObjectByID(msg.ObjectID)
+	object, err := service.db.QueryObjectByID(msg.Body.ObjectID)
 	if err != nil {
-		log.WithField("ObjectID", msg.ObjectID).
+		log.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
-		return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query Object failed")
+		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -45,7 +46,7 @@ func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObje
 		objectRep, err := service.db.QueryObjectRep(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectRep failed, err: %s", err.Error())
-			return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectRep failed")
+			return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
 		hashs = append(hashs, objectRep.RepHash)
@@ -54,7 +55,7 @@ func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObje
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectBlock failed, err: %s", err.Error())
-			return coormsg.NewCoorMoveRespFailed(errorcode.OPERATION_FAILED, "query ObjectBlock failed")
+			return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectBlock failed")
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
@@ -88,7 +89,7 @@ func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObje
 		}*/
 	}
 
-	return coormsg.NewCoorMoveRespOK(
+	return ramsg.ReplyOK(coormsg.NewMoveObjectToStorageRespBody(
 		stg.NodeID,
 		stg.Directory,
 		object.Redundancy,
@@ -96,5 +97,5 @@ func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObje
 		hashs,
 		ids,
 		object.FileSizeInBytes,
-	)
+	))
 }

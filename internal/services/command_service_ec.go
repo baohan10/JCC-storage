@@ -13,13 +13,13 @@ func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.WriteResp 
 		//jh：完成对象表、对象编码块表的插入（对象编码块表的Hash字段先不插入）
 		//返回消息
 		//查询用户可用的节点IP
-		nodes, err := service.db.QueryUserNodes(msg.UserID)
+		nodes, err := service.db.QueryUserNodes(msg.Body.UserID)
 		if err != nil {
 			log.Warnf("query user nodes failed, err: %s", err.Error())
 			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
 		}
 
-		ecid := msg.ECName
+		ecid := msg.Body.ECName
 		ecPolicies := *utils.GetEcPolicy()
 		ecPolicy := ecPolicies[ecid]
 		ecN := ecPolicy.GetN()
@@ -41,13 +41,13 @@ func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.WriteResp 
 
 		// TODO 参考RepWrite，将创建EC对象的逻辑移动到WriteECHash中，并合成成一个事务
 		//根据BucketName查询BucketID
-		BucketID := Query_BucketID(msg.BucketName)
+		BucketID := Query_BucketID(msg.Body.BucketName)
 		if BucketID == -1 {
 			// TODO 日志
-			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("bucket id not found for %s", msg.BucketName))
+			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("bucket id not found for %s", msg.Body.BucketName))
 		}
 		//对象表插入Insert_Cache
-		ObjectID := Insert_EcObject(msg.ObjectName, BucketID, msg.FileSizeInBytes, msg.ECName)
+		ObjectID := Insert_EcObject(msg.Body.ObjectName, BucketID, msg.Body.FileSizeInBytes, msg.Body.ECName)
 		//对象编码块表插入，hash暂时为空
 		for i := 0; i < ecN; i++ {
 			Insert_EcObjectBlock(ObjectID, i)
@@ -64,10 +64,10 @@ func (service *Service) WriteECHash(msg *coormsg.WriteECHashCommand) *coormsg.Wr
 		//返回消息
 		//插入对象编码块表中的Hash字段
 		// TODO 参考WriteRepHash的逻辑
-		ObjectId := Query_ObjectID(msg.ObjectName)
-		Insert_EcHash(ObjectId, msg.Hashes)
+		ObjectId := Query_ObjectID(msg.Body.ObjectName)
+		Insert_EcHash(ObjectId, msg.Body.Hashes)
 		//缓存表的插入
-		Insert_Cache(msg.Hashes, msg.NodeIDs, false)
+		Insert_Cache(msg.Body.Hashes, msg.Body.NodeIDs, false)
 
 		return ramsg.NewCoorWriteHashRespOK()
 	*/

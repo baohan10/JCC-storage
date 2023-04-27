@@ -3,6 +3,7 @@ package services
 import (
 	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/db/model"
+	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
@@ -13,52 +14,52 @@ func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {
 }
 
 func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) *coormsg.GetUserBucketsResp {
-	buckets, err := svc.db.GetUserBuckets(msg.UserID)
+	buckets, err := svc.db.GetUserBuckets(msg.Body.UserID)
 
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
+		log.WithField("UserID", msg.Body.UserID).
 			Warnf("get user buckets failed, err: %s", err.Error())
-		return coormsg.NewGetUserBucketsRespFailed(errorcode.OPERATION_FAILED, "get all buckets failed")
+		return ramsg.ReplyFailed[coormsg.GetUserBucketsResp](errorcode.OPERATION_FAILED, "get all buckets failed")
 	}
 
-	return coormsg.NewGetUserBucketsRespOK(buckets)
+	return ramsg.ReplyOK(coormsg.NewGetUserBucketsRespBody(buckets))
 }
 
 func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.GetBucketObjectsResp {
-	objects, err := svc.db.GetBucketObjects(msg.UserID, msg.BucketID)
+	objects, err := svc.db.GetBucketObjects(msg.Body.UserID, msg.Body.BucketID)
 
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
-			WithField("BucketID", msg.BucketID).
+		log.WithField("UserID", msg.Body.UserID).
+			WithField("BucketID", msg.Body.BucketID).
 			Warnf("get bucket objects failed, err: %s", err.Error())
-		return coormsg.NewGetBucketObjectsRespFailed(errorcode.OPERATION_FAILED, "get all buckets failed")
+		return ramsg.ReplyFailed[coormsg.GetBucketObjectsResp](errorcode.OPERATION_FAILED, "get bucket objects failed")
 	}
 
-	return coormsg.NewGetBucketObjectsRespOK(objects)
+	return ramsg.ReplyOK(coormsg.NewGetBucketObjectsRespBody(objects))
 }
 
 func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucketResp {
-	bucketID, err := svc.db.CreateBucket(msg.UserID, msg.BucketName)
+	bucketID, err := svc.db.CreateBucket(msg.Body.UserID, msg.Body.BucketName)
 
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
-			WithField("BucketName", msg.BucketName).
+		log.WithField("UserID", msg.Body.UserID).
+			WithField("BucketName", msg.Body.BucketName).
 			Warnf("create bucket failed, err: %s", err.Error())
-		return coormsg.NewCreateBucketRespFailed(errorcode.OPERATION_FAILED, "create bucket failed")
+		return ramsg.ReplyFailed[coormsg.CreateBucketResp](errorcode.OPERATION_FAILED, "create bucket failed")
 	}
 
-	return coormsg.NewCreateBucketRespOK(bucketID)
+	return ramsg.ReplyOK(coormsg.NewCreateBucketRespBody(bucketID))
 }
 
 func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucket) *coormsg.DeleteBucketResp {
-	err := svc.db.DeleteBucket(msg.UserID, msg.BucketID)
+	err := svc.db.DeleteBucket(msg.Body.UserID, msg.Body.BucketID)
 
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
-			WithField("BucketID", msg.BucketID).
+		log.WithField("UserID", msg.Body.UserID).
+			WithField("BucketID", msg.Body.BucketID).
 			Warnf("delete bucket failed, err: %s", err.Error())
-		return coormsg.NewDeleteBucketRespFailed(errorcode.OPERATION_FAILED, "delete bucket failed")
+		return ramsg.ReplyFailed[coormsg.DeleteBucketResp](errorcode.OPERATION_FAILED, "delete bucket failed")
 	}
 
-	return coormsg.NewDeleteBucketRespOK()
+	return ramsg.ReplyOK(coormsg.NewDeleteBucketRespBody())
 }

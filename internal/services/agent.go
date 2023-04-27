@@ -5,7 +5,7 @@ import (
 )
 
 func (service *Service) TempCacheReport(msg *coormsg.TempCacheReport) {
-	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
+	service.db.BatchInsertOrUpdateCache(msg.Body.Hashes, msg.Body.NodeID)
 }
 
 func (service *Service) AgentStatusReport(msg *coormsg.AgentStatusReport) {
@@ -15,10 +15,10 @@ func (service *Service) AgentStatusReport(msg *coormsg.AgentStatusReport) {
 	// TODO
 	/*
 		ips := utils.GetAgentIps()
-		Insert_NodeDelay(msg.IP, ips, msg.AgentDelay)
+		Insert_NodeDelay(msg.Body.IP, ips, msg.Body.AgentDelay)
 
 		//从配置表里读取节点地域NodeLocation
 		//插入节点表的NodeStatus
-		Insert_Node(msg.IP, msg.IP, msg.IPFSStatus, msg.LocalDirStatus)
+		Insert_Node(msg.Body.IP, msg.Body.IP, msg.Body.IPFSStatus, msg.Body.LocalDirStatus)
 	*/
 }
