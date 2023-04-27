@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client"
+	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
 )
@@ -55,7 +56,7 @@ func reportStatus(wg *sync.WaitGroup) {
 
 		//发送心跳
 		// TODO 由于数据结构未定，暂时不发送真实数据
-		coorCli.AgentStatusReport(config.Cfg().ID, []int{}, []int{}, ipfsStatus, localDirStatus)
+		coorCli.AgentStatusReport(coormsg.NewAgentStatusReportBody(config.Cfg().ID, []int{}, []int{}, ipfsStatus, localDirStatus))
 
 		time.Sleep(time.Minute * 5)
 	}

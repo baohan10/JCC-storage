@@ -10,7 +10,7 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )
 
-func (service *CommandService) ECMove(msg *agtmsg.ECMoveCommand) agtmsg.AgentMoveResp {
+func (service *CommandService) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.AgentMoveResp {
 	panic("not implement yet!")
 	/*
 		wg := sync.WaitGroup{}
