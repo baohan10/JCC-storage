@@ -8,6 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
+	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
@@ -30,22 +31,32 @@ func (svc *ObjectService) GetObject(userID int, objectID int) (model.Object, err
 }
 
 func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
-	readResp, err := svc.coordinator.Read(objectID, userID)
+	readResp, err := svc.coordinator.Read(coormsg.NewReadCommandBody(objectID, userID, config.Cfg().ExternalIP))
 	if err != nil {
 		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if readResp.ErrorCode != errorcode.OK {
-		return nil, fmt.Errorf("coordinator operation failed, code: %s, message: %s", readResp.ErrorCode, readResp.Message)
+		return nil, fmt.Errorf("coordinator operation failed, code: %s, message: %s", readResp.ErrorCode, readResp.ErrorMessage)
 	}
 
-	switch readResp.Redundancy {
+	switch readResp.Body.Redundancy {
 	case consts.REDUNDANCY_REP:
-		if len(readResp.NodeIPs) == 0 {
+		if len(readResp.Body.Entries) == 0 {
 			return nil, fmt.Errorf("no node has this file")
 		}
 
-		// 随便选第一个节点下载文件
-		reader, err := svc.downloadAsRepObject(readResp.NodeIPs[0], readResp.Hashes[0])
+		// 目前使用第一个节点下载文件
+		entry := readResp.Body.Entries[0]
+
+		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+		nodeIP := entry.NodeExternalIP
+		if entry.IsSameLocation {
+			nodeIP = entry.NodeLocalIP
+			// TODO 以后考虑用log
+			fmt.Printf("client and node %d are at the same location, use local ip\n", entry.NodeID)
+		}
+
+		reader, err := svc.downloadAsRepObject(nodeIP, entry.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
@@ -57,7 +68,7 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 		//	ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
 	}
 
-	return nil, fmt.Errorf("unsupported redundancy type: %s", readResp.Redundancy)
+	return nil, fmt.Errorf("unsupported redundancy type: %s", readResp.Body.Redundancy)
 }
 
 func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
@@ -67,7 +78,6 @@ func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (i
 	if err != nil {
 		return nil, fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
 	}
-	defer conn.Close()
 
 	/*
 		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
@@ -78,20 +88,23 @@ func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (i
 	client := agentcaller.NewFileTransportClient(conn)
 	reader, err := mygrpc.GetFileAsStream(client, fileHash)
 	if err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("request to get file failed, err: %w", err)
 	}
+
+	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) { conn.Close() })
 	return reader, nil
 }
 
 func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repNum int) error {
 
 	//发送写请求，请求Coor分配写入节点Ip
-	repWriteResp, err := svc.coordinator.RepWrite(bucketID, objectName, fileSize, repNum, userID)
+	repWriteResp, err := svc.coordinator.RepWrite(coormsg.NewRepWriteCommandBody(bucketID, objectName, fileSize, repNum, userID, config.Cfg().ExternalIP))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if repWriteResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.Message)
+		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.ErrorMessage)
 	}
 
 	/*
@@ -103,7 +116,7 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	senders := make([]fileSender, repNum)
 
 	// 建立grpc连接，发送请求
-	svc.startSendFile(repNum, senders, repWriteResp.NodeIDs, repWriteResp.NodeIPs)
+	svc.startSendFile(repNum, senders, repWriteResp.Body.Nodes)
 
 	// 向每个节点发送数据
 	err = svc.sendFileData(file, repNum, senders)
@@ -128,12 +141,12 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 
 	// 记录写入的文件的Hash
 	// TODO 如果一个都没有写成功，那么是否要发送这个请求？
-	writeRepHashResp, err := svc.coordinator.WriteRepHash(bucketID, objectName, fileSize, repNum, userID, sucNodeIDs, sucFileHashes)
+	writeRepHashResp, err := svc.coordinator.WriteRepHash(coormsg.NewWriteRepHashCommandBody(bucketID, objectName, fileSize, repNum, userID, sucNodeIDs, sucFileHashes))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if writeRepHashResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator WriteRepHash failed, code: %s, message: %s", writeRepHashResp.ErrorCode, writeRepHashResp.Message)
+		return fmt.Errorf("coordinator WriteRepHash failed, code: %s, message: %s", writeRepHashResp.ErrorCode, writeRepHashResp.ErrorMessage)
 	}
 
 	return nil
@@ -147,13 +160,21 @@ type fileSender struct {
 	err      error
 }
 
-func (svc *ObjectService) startSendFile(numRep int, senders []fileSender, nodeIDs []int, nodeIPs []string) {
+func (svc *ObjectService) startSendFile(numRep int, senders []fileSender, nodes []coormsg.WriteRespNode) {
 	for i := 0; i < numRep; i++ {
 		sender := &senders[i]
 
-		sender.nodeID = nodeIDs[i]
+		sender.nodeID = nodes[i].ID
 
-		grpcAddr := fmt.Sprintf("%s:%d", nodeIPs[i], config.Cfg().GRPCPort)
+		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+		nodeIP := nodes[i].ExternalIP
+		if nodes[i].IsSameLocation {
+			nodeIP = nodes[i].LocalIP
+			// TODO 以后考虑用log
+			fmt.Printf("client and node %d are at the same location, use local ip\n", nodes[i].ID)
+		}
+
+		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
 		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 		if err != nil {
@@ -183,6 +204,44 @@ func (svc *ObjectService) sendFileData(file io.ReadCloser, numRep int, senders [
 		// 读取文件数据
 		readCnt, err := file.Read(buf)
 
+		if readCnt > 0 {
+			// 并行的向每个节点发送数据
+			hasSender := false
+			var sendWg sync.WaitGroup
+			for i := 0; i < numRep; i++ {
+				sender := &senders[i]
+
+				// 发生了错误的跳过
+				if sender.err != nil {
+					continue
+				}
+
+				hasSender = true
+
+				sendWg.Add(1)
+				go func() {
+					err := myio.WriteAll(sender.stream, buf[:readCnt])
+
+					// 发生错误则关闭连接
+					if err != nil {
+						sender.stream.Abort(io.ErrClosedPipe)
+						sender.grpcCon.Close()
+						sender.err = fmt.Errorf("send file data failed, err: %w", err)
+					}
+
+					sendWg.Done()
+				}()
+			}
+
+			// 等待向每个节点发送数据结束
+			sendWg.Wait()
+
+			// 如果所有节点都发送失败，则不要再继续读取文件数据了
+			if !hasSender {
+				break
+			}
+		}
+
 		// 文件读取完毕
 		if err == io.EOF {
 			break
@@ -203,42 +262,6 @@ func (svc *ObjectService) sendFileData(file io.ReadCloser, numRep int, senders [
 			}
 
 			return fmt.Errorf("read file data failed, err: %w", err)
-		}
-
-		// 并行的向每个节点发送数据
-		hasSender := false
-		var sendWg sync.WaitGroup
-		for i := 0; i < numRep; i++ {
-			sender := &senders[i]
-
-			// 发生了错误的跳过
-			if sender.err != nil {
-				continue
-			}
-
-			hasSender = true
-
-			sendWg.Add(1)
-			go func() {
-				err := myio.WriteAll(sender.stream, buf[:readCnt])
-
-				// 发生错误则关闭连接
-				if err != nil {
-					sender.stream.Abort(io.ErrClosedPipe)
-					sender.grpcCon.Close()
-					sender.err = fmt.Errorf("send file data failed, err: %w", err)
-				}
-
-				sendWg.Done()
-			}()
-		}
-
-		// 等待向每个节点发送数据结束
-		sendWg.Wait()
-
-		// 如果所有节点都发送失败，则不要再继续读取文件数据了
-		if !hasSender {
-			break
 		}
 	}
 	return nil
@@ -273,12 +296,12 @@ func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSiz
 }
 
 func (svc *ObjectService) DeleteObject(userID int, objectID int) error {
-	resp, err := svc.coordinator.DeleteObject(userID, objectID)
+	resp, err := svc.coordinator.DeleteObject(coormsg.NewDeleteObjectBody(userID, objectID))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if !resp.IsOK() {
-		return fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.Message)
+		return fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
 	}
 
 	return nil

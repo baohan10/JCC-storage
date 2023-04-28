@@ -2,5 +2,12 @@
     "grpcPort": 5010,
     "grpcPacketSize": 10,
     "ipfsPort": 10,
-    "maxReplicateNumber": 10
+    "maxReplicateNumber": 10,
+    "localIP": "127.0.0.1",
+    "externalIP": "127.0.0.1",
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "guest",
+        "password": "guest"
+    }
 }

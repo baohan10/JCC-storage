@@ -3,7 +3,8 @@ package services
 import (
 	"fmt"
 
-	racli "gitlink.org.cn/cloudream/rabbitmq/client"
+	"gitlink.org.cn/cloudream/client/internal/config"
+	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
@@ -25,11 +26,11 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	if moveResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.Message)
+		return fmt.Errorf("coordinator operation failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.ErrorMessage)
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := racli.NewAgentClient(moveResp.Body.NodeID)
+	agentClient, err := agtcli.NewAgentClient(moveResp.Body.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		return fmt.Errorf("create agent client to %d failed, err: %w", storageID, err)
 	}
@@ -42,7 +43,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.Message)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 		}
 
 	case consts.REDUNDANCY_EC:
@@ -51,7 +52,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.Message)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 		}
 	}
 

@@ -9,7 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/cmdline"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
-	racli "gitlink.org.cn/cloudream/rabbitmq/client"
+	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	coorClient, err := racli.NewCoordinatorClient()
+	coorClient, err := coorcli.NewCoordinatorClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		fmt.Printf("new coordinator client failed, err: %s", err.Error())
 		os.Exit(1)

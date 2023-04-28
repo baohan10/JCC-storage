@@ -68,18 +68,21 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	buf := make([]byte, 1024)
 	for {
 		readCnt, err := reader.Read(buf)
+
+		if readCnt > 0 {
+			err = myio.WriteAll(outputFile, buf[:readCnt])
+			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
+			if err != nil {
+				return fmt.Errorf("write object data to local file failed, err: %w", err)
+			}
+		}
+
 		if err != nil {
 			if err == io.EOF {
 				return nil
 			}
 
 			return fmt.Errorf("read object data failed, err: %w", err)
-		}
-
-		err = myio.WriteAll(outputFile, buf[:readCnt])
-		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
-		if err != nil {
-			return fmt.Errorf("write object data to local file failed, err: %w", err)
 		}
 	}
 }
