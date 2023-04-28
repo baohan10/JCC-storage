@@ -30,7 +30,7 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	coorSvr, err := rasvr.NewCoordinatorServer(services.NewService(db))
+	coorSvr, err := rasvr.NewCoordinatorServer(services.NewService(db), &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
