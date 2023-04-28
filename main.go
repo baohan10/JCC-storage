@@ -47,7 +47,7 @@ func main() {
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().ID)
+	agtSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}

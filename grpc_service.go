@@ -91,11 +91,26 @@ func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTr
 	defer reader.Close()
 
 	buf := make([]byte, 1024)
+	readAllCnt := 0
 	for {
 		readCnt, err := reader.Read(buf)
 
+		if readCnt > 0 {
+			readAllCnt += readCnt
+			err = server.Send(&agentserver.FileDataPacket{
+				Type: agentserver.FileDataPacketType_Data,
+				Data: buf[:readCnt],
+			})
+			if err != nil {
+				log.WithField("FileHash", req.FileHash).
+					Warnf("send file data failed, err: %s", err.Error())
+				return fmt.Errorf("send file data failed, err: %w", err)
+			}
+		}
+
 		// 文件读取完毕
 		if err == io.EOF {
+			log.WithField("FileHash", req.FileHash).Debugf("send data size %d", readAllCnt)
 			// 发送EOF消息
 			server.Send(&agentserver.FileDataPacket{
 				Type: agentserver.FileDataPacketType_EOF,
@@ -107,16 +122,6 @@ func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTr
 		if err != nil && err != io.ErrUnexpectedEOF {
 			log.Warnf("read file %s data failed, err: %s", req.FileHash, err.Error())
 			return fmt.Errorf("read file data failed, err: %w", err)
-		}
-
-		err = server.Send(&agentserver.FileDataPacket{
-			Type: agentserver.FileDataPacketType_Data,
-			Data: buf[:readCnt],
-		})
-		if err != nil {
-			log.WithField("FileHash", req.FileHash).
-				Warnf("send file data failed, err: %s", err.Error())
-			return fmt.Errorf("send file data failed, err: %w", err)
 		}
 	}
 }

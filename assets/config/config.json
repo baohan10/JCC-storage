@@ -8,5 +8,10 @@
         "outputFileName": "cloud-agent",
         "outputDirectory": "log",
         "level": "debug"
+    },
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "guest",
+        "password": "guest"
     }
 }
