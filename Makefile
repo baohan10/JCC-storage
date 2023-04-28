@@ -1,5 +1,5 @@
-OUTPUT_BINARY_NAME = "cloud-agent"
-OUTPUT_DIR_NAME = "cloud-agent"
+OUTPUT_BINARY_NAME = "agent"
+OUTPUT_DIR_NAME = "agent"
 
 
 ASSETS_DIR_NAME = "assets"
@@ -7,7 +7,7 @@ BUILD_DIR = "../../build"
 
 build:
 	go build -o ${BUILD_DIR}/${OUTPUT_DIR_NAME}/${OUTPUT_BINARY_NAME}
-	@if [ -d ${ASSETS_DIR_NAME} ];then \
+	@if [ -d ${ASSETS_DIR_NAME} ] && [ -n "`ls -A ${ASSETS_DIR_NAME}`" ] ;then \
 		cp -r ${ASSETS_DIR_NAME}/* ${BUILD_DIR}/${OUTPUT_DIR_NAME}/; \
 	fi
 

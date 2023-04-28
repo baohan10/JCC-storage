@@ -19,7 +19,7 @@ type Config struct {
 var cfg Config
 
 func Init() error {
-	return c.DefaultLoad(&cfg)
+	return c.DefaultLoad("agent", &cfg)
 }
 
 func Cfg() *Config {
