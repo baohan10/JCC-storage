@@ -16,7 +16,7 @@ type Config struct {
 var cfg Config
 
 func Init() error {
-	return c.DefaultLoad(&cfg)
+	return c.DefaultLoad("coordinator", &cfg)
 }
 
 func Cfg() *Config {
