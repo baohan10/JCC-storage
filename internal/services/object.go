@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"sync"
 
 	"gitlink.org.cn/cloudream/client/internal/config"
@@ -15,6 +16,8 @@ import (
 	myio "gitlink.org.cn/cloudream/utils/io"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	lo "github.com/samber/lo"
 )
 
 type ObjectService struct {
@@ -45,8 +48,8 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 			return nil, fmt.Errorf("no node has this file")
 		}
 
-		// 目前使用第一个节点下载文件
-		entry := readResp.Body.Entries[0]
+		// 选择下载节点
+		entry := svc.chooseDownloadNode(readResp.Body.Entries)
 
 		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
 		nodeIP := entry.NodeExternalIP
@@ -69,6 +72,18 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 	}
 
 	return nil, fmt.Errorf("unsupported redundancy type: %s", readResp.Body.Redundancy)
+}
+
+// chooseDownloadNode 选择一个下载节点
+// 1. 从与当前客户端相同地域的节点中随机选一个
+// 2. 没有用的话从所有节点中随机选一个
+func (svc *ObjectService) chooseDownloadNode(entries []coormsg.ReadRespEntry) coormsg.ReadRespEntry {
+	sameLocationEntries := lo.Filter(entries, func(e coormsg.ReadRespEntry, i int) bool { return e.IsSameLocation })
+	if len(sameLocationEntries) > 0 {
+		return sameLocationEntries[rand.Int()%len(sameLocationEntries)]
+	}
+
+	return entries[rand.Int()%len(entries)]
 }
 
 func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
