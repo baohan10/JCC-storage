@@ -43,19 +43,13 @@ func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObje
 	var hashs []string
 	ids := []int{0}
 	if object.Redundancy == consts.REDUNDANCY_REP {
-		objectReps, err := service.db.GetObjectReps(object.ObjectID)
+		objectRep, err := service.db.GetObjectRep(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectRep failed, err: %s", err.Error())
 			return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
-		if len(objectReps) == 0 {
-			log.WithField("ObjectID", object.ObjectID).
-				Warnf("object rep not found")
-			return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "object rep not found")
-		}
-
-		hashs = append(hashs, objectReps[0].RepHash)
+		hashs = append(hashs, objectRep.RepHash)
 
 	} else {
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)

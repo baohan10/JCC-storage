@@ -4,19 +4,18 @@ import (
 	log "github.com/sirupsen/logrus"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
-	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
-func (svc *Service) Read(msg *coormsg.ReadCommand) *coormsg.ReadResp {
+func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.PreDownloadObjectResp {
 
 	// 查询文件对象
 	object, err := svc.db.QueryObjectByID(msg.Body.ObjectID)
 	if err != nil {
 		log.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "query Object failed")
+		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query Object failed")
 	}
 
 	// 查询客户端所属节点
@@ -24,42 +23,36 @@ func (svc *Service) Read(msg *coormsg.ReadCommand) *coormsg.ReadResp {
 	if err != nil {
 		log.WithField("ReaderExternalIP", msg.Body.ReaderExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "query client belong node failed")
+		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
 	}
 	log.Debugf("client address %s is at location %d", msg.Body.ReaderExternalIP, belongNode.LocationID)
 
-	var entries []coormsg.ReadRespEntry
+	var entries []coormsg.PreDownloadObjectRespEntry
 	//-若redundancy是rep，查询对象副本表, 获得repHash
 	if object.Redundancy == consts.REDUNDANCY_REP {
-		objectReps, err := svc.db.GetObjectReps(object.ObjectID)
+		objectRep, err := svc.db.GetObjectRep(object.ObjectID)
 		if err != nil {
 			log.WithField("ObjectID", object.ObjectID).
 				Warnf("get ObjectRep failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "query ObjectRep failed")
+			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query ObjectRep failed")
 		}
 
-		if len(objectReps) == 0 {
-			log.WithField("ObjectID", object.ObjectID).
-				Warnf("object rep not found")
-			return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "object rep not found")
-		}
-
-		// 由于采用了IPFS存储，因此每个备份文件的FileHash都是一样的，此处直接使用第一个
-		nodes, err := svc.db.QueryCacheNodeByBlockHash(objectReps[0].RepHash)
+		// 注：由于采用了IPFS存储，因此每个备份文件的FileHash都是一样的
+		nodes, err := svc.db.FindCachingFileUserNodes(msg.Body.UserID, objectRep.RepHash)
 		if err != nil {
-			log.WithField("RepHash", objectReps[0].RepHash).
+			log.WithField("RepHash", objectRep.RepHash).
 				Warnf("query Cache failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "query Cache failed")
+			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query Cache failed")
 		}
 
 		for _, node := range nodes {
-			entries = append(entries, coormsg.NewReadRespEntry(
+			entries = append(entries, coormsg.NewPreDownloadObjectRespEntry(
 				node.NodeID,
 				node.ExternalIP,
 				node.LocalIP,
 				// LocationID 相同则认为是在同一个地域
 				belongNode.LocationID == node.LocationID,
-				objectReps[0].RepHash,
+				objectRep.RepHash,
 				0))
 		}
 
@@ -105,7 +98,7 @@ func (svc *Service) Read(msg *coormsg.ReadCommand) *coormsg.ReadResp {
 		}*/
 	}
 
-	return ramsg.ReplyOK(coormsg.NewReadRespBody(
+	return ramsg.ReplyOK(coormsg.NewPreDownloadObjectRespBody(
 		object.Redundancy,
 		object.ECName,
 		object.FileSizeInBytes,
@@ -113,7 +106,7 @@ func (svc *Service) Read(msg *coormsg.ReadCommand) *coormsg.ReadResp {
 	))
 }
 
-func (svc *Service) RepWrite(msg *coormsg.RepWriteCommand) *coormsg.WriteResp {
+func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg.PreUploadResp {
 	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
 	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
 
@@ -121,14 +114,7 @@ func (svc *Service) RepWrite(msg *coormsg.RepWriteCommand) *coormsg.WriteResp {
 	nodes, err := svc.db.QueryUserNodes(msg.Body.UserID)
 	if err != nil {
 		log.Warnf("query user nodes failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.WriteResp](errorcode.OPERATION_FAILED, "query user nodes failed")
-	}
-
-	if len(nodes) < msg.Body.ReplicateNumber {
-		log.WithField("UserID", msg.Body.UserID).
-			WithField("ReplicateNumber", msg.Body.ReplicateNumber).
-			Warnf("user nodes are not enough")
-		return ramsg.ReplyFailed[coormsg.WriteResp](errorcode.OPERATION_FAILED, "user nodes are not enough")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query user nodes failed")
 	}
 
 	// 查询客户端所属节点
@@ -136,33 +122,35 @@ func (svc *Service) RepWrite(msg *coormsg.RepWriteCommand) *coormsg.WriteResp {
 	if err != nil {
 		log.WithField("WriterExternalIP", msg.Body.WriterExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.WriteResp](errorcode.OPERATION_FAILED, "query client belong node failed")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query client belong node failed")
 	}
 
-	numRep := msg.Body.ReplicateNumber
-	retNodes := make([]coormsg.WriteRespNode, numRep)
-	//随机选取numRep个nodeIp
-	start := utils.GetRandInt(len(nodes))
-	for i := 0; i < numRep; i++ {
-		index := (start + i) % len(nodes)
-		node := nodes[index]
-
-		retNodes[i] = coormsg.NewWriteRespNode(node.NodeID, node.ExternalIP, node.LocalIP, belongNode.LocationID == node.LocationID)
+	var retNodes []coormsg.PreUploadRespNode
+	for _, node := range nodes {
+		retNodes = append(retNodes, coormsg.NewPreUploadRespNode(
+			node.NodeID,
+			node.ExternalIP,
+			node.LocalIP,
+			// LocationID 相同则认为是在同一个地域
+			belongNode.LocationID == node.LocationID,
+		))
 	}
 
-	return ramsg.ReplyOK(coormsg.NewCoorWriteRespBody(retNodes))
+	return ramsg.ReplyOK(coormsg.NewPreUploadRespBody(retNodes))
 }
 
-func (service *Service) WriteRepHash(msg *coormsg.WriteRepHashCommand) *coormsg.WriteHashResp {
-	_, err := service.db.CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSizeInBytes, msg.Body.ReplicateNumber, msg.Body.NodeIDs, msg.Body.Hashes)
+func (service *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.CreateObjectResp {
+	_, err := service.db.CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSizeInBytes, msg.Body.ReplicateNumber, msg.Body.NodeID, msg.Body.FileHash)
 	if err != nil {
 		log.WithField("BucketName", msg.Body.BucketID).
 			WithField("ObjectName", msg.Body.ObjectName).
 			Warnf("create rep object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.WriteHashResp](errorcode.OPERATION_FAILED, "create rep object failed")
+		return ramsg.ReplyFailed[coormsg.CreateObjectResp](errorcode.OPERATION_FAILED, "create rep object failed")
 	}
 
-	return ramsg.ReplyOK(coormsg.NewWriteHashRespBody())
+	// TODO 通知scanner检查备份数
+
+	return ramsg.ReplyOK(coormsg.NewCreateObjectRespBody())
 }
 
 func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjectResp {
