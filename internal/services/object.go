@@ -167,7 +167,7 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	}
 
 	// 记录写入的文件的Hash
-	createObjectResp, err := svc.coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(bucketID, objectName, fileSize, repNum, userID, uploadNode.ID, fileHash))
+	createObjectResp, err := svc.coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(bucketID, objectName, fileSize, repNum, userID, []int{uploadNode.ID}, fileHash))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
