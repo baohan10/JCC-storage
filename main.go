@@ -75,6 +75,15 @@ func main() {
 }
 
 func serveAgentServer(server *rasvr.AgentServer, wg *sync.WaitGroup) {
-	server.Serve()
+	log.Info("start serving command server")
+
+	err := server.Serve()
+
+	if err != nil {
+		log.Errorf("command server stopped with error: %s", err.Error())
+	}
+
+	log.Info("command server stopped")
+
 	wg.Done()
 }
