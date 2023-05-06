@@ -8,7 +8,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/client/internal/services"
-	myio "gitlink.org.cn/cloudream/utils/io"
 )
 
 func (c *Commandline) GetBucketObjects(bucketID int) error {
@@ -53,11 +52,6 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	}
 	defer outputFile.Close()
 
-	/*
-		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
-			如果本地有ipfs daemon且能获取相应对象的cid，则获取对象cid对应的ipfsblock的cid，通过ipfs网络获取这些ipfsblock
-			否则，像目前一样，使用grpc向指定节点获取
-	*/
 	// 下载文件
 	reader, err := services.ObjectSvc(c.svc).DownloadObject(0, objectID)
 	if err != nil {
@@ -65,26 +59,13 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	}
 	defer reader.Close()
 
-	buf := make([]byte, 1024)
-	for {
-		readCnt, err := reader.Read(buf)
-
-		if readCnt > 0 {
-			err = myio.WriteAll(outputFile, buf[:readCnt])
-			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
-			if err != nil {
-				return fmt.Errorf("write object data to local file failed, err: %w", err)
-			}
-		}
-
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-
-			return fmt.Errorf("read object data failed, err: %w", err)
-		}
+	_, err = io.Copy(outputFile, reader)
+	if err != nil {
+		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
+		return fmt.Errorf("copy object data to local file failed, err: %w", err)
 	}
+
+	return nil
 }
 
 func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName string, repNum int) error {
