@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	log "github.com/sirupsen/logrus"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
+	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func (svc *Service) PinObject(msg *agtmsg.PinObject) *agtmsg.PinObjectResp {

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/ec"
 	"gitlink.org.cn/cloudream/utils"
+	log "gitlink.org.cn/cloudream/utils/logger"
 
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"

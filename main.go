@@ -6,11 +6,10 @@ import (
 	"os"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	agentserver "gitlink.org.cn/cloudream/proto"
 	"gitlink.org.cn/cloudream/utils/ipfs"
-	"gitlink.org.cn/cloudream/utils/logger"
+	log "gitlink.org.cn/cloudream/utils/logger"
 
 	"google.golang.org/grpc"
 
@@ -33,7 +32,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = logger.Init(&config.Cfg().Logger)
+	err = log.Init(&config.Cfg().Logger)
 	if err != nil {
 		fmt.Printf("init logger failed, err: %s", err.Error())
 		os.Exit(1)

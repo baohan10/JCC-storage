@@ -4,12 +4,12 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
+	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func reportStatus(wg *sync.WaitGroup) {
