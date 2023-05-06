@@ -1,6 +1,9 @@
 package services
 
 import (
+	"database/sql"
+	"errors"
+
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
@@ -107,13 +110,40 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 }
 
 func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg.PreUploadResp {
-	// TODO 需要在此处判断同名对象是否存在。等到WriteRepHash时再判断一次。
+
+	// 判断同名对象是否存在。等到WriteRepHash时再判断一次。
 	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
+	isBucketAvai, err := svc.db.IsBucketAvailable(msg.Body.BucketID, msg.Body.UserID)
+	if err != nil {
+		log.WithField("BucketID", msg.Body.BucketID).
+			Warnf("check bucket available failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "check bucket available failed")
+	}
+	if !isBucketAvai {
+		log.WithField("BucketID", msg.Body.BucketID).
+			Warnf("bucket is not available to user")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "bucket is not available to user")
+	}
+
+	_, err = svc.db.GetObjectByName(msg.Body.BucketID, msg.Body.ObjectName)
+	if err == nil {
+		log.WithField("BucketID", msg.Body.BucketID).
+			WithField("ObjectName", msg.Body.ObjectName).
+			Warnf("object with given Name and BucketID already exists")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "object with given Name and BucketID already exists")
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		log.WithField("BucketID", msg.Body.BucketID).
+			WithField("ObjectName", msg.Body.ObjectName).
+			Warnf("get object by name failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "get object by name failed")
+	}
 
 	//查询用户可用的节点IP
 	nodes, err := svc.db.QueryUserNodes(msg.Body.UserID)
 	if err != nil {
-		log.Warnf("query user nodes failed, err: %s", err.Error())
+		log.WithField("UserID", msg.Body.UserID).
+			Warnf("query user nodes failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query user nodes failed")
 	}
 
