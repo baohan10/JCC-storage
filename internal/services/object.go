@@ -8,6 +8,8 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
+	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
@@ -86,6 +88,23 @@ func (svc *ObjectService) chooseDownloadNode(entries []coormsg.PreDownloadObject
 }
 
 func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
+	if svc.ipfs != nil {
+		// TODO log
+		fmt.Printf("try to use local IPFS to download file")
+
+		reader, err := svc.downloadFromLocalIPFS(fileHash)
+		if err == nil {
+			return reader, nil
+		}
+
+		// TODO log
+		fmt.Printf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
+	}
+
+	return svc.downloadFromNode(nodeIP, fileHash)
+}
+
+func (svc *ObjectService) downloadFromNode(nodeIP string, fileHash string) (io.ReadCloser, error) {
 	// 连接grpc
 	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
 	conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -93,11 +112,6 @@ func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (i
 		return nil, fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
 	}
 
-	/*
-		TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
-			如果本地有ipfs daemon且能获取相应对象的cid，则获取对象cid对应的ipfsblock的cid，通过ipfs网络获取这些ipfsblock
-			否则，像目前一样，使用grpc向指定节点获取
-	*/
 	// 下载文件
 	client := agentcaller.NewFileTransportClient(conn)
 	reader, err := mygrpc.GetFileAsStream(client, fileHash)
@@ -107,6 +121,15 @@ func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (i
 	}
 
 	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) { conn.Close() })
+	return reader, nil
+}
+
+func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
+	reader, err := svc.ipfs.OpenRead(fileHash)
+	if err != nil {
+		return nil, fmt.Errorf("read ipfs file failed, err: %w", err)
+	}
+
 	return reader, nil
 }
 
@@ -121,12 +144,6 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.ErrorMessage)
 	}
 
-	/*
-		TO DO ss: 判断本地有没有ipfs daemon、能否与目标agent的ipfs daemon连通、本地ipfs目录空间是否充足
-			如果本地有ipfs daemon、能与目标agent的ipfs daemon连通、本地ipfs目录空间充足，将所有内容写入本地ipfs目录，得到对象的cid，发送cid给目标agent让其pin相应的对象
-			否则，像目前一样，使用grpc向指定节点获取
-	*/
-
 	uploadNode := svc.chooseUploadNode(repWriteResp.Body.Nodes)
 
 	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
@@ -137,18 +154,57 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 		fmt.Printf("client and node %d are at the same location, use local ip\n", uploadNode.ID)
 	}
 
+	var fileHash string
+	uploadedNodeIDs := []int{}
+	uploadToNode := true
+	// 本地有IPFS，则直接从本地IPFS上传
+	if svc.ipfs != nil {
+		// TODO log
+		fmt.Printf("try to use local IPFS to upload file")
+
+		fileHash, err = svc.uploadToLocalIPFS(file, uploadNode.ID)
+		if err != nil {
+			// TODO log
+			fmt.Printf("upload to local IPFS failed, so try to upload to node %s, err: %s", nodeIP, err.Error())
+		} else {
+			uploadToNode = false
+		}
+	}
+
+	// 否则发送到agent上传
+	if uploadToNode {
+		fileHash, err = svc.uploadToNode(file, nodeIP)
+		if err != nil {
+			return fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
+		}
+		uploadedNodeIDs = append(uploadedNodeIDs, uploadNode.ID)
+	}
+
+	// 记录写入的文件的Hash
+	createObjectResp, err := svc.coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(bucketID, objectName, fileSize, repNum, userID, uploadedNodeIDs, fileHash))
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if createObjectResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator CreateRepObject failed, code: %s, message: %s", createObjectResp.ErrorCode, createObjectResp.ErrorMessage)
+	}
+
+	return nil
+}
+
+func (svc *ObjectService) uploadToNode(file io.ReadCloser, nodeIP string) (string, error) {
 	// 建立grpc连接，发送请求
 	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
 	grpcCon, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
+		return "", fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
 	}
 	defer grpcCon.Close()
 
 	client := agentcaller.NewFileTransportClient(grpcCon)
 	upload, err := mygrpc.SendFileAsStream(client)
 	if err != nil {
-		return fmt.Errorf("request to send file failed, err: %w", err)
+		return "", fmt.Errorf("request to send file failed, err: %w", err)
 	}
 
 	// 发送文件数据
@@ -156,26 +212,52 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	if err != nil {
 		// 发生错误则关闭连接
 		upload.Abort(io.ErrClosedPipe)
-		return err
+		return "", err
 	}
 
 	// 发送EOF消息，并获得FileHash
 	fileHash, err := upload.Finish()
 	if err != nil {
 		upload.Abort(io.ErrClosedPipe)
-		return fmt.Errorf("send EOF failed, err: %w", err)
+		return "", fmt.Errorf("send EOF failed, err: %w", err)
 	}
 
-	// 记录写入的文件的Hash
-	createObjectResp, err := svc.coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(bucketID, objectName, fileSize, repNum, userID, []int{uploadNode.ID}, fileHash))
+	return fileHash, nil
+}
+
+func (svc *ObjectService) uploadToLocalIPFS(file io.ReadCloser, nodeID int) (string, error) {
+	// 从本地IPFS上传文件
+	writer, err := svc.ipfs.CreateFile()
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if createObjectResp.ErrorCode != errorcode.OK {
-		return fmt.Errorf("coordinator WriteRepHash failed, code: %s, message: %s", createObjectResp.ErrorCode, createObjectResp.ErrorMessage)
+		return "", fmt.Errorf("create IPFS file failed, err: %w", err)
 	}
 
-	return nil
+	_, err = io.Copy(writer, file)
+	if err != nil {
+		return "", fmt.Errorf("copy file data to IPFS failed, err: %w", err)
+	}
+
+	fileHash, err := writer.Finish(io.EOF)
+	if err != nil {
+		return "", fmt.Errorf("finish writing IPFS failed, err: %w", err)
+	}
+
+	// 然后让最近节点pin本地上传的文件
+	agentClient, err := agtcli.NewAgentClient(nodeID, &config.Cfg().RabbitMQ)
+	if err != nil {
+		return "", fmt.Errorf("create agent client to %d failed, err: %w", nodeID, err)
+	}
+	defer agentClient.Close()
+
+	pinObjResp, err := agentClient.PinObject(agtmsg.NewPinObjectBody(fileHash))
+	if err != nil {
+		return "", fmt.Errorf("request to agent %d failed, err: %w", nodeID, err)
+	}
+	if pinObjResp.IsFailed() {
+		return "", fmt.Errorf("agent %d PinObject failed, code: %s, message: %s", nodeID, pinObjResp.ErrorCode, pinObjResp.ErrorMessage)
+	}
+
+	return fileHash, nil
 }
 
 // chooseUploadNode 选择一个上传文件的节点

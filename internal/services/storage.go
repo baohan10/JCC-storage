@@ -32,7 +32,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 	// 然后向代理端发送移动文件的请求
 	agentClient, err := agtcli.NewAgentClient(moveResp.Body.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
-		return fmt.Errorf("create agent client to %d failed, err: %w", storageID, err)
+		return fmt.Errorf("create agent client to %d failed, err: %w", moveResp.Body.NodeID, err)
 	}
 	defer agentClient.Close()
 
@@ -40,19 +40,19 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 	case consts.REDUNDANCY_REP:
 		agentMoveResp, err := agentClient.RepMove(agtmsg.NewRepMoveCommandBody(moveResp.Body.Directory, moveResp.Body.Hashes, objectID, userID, moveResp.Body.FileSizeInBytes))
 		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
+			return fmt.Errorf("request to agent %d failed, err: %w", moveResp.Body.NodeID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", moveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 		}
 
 	case consts.REDUNDANCY_EC:
 		agentMoveResp, err := agentClient.ECMove(agtmsg.NewECMoveCommandBody(moveResp.Body.Directory, moveResp.Body.Hashes, moveResp.Body.IDs, *moveResp.Body.ECName, objectID, userID, moveResp.Body.FileSizeInBytes))
 		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", storageID, err)
+			return fmt.Errorf("request to agent %d failed, err: %w", moveResp.Body.NodeID, err)
 		}
 		if agentMoveResp.ErrorCode != errorcode.OK {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", storageID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
+			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", moveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 		}
 	}
 

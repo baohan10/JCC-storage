@@ -10,6 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
+	"gitlink.org.cn/cloudream/utils/ipfs"
 )
 
 func main() {
@@ -25,7 +26,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	svc, err := services.NewService(coorClient)
+	var ipfsCli *ipfs.IPFS
+	if config.Cfg().IPFS != nil {
+		fmt.Printf("IPFS config is not empty, so create a ipfs client")
+
+		ipfsCli, err = ipfs.NewIPFS(config.Cfg().IPFS)
+		if err != nil {
+			fmt.Printf("new ipfs client failed, err: %s", err.Error())
+			os.Exit(1)
+		}
+	}
+
+	svc, err := services.NewService(coorClient, ipfsCli)
 	if err != nil {
 		fmt.Printf("new services failed, err: %s", err.Error())
 		os.Exit(1)
