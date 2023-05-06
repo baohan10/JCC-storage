@@ -1,11 +1,11 @@
 package services
 
 import (
-	log "github.com/sirupsen/logrus"
 	"gitlink.org.cn/cloudream/db/model"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
+	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {

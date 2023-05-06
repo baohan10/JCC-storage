@@ -1,12 +1,12 @@
 package services
 
 import (
-	log "github.com/sirupsen/logrus"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
 	"gitlink.org.cn/cloudream/utils/consts"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
+	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func (service *Service) Move(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
