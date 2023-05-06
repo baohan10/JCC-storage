@@ -15,6 +15,7 @@ import (
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
 	myio "gitlink.org.cn/cloudream/utils/io"
+	log "gitlink.org.cn/cloudream/utils/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -56,8 +57,8 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 		nodeIP := entry.NodeExternalIP
 		if entry.IsSameLocation {
 			nodeIP = entry.NodeLocalIP
-			// TODO 以后考虑用log
-			fmt.Printf("client and node %d are at the same location, use local ip\n", entry.NodeID)
+
+			log.Infof("client and node %d are at the same location, use local ip\n", entry.NodeID)
 		}
 
 		reader, err := svc.downloadAsRepObject(nodeIP, entry.FileHash)
@@ -89,16 +90,14 @@ func (svc *ObjectService) chooseDownloadNode(entries []coormsg.PreDownloadObject
 
 func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
 	if svc.ipfs != nil {
-		// TODO log
-		fmt.Printf("try to use local IPFS to download file")
+		log.Infof("try to use local IPFS to download file")
 
 		reader, err := svc.downloadFromLocalIPFS(fileHash)
 		if err == nil {
 			return reader, nil
 		}
 
-		// TODO log
-		fmt.Printf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
+		log.Warnf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
 	}
 
 	return svc.downloadFromNode(nodeIP, fileHash)
@@ -150,8 +149,8 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	nodeIP := uploadNode.ExternalIP
 	if uploadNode.IsSameLocation {
 		nodeIP = uploadNode.LocalIP
-		// TODO 以后考虑用log
-		fmt.Printf("client and node %d are at the same location, use local ip\n", uploadNode.ID)
+
+		log.Infof("client and node %d are at the same location, use local ip\n", uploadNode.ID)
 	}
 
 	var fileHash string
@@ -159,13 +158,11 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	uploadToNode := true
 	// 本地有IPFS，则直接从本地IPFS上传
 	if svc.ipfs != nil {
-		// TODO log
-		fmt.Printf("try to use local IPFS to upload file")
+		log.Infof("try to use local IPFS to upload file")
 
 		fileHash, err = svc.uploadToLocalIPFS(file, uploadNode.ID)
 		if err != nil {
-			// TODO log
-			fmt.Printf("upload to local IPFS failed, so try to upload to node %s, err: %s", nodeIP, err.Error())
+			log.Warnf("upload to local IPFS failed, so try to upload to node %s, err: %s", nodeIP, err.Error())
 		} else {
 			uploadToNode = false
 		}

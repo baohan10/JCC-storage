@@ -11,6 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/services"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	"gitlink.org.cn/cloudream/utils/ipfs"
+	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func main() {
@@ -20,32 +21,38 @@ func main() {
 		os.Exit(1)
 	}
 
+	err = log.Init(&config.Cfg().Logger)
+	if err != nil {
+		fmt.Printf("init logger failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
 	coorClient, err := coorcli.NewCoordinatorClient(&config.Cfg().RabbitMQ)
 	if err != nil {
-		fmt.Printf("new coordinator client failed, err: %s", err.Error())
+		log.Warnf("new coordinator client failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 
 	var ipfsCli *ipfs.IPFS
 	if config.Cfg().IPFS != nil {
-		fmt.Printf("IPFS config is not empty, so create a ipfs client")
+		log.Infof("IPFS config is not empty, so create a ipfs client")
 
 		ipfsCli, err = ipfs.NewIPFS(config.Cfg().IPFS)
 		if err != nil {
-			fmt.Printf("new ipfs client failed, err: %s", err.Error())
+			log.Warnf("new ipfs client failed, err: %s", err.Error())
 			os.Exit(1)
 		}
 	}
 
 	svc, err := services.NewService(coorClient, ipfsCli)
 	if err != nil {
-		fmt.Printf("new services failed, err: %s", err.Error())
+		log.Warnf("new services failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 
 	cmds, err := cmdline.NewCommandline(svc)
 	if err != nil {
-		fmt.Printf("new command line failed, err: %s", err.Error())
+		log.Warnf("new command line failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 

@@ -4,16 +4,18 @@ import (
 	racfg "gitlink.org.cn/cloudream/rabbitmq/config"
 	"gitlink.org.cn/cloudream/utils/config"
 	"gitlink.org.cn/cloudream/utils/ipfs"
+	"gitlink.org.cn/cloudream/utils/logger"
 )
 
 type Config struct {
-	GRPCPort           int          `json:"grpcPort"`
-	GRCPPacketSize     int64        `json:"grpcPacketSize"`
-	MaxReplicateNumber int          `json:"maxReplicateNumber"`
-	LocalIP            string       `json:"localIP"`
-	ExternalIP         string       `json:"externalIP"`
-	RabbitMQ           racfg.Config `json:"rabbitMQ"`
-	IPFS               *ipfs.Config `json:"ipfs"` // 此字段非空代表客户端上存在ipfs daemon
+	GRPCPort           int           `json:"grpcPort"`
+	GRCPPacketSize     int64         `json:"grpcPacketSize"`
+	MaxReplicateNumber int           `json:"maxReplicateNumber"`
+	LocalIP            string        `json:"localIP"`
+	ExternalIP         string        `json:"externalIP"`
+	Logger             logger.Config `json:"logger"`
+	RabbitMQ           racfg.Config  `json:"rabbitMQ"`
+	IPFS               *ipfs.Config  `json:"ipfs"` // 此字段非空代表客户端上存在ipfs daemon
 }
 
 var cfg Config
