@@ -15,6 +15,9 @@ import (
 	"google.golang.org/grpc"
 
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/agent"
+
+	cmdsvc "gitlink.org.cn/cloudream/agent/internal/services/cmd"
+	grpcsvc "gitlink.org.cn/cloudream/agent/internal/services/grpc"
 )
 
 // TODO 此数据是否在运行时会发生变化？
@@ -36,7 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ipfs, err := ipfs.NewIPFS(config.Cfg().IPFSPort)
+	ipfs, err := ipfs.NewIPFS(&config.Cfg().IPFS)
 	if err != nil {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
@@ -47,7 +50,7 @@ func main() {
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := rasvr.NewAgentServer(NewCommandService(ipfs), config.Cfg().ID, &config.Cfg().RabbitMQ)
+	agtSvr, err := rasvr.NewAgentServer(cmdsvc.NewService(ipfs), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -66,7 +69,7 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	agentserver.RegisterFileTransportServer(s, NewGPRCService(ipfs))
+	agentserver.RegisterFileTransportServer(s, grpcsvc.NewService(ipfs))
 	s.Serve(lis)
 
 	wg.Wait()

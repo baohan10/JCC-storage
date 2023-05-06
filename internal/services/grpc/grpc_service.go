@@ -1,4 +1,4 @@
-package main
+package grpc
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ type GRPCService struct {
 	ipfs *ipfs.IPFS
 }
 
-func NewGPRCService(ipfs *ipfs.IPFS) *GRPCService {
+func NewService(ipfs *ipfs.IPFS) *GRPCService {
 	return &GRPCService{
 		ipfs: ipfs,
 	}
