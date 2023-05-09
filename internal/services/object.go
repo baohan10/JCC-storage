@@ -16,6 +16,7 @@ import (
 	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
 	myio "gitlink.org.cn/cloudream/utils/io"
 	log "gitlink.org.cn/cloudream/utils/logger"
+	mysort "gitlink.org.cn/cloudream/utils/sort"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -141,6 +142,10 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	}
 	if repWriteResp.ErrorCode != errorcode.OK {
 		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.ErrorMessage)
+	}
+
+	if len(repWriteResp.Body.Nodes) == 0 {
+		return fmt.Errorf("no node to upload file")
 	}
 
 	uploadNode := svc.chooseUploadNode(repWriteResp.Body.Nodes)
@@ -301,6 +306,89 @@ func (svc *ObjectService) sendFileData(file io.ReadCloser, upload mygrpc.FileWri
 func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
 	// TODO
 	panic("not implement yet")
+}
+
+func (svc *ObjectService) UpdateRepObject(userID int, objectID int, file io.ReadCloser, fileSize int64) error {
+	preResp, err := svc.coordinator.PreUpdateRepObject(coormsg.NewPreUpdateRepObjectBody(
+		objectID,
+		fileSize,
+		userID,
+		config.Cfg().ExternalIP,
+	))
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if preResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator PreUpdateRepObject failed, code: %s, message: %s", preResp.ErrorCode, preResp.ErrorMessage)
+	}
+
+	if len(preResp.Body.Nodes) == 0 {
+		return fmt.Errorf("no node to upload file")
+	}
+
+	// 上传文件的方式优先级：
+	// 1. 本地IPFS
+	// 2. 包含了旧文件，且与客户端在同地域的节点
+	// 3. 不在同地域，但包含了旧文件的节点
+	// 4. 同地域节点
+
+	uploadNode := svc.chooseUpdateRepObjectNode(preResp.Body.Nodes)
+
+	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+	nodeIP := uploadNode.ExternalIP
+	if uploadNode.IsSameLocation {
+		nodeIP = uploadNode.LocalIP
+
+		log.Infof("client and node %d are at the same location, use local ip\n", uploadNode.ID)
+	}
+
+	var fileHash string
+	uploadedNodeIDs := []int{}
+	uploadToNode := true
+	// 本地有IPFS，则直接从本地IPFS上传
+	if svc.ipfs != nil {
+		log.Infof("try to use local IPFS to upload file")
+
+		fileHash, err = svc.uploadToLocalIPFS(file, uploadNode.ID)
+		if err != nil {
+			log.Warnf("upload to local IPFS failed, so try to upload to node %s, err: %s", nodeIP, err.Error())
+		} else {
+			uploadToNode = false
+		}
+	}
+
+	// 否则发送到agent上传
+	if uploadToNode {
+		fileHash, err = svc.uploadToNode(file, nodeIP)
+		if err != nil {
+			return fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
+		}
+		uploadedNodeIDs = append(uploadedNodeIDs, uploadNode.ID)
+	}
+
+	// 更新Object
+	updateResp, err := svc.coordinator.UpdateRepObject(coormsg.NewUpdateRepObjectBody(objectID, fileHash, fileSize, uploadedNodeIDs, userID))
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	if updateResp.ErrorCode != errorcode.OK {
+		return fmt.Errorf("coordinator UpdateRepObject failed, code: %s, message: %s", updateResp.ErrorCode, updateResp.ErrorMessage)
+	}
+
+	return nil
+}
+
+func (svc *ObjectService) chooseUpdateRepObjectNode(nodes []coormsg.PreUpdateRepObjectRespNode) coormsg.PreUpdateRepObjectRespNode {
+	mysort.Sort(nodes, func(left, right coormsg.PreUpdateRepObjectRespNode) int {
+		v := -mysort.CmpBool(left.HasOldObject, right.HasOldObject)
+		if v != 0 {
+			return v
+		}
+
+		return -mysort.CmpBool(left.IsSameLocation, right.IsSameLocation)
+	})
+
+	return nodes[0]
 }
 
 func (svc *ObjectService) DeleteObject(userID int, objectID int) error {

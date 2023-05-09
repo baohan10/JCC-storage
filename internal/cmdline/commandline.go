@@ -39,13 +39,13 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 			fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
 			os.Exit(1)
 		}
-		numRep, _ := strconv.Atoi(args[3])
-		if numRep <= 0 || numRep > config.Cfg().MaxReplicateNumber {
+		repNum, _ := strconv.Atoi(args[3])
+		if repNum <= 0 || repNum > config.Cfg().MaxReplicateNumber {
 			fmt.Printf("replicate number should not be more than %d", config.Cfg().MaxReplicateNumber)
 			os.Exit(1)
 		}
 
-		if err := c.RepWrite(args[0], bucketID, args[2], numRep); err != nil {
+		if err := c.RepWrite(args[0], bucketID, args[2], repNum); err != nil {
 			fmt.Printf("rep write failed, err: %s", err.Error())
 			os.Exit(1)
 		}
@@ -126,7 +126,20 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 			os.Exit(1)
 		}
 
-		if args[0] == "delete" {
+		switch args[0] {
+		case "update":
+			objectID, err := strconv.Atoi(args[1])
+			if err != nil {
+				fmt.Printf("invalid object id %s, err: %s", args[1], err.Error())
+				os.Exit(1)
+			}
+
+			if err := c.UpdateRepObject(objectID, args[2]); err != nil {
+				fmt.Printf("delete object failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+
+		case "delete":
 			objectID, err := strconv.Atoi(args[1])
 			if err != nil {
 				fmt.Printf("invalid object id %s, err: %s", args[1], err.Error())

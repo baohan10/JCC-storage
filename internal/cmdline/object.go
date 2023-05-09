@@ -94,6 +94,29 @@ func (c *Commandline) EcWrite(localFilePath string, bucketID int, objectName str
 	panic("not implement yet")
 }
 
+func (c *Commandline) UpdateRepObject(objectID int, filePath string) error {
+	userID := 0
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("open file %s failed, err: %w", filePath, err)
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("get file %s state failed, err: %w", filePath, err)
+	}
+	fileSize := fileInfo.Size()
+
+	err = services.ObjectSvc(c.svc).UpdateRepObject(userID, objectID, file, fileSize)
+	if err != nil {
+		return fmt.Errorf("update object %d failed, err: %w", objectID, err)
+	}
+
+	return nil
+}
+
 func (c *Commandline) DeleteObject(objectID int) error {
 	userID := 0
 	err := services.ObjectSvc(c.svc).DeleteObject(userID, objectID)
