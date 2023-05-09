@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/db/model"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
@@ -22,13 +24,13 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 	}
 
 	// 查询客户端所属节点
-	belongNode, err := svc.db.FindNodeByExternalIP(msg.Body.ReaderExternalIP)
+	belongNode, err := svc.db.FindNodeByExternalIP(msg.Body.ClientExternalIP)
 	if err != nil {
-		log.WithField("ReaderExternalIP", msg.Body.ReaderExternalIP).
+		log.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
 	}
-	log.Debugf("client address %s is at location %d", msg.Body.ReaderExternalIP, belongNode.LocationID)
+	log.Debugf("client address %s is at location %d", msg.Body.ClientExternalIP, belongNode.LocationID)
 
 	var entries []coormsg.PreDownloadObjectRespEntry
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -140,7 +142,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 	}
 
 	//查询用户可用的节点IP
-	nodes, err := svc.db.QueryUserNodes(msg.Body.UserID)
+	nodes, err := svc.db.GetUserNodes(msg.Body.UserID)
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			Warnf("query user nodes failed, err: %s", err.Error())
@@ -148,9 +150,9 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 	}
 
 	// 查询客户端所属节点
-	belongNode, err := svc.db.FindNodeByExternalIP(msg.Body.WriterExternalIP)
+	belongNode, err := svc.db.FindNodeByExternalIP(msg.Body.ClientExternalIP)
 	if err != nil {
-		log.WithField("WriterExternalIP", msg.Body.WriterExternalIP).
+		log.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query client belong node failed")
 	}
@@ -169,8 +171,8 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 	return ramsg.ReplyOK(coormsg.NewPreUploadRespBody(retNodes))
 }
 
-func (service *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.CreateObjectResp {
-	_, err := service.db.CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSizeInBytes, msg.Body.ReplicateNumber, msg.Body.NodeIDs, msg.Body.FileHash)
+func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.CreateObjectResp {
+	_, err := svc.db.CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSizeInBytes, msg.Body.ReplicateNumber, msg.Body.NodeIDs, msg.Body.FileHash)
 	if err != nil {
 		log.WithField("BucketName", msg.Body.BucketID).
 			WithField("ObjectName", msg.Body.ObjectName).
@@ -181,6 +183,79 @@ func (service *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.C
 	// TODO 通知scanner检查备份数
 
 	return ramsg.ReplyOK(coormsg.NewCreateObjectRespBody())
+}
+
+func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg.PreUpdateRepObjectResp {
+	// 获取对象信息
+	obj, err := svc.db.GetObject(msg.Body.ObjectID)
+	if err != nil {
+		log.WithField("ObjectID", msg.Body.ObjectID).
+			Warnf("get object failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "get object failed")
+	}
+	if obj.Redundancy != consts.REDUNDANCY_REP {
+		log.WithField("ObjectID", msg.Body.ObjectID).
+			Warnf("this object is not a rep object")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "this object is not a rep object")
+	}
+
+	// 获取对象Rep信息
+	objRep, err := svc.db.GetObjectRep(msg.Body.ObjectID)
+	if err != nil {
+		log.WithField("ObjectID", msg.Body.ObjectID).
+			Warnf("get object rep failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "get object rep failed")
+	}
+
+	//查询用户可用的节点IP
+	nodes, err := svc.db.GetUserNodes(msg.Body.UserID)
+	if err != nil {
+		log.WithField("UserID", msg.Body.UserID).
+			Warnf("query user nodes failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "query user nodes failed")
+	}
+
+	// 查询客户端所属节点
+	belongNode, err := svc.db.FindNodeByExternalIP(msg.Body.ClientExternalIP)
+	if err != nil {
+		log.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
+			Warnf("query client belong node failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
+	}
+
+	// 查询保存了旧文件的节点信息
+	cachingNodes, err := svc.db.FindCachingFileUserNodes(msg.Body.UserID, objRep.RepHash)
+	if err != nil {
+		log.Warnf("find caching file user nodes failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "find caching file user nodes failed")
+	}
+
+	var retNodes []coormsg.PreUpdateRepObjectRespNode
+	for _, node := range nodes {
+		retNodes = append(retNodes, coormsg.NewPreUpdateRepObjectRespNode(
+			node.NodeID,
+			node.ExternalIP,
+			node.LocalIP,
+			// LocationID 相同则认为是在同一个地域
+			belongNode.LocationID == node.LocationID,
+			// 此节点存储了对象旧文件
+			lo.ContainsBy(cachingNodes, func(n model.Node) bool { return n.NodeID == node.NodeID }),
+		))
+	}
+
+	return ramsg.ReplyOK(coormsg.NewPreUpdateRepObjectRespBody(retNodes))
+}
+
+func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.UpdateRepObjectResp {
+	err := svc.db.UpdateRepObject(msg.Body.ObjectID, msg.Body.FileSizeInBytes, msg.Body.NodeIDs, msg.Body.FileHash)
+	if err != nil {
+		log.WithField("ObjectID", msg.Body.ObjectID).
+			Warnf("update rep object failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.UpdateRepObjectResp](errorcode.OPERATION_FAILED, "update rep object failed")
+
+	}
+
+	return ramsg.ReplyOK(coormsg.NewUpdateRepObjectRespBody())
 }
 
 func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjectResp {

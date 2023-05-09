@@ -13,7 +13,7 @@ func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.PreUploadR
 		//jh：完成对象表、对象编码块表的插入（对象编码块表的Hash字段先不插入）
 		//返回消息
 		//查询用户可用的节点IP
-		nodes, err := service.db.QueryUserNodes(msg.Body.UserID)
+		nodes, err := service.db.GetUserNodes(msg.Body.UserID)
 		if err != nil {
 			log.Warnf("query user nodes failed, err: %s", err.Error())
 			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, "query user nodes failed")
