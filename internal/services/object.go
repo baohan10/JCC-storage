@@ -259,7 +259,7 @@ func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.Updat
 }
 
 func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjectResp {
-	err := svc.db.SetObjectDeleted(msg.Body.UserID, msg.Body.ObjectID)
+	err := svc.db.SoftDeleteObject(msg.Body.UserID, msg.Body.ObjectID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
