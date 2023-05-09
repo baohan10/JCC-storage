@@ -60,41 +60,32 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 			os.Exit(1)
 		}
 
-	case "move":
-		objectID, err := strconv.Atoi(args[0])
-		if err != nil {
-			fmt.Printf("invalid object id %s, err: %s", args[0], err.Error())
-			os.Exit(1)
-		}
-		stgID, err := strconv.Atoi(args[1])
-		if err != nil {
-			fmt.Printf("invalid storage id %s, err: %s", args[1], err.Error())
-			os.Exit(1)
-		}
-
-		if err := c.Move(objectID, stgID); err != nil {
-			fmt.Printf("move failed, err: %s", err.Error())
-			os.Exit(1)
-		}
-
-	case "ls":
+	case "storage":
 		if len(args) == 0 {
-			if err := c.GetUserBuckets(); err != nil {
-				fmt.Printf("get user buckets failed, err: %s", err.Error())
+			fmt.Printf("need more arg")
+			os.Exit(1)
+		}
+		cmd := args[0]
+
+		switch cmd {
+		case "move":
+			objectID, err := strconv.Atoi(args[1])
+			if err != nil {
+				fmt.Printf("invalid object id %s, err: %s", args[1], err.Error())
 				os.Exit(1)
 			}
-		} else {
-			bucketID, err := strconv.Atoi(args[0])
+			stgID, err := strconv.Atoi(args[2])
 			if err != nil {
-				fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
+				fmt.Printf("invalid storage id %s, err: %s", args[2], err.Error())
 				os.Exit(1)
 			}
 
-			if err := c.GetBucketObjects(bucketID); err != nil {
-				fmt.Printf("get bucket objects failed, err: %s", err.Error())
+			if err := c.Move(objectID, stgID); err != nil {
+				fmt.Printf("move failed, err: %s", err.Error())
 				os.Exit(1)
 			}
 		}
+
 	case "bucket":
 		if len(args) == 0 {
 			fmt.Printf("need more arg")
@@ -102,12 +93,20 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 		}
 		cmd := args[0]
 
-		if cmd == "new" {
+		switch cmd {
+		case "ls":
+			if err := c.ListUserBuckets(); err != nil {
+				fmt.Printf("get user buckets failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+
+		case "new":
 			if err := c.CreateBucket(args[1]); err != nil {
 				fmt.Printf("create bucket failed, err: %s", err.Error())
 				os.Exit(1)
 			}
-		} else if cmd == "delete" {
+
+		case "delete":
 			bucketID, err := strconv.Atoi(args[1])
 			if err != nil {
 				fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
@@ -127,6 +126,18 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 		}
 
 		switch args[0] {
+		case "ls":
+			bucketID, err := strconv.Atoi(args[1])
+			if err != nil {
+				fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
+				os.Exit(1)
+			}
+
+			if err := c.ListBucketObjects(bucketID); err != nil {
+				fmt.Printf("get bucket objects failed, err: %s", err.Error())
+				os.Exit(1)
+			}
+
 		case "update":
 			objectID, err := strconv.Atoi(args[1])
 			if err != nil {

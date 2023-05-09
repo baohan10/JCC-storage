@@ -10,7 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/services"
 )
 
-func (c *Commandline) GetBucketObjects(bucketID int) error {
+func (c *Commandline) ListBucketObjects(bucketID int) error {
 	userID := 0
 
 	objects, err := services.BucketSvc(c.svc).GetBucketObjects(userID, bucketID)
