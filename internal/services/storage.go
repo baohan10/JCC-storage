@@ -34,30 +34,30 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 
 	// 查询用户关联的存储服务
-	stg, err := service.db.QueryUserStorage(msg.Body.UserID, msg.Body.StorageID)
+	stg, err := service.db.Storage().GetUserStorage(msg.Body.UserID, msg.Body.StorageID)
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			WithField("StorageID", msg.Body.StorageID).
-			Warnf("query storage directory failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query storage directory failed")
+			Warnf("get user Storage failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Storage failed")
 	}
 
 	// 查询文件对象
-	object, err := service.db.QueryObjectByID(msg.Body.ObjectID)
+	object, err := service.db.Object().GetUserObject(msg.Body.UserID, msg.Body.ObjectID)
 	if err != nil {
 		log.WithField("ObjectID", msg.Body.ObjectID).
-			Warnf("query Object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query Object failed")
+			Warnf("get user Object failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Object failed")
 	}
 
 	//-若redundancy是rep，查询对象副本表, 获得repHash
 	var hashs []string
 	ids := []int{0}
 	if object.Redundancy == consts.REDUNDANCY_REP {
-		objectRep, err := service.db.GetObjectRep(object.ObjectID)
+		objectRep, err := service.db.ObjectRep().GetObjectRep(object.ObjectID)
 		if err != nil {
-			log.Warnf("query ObjectRep failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectRep failed")
+			log.Warnf("get ObjectRep failed, err: %s", err.Error())
+			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get ObjectRep failed")
 		}
 
 		hashs = append(hashs, objectRep.RepHash)

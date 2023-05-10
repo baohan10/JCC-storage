@@ -14,7 +14,7 @@ func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {
 }
 
 func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) *coormsg.GetUserBucketsResp {
-	buckets, err := svc.db.GetUserBuckets(msg.Body.UserID)
+	buckets, err := svc.db.Bucket().GetUserBuckets(msg.Body.UserID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
@@ -26,7 +26,7 @@ func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) *coormsg.GetUser
 }
 
 func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.GetBucketObjectsResp {
-	objects, err := svc.db.GetBucketObjects(msg.Body.UserID, msg.Body.BucketID)
+	objects, err := svc.db.Object().GetBucketObjects(msg.Body.UserID, msg.Body.BucketID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
@@ -39,7 +39,7 @@ func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.Get
 }
 
 func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucketResp {
-	bucketID, err := svc.db.CreateBucket(msg.Body.UserID, msg.Body.BucketName)
+	bucketID, err := svc.db.Bucket().Create(msg.Body.UserID, msg.Body.BucketName)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
@@ -52,7 +52,7 @@ func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucke
 }
 
 func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucket) *coormsg.DeleteBucketResp {
-	err := svc.db.DeleteBucket(msg.Body.UserID, msg.Body.BucketID)
+	err := svc.db.Bucket().Delete(msg.Body.UserID, msg.Body.BucketID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
