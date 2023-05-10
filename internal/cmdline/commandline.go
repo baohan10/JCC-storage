@@ -80,7 +80,7 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 				os.Exit(1)
 			}
 
-			if err := c.Move(objectID, stgID); err != nil {
+			if err := c.MoveObjectToStorage(objectID, stgID); err != nil {
 				fmt.Printf("move failed, err: %s", err.Error())
 				os.Exit(1)
 			}
