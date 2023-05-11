@@ -9,19 +9,6 @@ import (
 	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
-func (service *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
-	err := service.db.Storage().UserMoveObjectTo(msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
-	if err != nil {
-		log.WithField("UserID", msg.Body.UserID).
-			WithField("ObjectID", msg.Body.ObjectID).
-			WithField("StorageID", msg.Body.StorageID).
-			Warnf("user move object to storage failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "user move object to storage failed")
-	}
-
-	return ramsg.ReplyOK(coormsg.NewMoveObjectToStorageRespBody())
-}
-
 func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) *coormsg.PreMoveObjectToStorageResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
@@ -109,4 +96,17 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 		ids,
 		object.FileSizeInBytes,
 	))
+}
+
+func (service *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
+	err := service.db.Storage().UserMoveObjectTo(msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
+	if err != nil {
+		log.WithField("UserID", msg.Body.UserID).
+			WithField("ObjectID", msg.Body.ObjectID).
+			WithField("StorageID", msg.Body.StorageID).
+			Warnf("user move object to storage failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "user move object to storage failed")
+	}
+
+	return ramsg.ReplyOK(coormsg.NewMoveObjectToStorageRespBody())
 }
