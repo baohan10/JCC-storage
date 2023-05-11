@@ -60,7 +60,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 		if err != nil {
 			return fmt.Errorf("request to coordinator failed, err: %w", err)
 		}
-		if ecWriteResp.ErrorCode != errorcode.OK {
+		if ecWriteResp.IsFailed() {
 			return fmt.Errorf("coordinator ECWrite failed, err: %w", err)
 		}
 
@@ -91,7 +91,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 		if err != nil {
 			return fmt.Errorf("request to coordinator failed, err: %w", err)
 		}
-		if writeECHashResp.ErrorCode != errorcode.OK {
+		if writeECHashResp.IsFailed() {
 			return fmt.Errorf("coordinator WriteECHash failed, err: %w", err)
 		}
 

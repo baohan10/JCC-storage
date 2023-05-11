@@ -8,7 +8,6 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
-	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
 type StorageService struct {
@@ -25,7 +24,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if preMoveResp.ErrorCode != errorcode.OK {
+	if preMoveResp.IsFailed() {
 		return fmt.Errorf("coordinator PreMoveObjectToStorage failed, code: %s, message: %s", preMoveResp.ErrorCode, preMoveResp.ErrorMessage)
 	}
 
@@ -42,7 +41,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 		if err != nil {
 			return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
 		}
-		if agentMoveResp.ErrorCode != errorcode.OK {
+		if agentMoveResp.IsFailed() {
 			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", preMoveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 		}
 
@@ -51,7 +50,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 		if err != nil {
 			return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
 		}
-		if agentMoveResp.ErrorCode != errorcode.OK {
+		if agentMoveResp.IsFailed() {
 			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", preMoveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 		}
 	}
@@ -60,7 +59,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if preMoveResp.ErrorCode != errorcode.OK {
+	if preMoveResp.IsFailed() {
 		return fmt.Errorf("coordinator MoveObjectToStorage failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.ErrorMessage)
 	}
 

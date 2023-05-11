@@ -12,7 +12,6 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
-	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
 	myio "gitlink.org.cn/cloudream/utils/io"
 	log "gitlink.org.cn/cloudream/utils/logger"
@@ -41,7 +40,7 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 	if err != nil {
 		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if preDownloadResp.ErrorCode != errorcode.OK {
+	if preDownloadResp.IsFailed() {
 		return nil, fmt.Errorf("coordinator operation failed, code: %s, message: %s", preDownloadResp.ErrorCode, preDownloadResp.ErrorMessage)
 	}
 
@@ -62,7 +61,7 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 			log.Infof("client and node %d are at the same location, use local ip\n", entry.NodeID)
 		}
 
-		reader, err := svc.downloadAsRepObject(nodeIP, entry.FileHash)
+		reader, err := svc.downloadRepObject(nodeIP, entry.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
@@ -89,7 +88,7 @@ func (svc *ObjectService) chooseDownloadNode(entries []coormsg.PreDownloadObject
 	return entries[rand.Intn(len(entries))]
 }
 
-func (svc *ObjectService) downloadAsRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
+func (svc *ObjectService) downloadRepObject(nodeIP string, fileHash string) (io.ReadCloser, error) {
 	if svc.ipfs != nil {
 		log.Infof("try to use local IPFS to download file")
 
@@ -140,7 +139,7 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if repWriteResp.ErrorCode != errorcode.OK {
+	if repWriteResp.IsFailed() {
 		return fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.ErrorMessage)
 	}
 
@@ -149,14 +148,6 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	}
 
 	uploadNode := svc.chooseUploadNode(repWriteResp.Body.Nodes)
-
-	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-	nodeIP := uploadNode.ExternalIP
-	if uploadNode.IsSameLocation {
-		nodeIP = uploadNode.LocalIP
-
-		log.Infof("client and node %d are at the same location, use local ip\n", uploadNode.ID)
-	}
 
 	var fileHash string
 	uploadedNodeIDs := []int{}
@@ -167,7 +158,7 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 
 		fileHash, err = svc.uploadToLocalIPFS(file, uploadNode.ID)
 		if err != nil {
-			log.Warnf("upload to local IPFS failed, so try to upload to node %s, err: %s", nodeIP, err.Error())
+			log.Warnf("upload to local IPFS failed, so try to upload to node %d, err: %s", uploadNode.ID, err.Error())
 		} else {
 			uploadToNode = false
 		}
@@ -175,6 +166,14 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 
 	// 否则发送到agent上传
 	if uploadToNode {
+		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+		nodeIP := uploadNode.ExternalIP
+		if uploadNode.IsSameLocation {
+			nodeIP = uploadNode.LocalIP
+
+			log.Infof("client and node %d are at the same location, use local ip\n", uploadNode.ID)
+		}
+
 		fileHash, err = svc.uploadToNode(file, nodeIP)
 		if err != nil {
 			return fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
@@ -187,7 +186,7 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if createObjectResp.ErrorCode != errorcode.OK {
+	if createObjectResp.IsFailed() {
 		return fmt.Errorf("coordinator CreateRepObject failed, code: %s, message: %s", createObjectResp.ErrorCode, createObjectResp.ErrorMessage)
 	}
 
@@ -210,11 +209,11 @@ func (svc *ObjectService) uploadToNode(file io.ReadCloser, nodeIP string) (strin
 	}
 
 	// 发送文件数据
-	err = svc.sendFileData(file, upload)
+	_, err = io.Copy(upload, file)
 	if err != nil {
 		// 发生错误则关闭连接
 		upload.Abort(io.ErrClosedPipe)
-		return "", err
+		return "", fmt.Errorf("copy file date to upload stream failed, err: %w", err)
 	}
 
 	// 发送EOF消息，并获得FileHash
@@ -239,7 +238,7 @@ func (svc *ObjectService) uploadToLocalIPFS(file io.ReadCloser, nodeID int) (str
 		return "", fmt.Errorf("copy file data to IPFS failed, err: %w", err)
 	}
 
-	fileHash, err := writer.Finish(io.EOF)
+	fileHash, err := writer.Finish()
 	if err != nil {
 		return "", fmt.Errorf("finish writing IPFS failed, err: %w", err)
 	}
@@ -274,35 +273,6 @@ func (svc *ObjectService) chooseUploadNode(nodes []coormsg.PreUploadRespNode) co
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func (svc *ObjectService) sendFileData(file io.ReadCloser, upload mygrpc.FileWriteCloser[string]) error {
-
-	// 发送数据缓冲区
-	buf := make([]byte, 2048)
-
-	for {
-		// 读取文件数据
-		readCnt, err := file.Read(buf)
-
-		if readCnt > 0 {
-			err := myio.WriteAll(upload, buf[:readCnt])
-
-			if err != nil {
-				return fmt.Errorf("send file data failed, err: %w", err)
-			}
-		}
-
-		// 文件读取完毕
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			return fmt.Errorf("read file data failed, err: %w", err)
-		}
-	}
-	return nil
-}
-
 func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
 	// TODO
 	panic("not implement yet")
@@ -318,7 +288,7 @@ func (svc *ObjectService) UpdateRepObject(userID int, objectID int, file io.Read
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if preResp.ErrorCode != errorcode.OK {
+	if preResp.IsFailed() {
 		return fmt.Errorf("coordinator PreUpdateRepObject failed, code: %s, message: %s", preResp.ErrorCode, preResp.ErrorMessage)
 	}
 
@@ -334,14 +304,6 @@ func (svc *ObjectService) UpdateRepObject(userID int, objectID int, file io.Read
 
 	uploadNode := svc.chooseUpdateRepObjectNode(preResp.Body.Nodes)
 
-	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-	nodeIP := uploadNode.ExternalIP
-	if uploadNode.IsSameLocation {
-		nodeIP = uploadNode.LocalIP
-
-		log.Infof("client and node %d are at the same location, use local ip\n", uploadNode.ID)
-	}
-
 	var fileHash string
 	uploadedNodeIDs := []int{}
 	uploadToNode := true
@@ -351,7 +313,7 @@ func (svc *ObjectService) UpdateRepObject(userID int, objectID int, file io.Read
 
 		fileHash, err = svc.uploadToLocalIPFS(file, uploadNode.ID)
 		if err != nil {
-			log.Warnf("upload to local IPFS failed, so try to upload to node %s, err: %s", nodeIP, err.Error())
+			log.Warnf("upload to local IPFS failed, so try to upload to node %d, err: %s", uploadNode.ID, err.Error())
 		} else {
 			uploadToNode = false
 		}
@@ -359,6 +321,14 @@ func (svc *ObjectService) UpdateRepObject(userID int, objectID int, file io.Read
 
 	// 否则发送到agent上传
 	if uploadToNode {
+		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+		nodeIP := uploadNode.ExternalIP
+		if uploadNode.IsSameLocation {
+			nodeIP = uploadNode.LocalIP
+
+			log.Infof("client and node %d are at the same location, use local ip\n", uploadNode.ID)
+		}
+
 		fileHash, err = svc.uploadToNode(file, nodeIP)
 		if err != nil {
 			return fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
@@ -371,7 +341,7 @@ func (svc *ObjectService) UpdateRepObject(userID int, objectID int, file io.Read
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if updateResp.ErrorCode != errorcode.OK {
+	if updateResp.IsFailed() {
 		return fmt.Errorf("coordinator UpdateRepObject failed, code: %s, message: %s", updateResp.ErrorCode, updateResp.ErrorMessage)
 	}
 
@@ -396,7 +366,7 @@ func (svc *ObjectService) DeleteObject(userID int, objectID int) error {
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if !resp.IsOK() {
+	if resp.IsFailed() {
 		return fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
 	}
 

@@ -25,7 +25,7 @@ func (svc *BucketService) GetUserBuckets(userID int) ([]model.Bucket, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get user buckets failed, err: %w", err)
 	}
-	if !resp.IsOK() {
+	if resp.IsFailed() {
 		return nil, fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
 	}
 
@@ -37,7 +37,7 @@ func (svc *BucketService) GetBucketObjects(userID int, bucketID int) ([]model.Ob
 	if err != nil {
 		return nil, fmt.Errorf("get bucket objects failed, err: %w", err)
 	}
-	if !resp.IsOK() {
+	if resp.IsFailed() {
 		return nil, fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
 	}
 
@@ -49,7 +49,7 @@ func (svc *BucketService) CreateBucket(userID int, bucketName string) (int, erro
 	if err != nil {
 		return 0, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if !resp.IsOK() {
+	if resp.IsFailed() {
 		return 0, fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
 	}
 
@@ -61,7 +61,7 @@ func (svc *BucketService) DeleteBucket(userID int, bucketID int) error {
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
-	if !resp.IsOK() {
+	if resp.IsFailed() {
 		return fmt.Errorf("delete bucket failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
 	}
 
