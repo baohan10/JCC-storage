@@ -40,7 +40,7 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 		if err != nil {
 			// 关闭文件写入，不需要返回的hash和error
 			// TODO 需要研究一下通过错误中断写入后，已发送的文件数据能不能自动删除
-			writer.Finish(io.ErrClosedPipe)
+			writer.Abort(io.ErrClosedPipe)
 			log.WithField("ReceiveSize", recvSize).
 				Warnf("recv message failed, err: %s", err.Error())
 			return fmt.Errorf("recv message failed, err: %w", err)
@@ -50,7 +50,7 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 			err = myio.WriteAll(writer, msg.Data)
 			if err != nil {
 				// 关闭文件写入，不需要返回的hash和error
-				writer.Finish(io.ErrClosedPipe)
+				writer.Abort(io.ErrClosedPipe)
 				log.Warnf("write data to file failed, err: %s", err.Error())
 				return fmt.Errorf("write data to file failed, err: %w", err)
 			}
@@ -59,7 +59,7 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 
 		} else if msg.Type == agentserver.FileDataPacketType_EOF {
 			// 客户端明确说明文件传输已经结束，那么结束写入，获得文件Hash
-			hash, err := writer.Finish(io.EOF)
+			hash, err := writer.Finish()
 			if err != nil {
 				log.Warnf("finish writing failed, err: %s", err.Error())
 				return fmt.Errorf("finish writing failed, err: %w", err)

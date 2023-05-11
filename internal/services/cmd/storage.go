@@ -17,7 +17,6 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
-	myio "gitlink.org.cn/cloudream/utils/io"
 )
 
 func (service *Service) RepMove(msg *agtmsg.RepMoveCommand) *agtmsg.AgentMoveResp {
@@ -47,27 +46,11 @@ func (service *Service) RepMove(msg *agtmsg.RepMoveCommand) *agtmsg.AgentMoveRes
 	}
 	defer ipfsRd.Close()
 
-	buf := make([]byte, 1024)
-	for {
-		readCnt, err := ipfsRd.Read(buf)
-
-		if readCnt > 0 {
-			err = myio.WriteAll(outFile, buf[:readCnt])
-			if err != nil {
-				log.Warnf("write data to file %s failed, err: %s", outFilePath, err.Error())
-				return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "write data to file failed")
-			}
-		}
-
-		// 文件读取完毕
-		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
-			log.Warnf("read ipfs file %s data failed, err: %s", fileHash, err.Error())
-			return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "read ipfs file data failed")
-		}
+	_, err = io.Copy(outFile, ipfsRd)
+	if err != nil {
+		log.WithField("FileHash", fileHash).
+			Warnf("copy ipfs file data to local file failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "copy ipfs file data to local file failed")
 	}
 
 	//向coor报告临时缓存hash
