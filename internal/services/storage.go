@@ -11,7 +11,7 @@ import (
 
 func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) *coormsg.PreMoveObjectToStorageResp {
 	//查询数据库，获取冗余类型，冗余参数
-	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSizeInBytes
+	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSize
 	//-若redundancy是rep，查询对象副本表, 获得repHash
 	//--ids ：={0}
 	//--hashs := {repHash}
@@ -37,9 +37,7 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Object failed")
 	}
 
-	//-若redundancy是rep，查询对象副本表, 获得repHash
-	var hashs []string
-	ids := []int{0}
+	//-若redundancy是rep，查询对象副本表, 获得FileHash
 	if object.Redundancy == consts.REDUNDANCY_REP {
 		objectRep, err := service.db.ObjectRep().GetObjectRep(object.ObjectID)
 		if err != nil {
@@ -47,9 +45,19 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get ObjectRep failed")
 		}
 
-		hashs = append(hashs, objectRep.RepHash)
+		return ramsg.ReplyOK(coormsg.NewPreMoveObjectToStorageRespBody(
+			stg.NodeID,
+			stg.Directory,
+			object.FileSize,
+			object.Redundancy,
+			ramsg.NewObjectRepInfo(objectRep.FileHash),
+		))
 
 	} else {
+		// TODO 以EC_开头的Redundancy才是EC策略
+
+		var hashs []string
+		ids := []int{0}
 		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectBlock failed, err: %s", err.Error())
@@ -57,7 +65,7 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[*object.ECName]
+		ecPolicy := ecPolicies[object.Redundancy]
 		ecN := ecPolicy.GetN()
 		ecK := ecPolicy.GetK()
 		ids = make([]int, ecK)
@@ -85,17 +93,8 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 			}
 			//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 		}*/
+		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
 	}
-
-	return ramsg.ReplyOK(coormsg.NewPreMoveObjectToStorageRespBody(
-		stg.NodeID,
-		stg.Directory,
-		object.Redundancy,
-		object.ECName,
-		hashs,
-		ids,
-		object.FileSizeInBytes,
-	))
 }
 
 func (service *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {

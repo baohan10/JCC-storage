@@ -47,7 +47,7 @@ func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.PreUploadR
 			return ramsg.NewCoorWriteRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("bucket id not found for %s", msg.Body.BucketName))
 		}
 		//对象表插入Insert_Cache
-		ObjectID := Insert_EcObject(msg.Body.ObjectName, BucketID, msg.Body.FileSizeInBytes, msg.Body.ECName)
+		ObjectID := Insert_EcObject(msg.Body.ObjectName, BucketID, msg.Body.FileSize, msg.Body.ECName)
 		//对象编码块表插入，hash暂时为空
 		for i := 0; i < ecN; i++ {
 			Insert_EcObjectBlock(ObjectID, i)

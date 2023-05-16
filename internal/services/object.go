@@ -32,8 +32,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 	}
 	log.Debugf("client address %s is at location %d", msg.Body.ClientExternalIP, belongNode.LocationID)
 
-	var entries []coormsg.PreDownloadObjectRespEntry
-	//-若redundancy是rep，查询对象副本表, 获得repHash
+	//-若redundancy是rep，查询对象副本表, 获得FileHash
 	if object.Redundancy == consts.REDUNDANCY_REP {
 		objectRep, err := svc.db.ObjectRep().GetObjectRep(object.ObjectID)
 		if err != nil {
@@ -43,23 +42,29 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 		}
 
 		// 注：由于采用了IPFS存储，因此每个备份文件的FileHash都是一样的
-		nodes, err := svc.db.Cache().FindCachingFileUserNodes(msg.Body.UserID, objectRep.RepHash)
+		nodes, err := svc.db.Cache().FindCachingFileUserNodes(msg.Body.UserID, objectRep.FileHash)
 		if err != nil {
-			log.WithField("RepHash", objectRep.RepHash).
+			log.WithField("FileHash", objectRep.FileHash).
 				Warnf("query Cache failed, err: %s", err.Error())
 			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query Cache failed")
 		}
 
+		var respNodes []ramsg.RespNode
 		for _, node := range nodes {
-			entries = append(entries, coormsg.NewPreDownloadObjectRespEntry(
+			respNodes = append(respNodes, ramsg.NewRespNode(
 				node.NodeID,
 				node.ExternalIP,
 				node.LocalIP,
 				// LocationID 相同则认为是在同一个地域
 				belongNode.LocationID == node.LocationID,
-				objectRep.RepHash,
-				0))
+			))
 		}
+
+		return ramsg.ReplyOK(coormsg.NewPreDownloadObjectRespBody(
+			object.Redundancy,
+			object.FileSize,
+			ramsg.NewRespObjectRepInfo(objectRep.FileHash, respNodes),
+		))
 
 	} else {
 		// TODO 参考上面进行重写
@@ -101,20 +106,15 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 		for i := 1; i < ecK; i++ {
 			blockIDs = append(blockIDs, i)
 		}*/
-	}
 
-	return ramsg.ReplyOK(coormsg.NewPreDownloadObjectRespBody(
-		object.Redundancy,
-		object.ECName,
-		object.FileSizeInBytes,
-		entries,
-	))
+		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "not implement yet!")
+	}
 }
 
 func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg.PreUploadResp {
 
-	// 判断同名对象是否存在。等到WriteRepHash时再判断一次。
-	// 此次的判断只作为参考，具体是否成功还是看WriteRepHash的结果
+	// 判断同名对象是否存在。等到UploadRepObject时再判断一次。
+	// 此次的判断只作为参考，具体是否成功还是看UploadRepObject的结果
 	isBucketAvai, err := svc.db.Bucket().IsAvailable(msg.Body.BucketID, msg.Body.UserID)
 	if err != nil {
 		log.WithField("BucketID", msg.Body.BucketID).
@@ -157,9 +157,9 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query client belong node failed")
 	}
 
-	var retNodes []coormsg.PreUploadRespNode
+	var respNodes []ramsg.RespNode
 	for _, node := range nodes {
-		retNodes = append(retNodes, coormsg.NewPreUploadRespNode(
+		respNodes = append(respNodes, ramsg.NewRespNode(
 			node.NodeID,
 			node.ExternalIP,
 			node.LocalIP,
@@ -168,11 +168,11 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 		))
 	}
 
-	return ramsg.ReplyOK(coormsg.NewPreUploadRespBody(retNodes))
+	return ramsg.ReplyOK(coormsg.NewPreUploadRespBody(respNodes))
 }
 
 func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.CreateObjectResp {
-	_, err := svc.db.Object().CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSizeInBytes, msg.Body.ReplicateNumber, msg.Body.NodeIDs, msg.Body.FileHash)
+	_, err := svc.db.Object().CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSize, msg.Body.RepCount, msg.Body.NodeIDs, msg.Body.FileHash)
 	if err != nil {
 		log.WithField("BucketName", msg.Body.BucketID).
 			WithField("ObjectName", msg.Body.ObjectName).
@@ -224,7 +224,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 	}
 
 	// 查询保存了旧文件的节点信息
-	cachingNodes, err := svc.db.Cache().FindCachingFileUserNodes(msg.Body.UserID, objRep.RepHash)
+	cachingNodes, err := svc.db.Cache().FindCachingFileUserNodes(msg.Body.UserID, objRep.FileHash)
 	if err != nil {
 		log.Warnf("find caching file user nodes failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "find caching file user nodes failed")
@@ -247,7 +247,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 }
 
 func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.UpdateRepObjectResp {
-	err := svc.db.Object().UpdateRepObject(msg.Body.ObjectID, msg.Body.FileSizeInBytes, msg.Body.NodeIDs, msg.Body.FileHash)
+	err := svc.db.Object().UpdateRepObject(msg.Body.ObjectID, msg.Body.FileSize, msg.Body.NodeIDs, msg.Body.FileHash)
 	if err != nil {
 		log.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("update rep object failed, err: %s", err.Error())
