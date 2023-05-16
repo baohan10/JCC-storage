@@ -21,10 +21,10 @@ func (c *Commandline) ListBucketObjects(bucketID int) error {
 	fmt.Printf("Find %d objects in bucket %d for user %d:\n", len(objects), bucketID, userID)
 
 	tb := table.NewWriter()
-	tb.AppendHeader(table.Row{"ID", "Name", "Size", "BucketID", "State", "Redundancy", "NumRep", "ECName"})
+	tb.AppendHeader(table.Row{"ID", "Name", "Size", "BucketID", "State", "Redundancy"})
 
 	for _, obj := range objects {
-		tb.AppendRow(table.Row{obj.ObjectID, obj.Name, obj.BucketID, obj.State, obj.FileSizeInBytes, obj.Redundancy, obj.NumRep, obj.ECName})
+		tb.AppendRow(table.Row{obj.ObjectID, obj.Name, obj.BucketID, obj.State, obj.FileSize, obj.Redundancy})
 	}
 
 	fmt.Print(tb.Render())
@@ -68,7 +68,7 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	return nil
 }
 
-func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName string, repNum int) error {
+func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName string, repCount int) error {
 	file, err := os.Open(localFilePath)
 	if err != nil {
 		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)
@@ -81,7 +81,7 @@ func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName st
 	}
 	fileSize := fileInfo.Size()
 
-	err = services.ObjectSvc(c.svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repNum)
+	err = services.ObjectSvc(c.svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repCount)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}

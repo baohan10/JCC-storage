@@ -26,7 +26,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 		if err != nil {
 			return fmt.Errorf("get file %s state failed, err: %w", localFilePath, err)
 		}
-		fileSizeInBytes := fileInfo.Size()
+		fileSize := fileInfo.Size()
 
 		//调用纠删码库，获取编码参数及生成矩阵
 		ecPolicies := *utils.GetEcPolicy()
@@ -45,7 +45,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 		var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 
 		//计算每个块的packet数
-		numPacket := (fileSizeInBytes + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
+		numPacket := (fileSize + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
 		fmt.Println(numPacket)
 
 		userId := 0
@@ -56,7 +56,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 		defer coorClient.Close()
 
 		//发送写请求，请求Coor分配写入节点Ip
-		ecWriteResp, err := coorClient.ECWrite(bucketName, objectName, fileSizeInBytes, ecName, userId)
+		ecWriteResp, err := coorClient.ECWrite(bucketName, objectName, fileSize, ecName, userId)
 		if err != nil {
 			return fmt.Errorf("request to coordinator failed, err: %w", err)
 		}
@@ -75,7 +75,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 		}
 		hashs := make([]string, ecN)
 		//正式开始写入
-		go load(localFilePath, loadBufs[:ecN], ecK, numPacket*int64(ecK), fileSizeInBytes) //从本地文件系统加载数据
+		go load(localFilePath, loadBufs[:ecN], ecK, numPacket*int64(ecK), fileSize) //从本地文件系统加载数据
 		go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
 
 		var wg sync.WaitGroup
@@ -99,7 +99,7 @@ func EcWrite(localFilePath string, bucketID int, objectName string, ecName strin
 	*/
 }
 
-func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket int64, fileSizeInBytes int64) {
+func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket int64, fileSize int64) {
 	fmt.Println("load " + localFilePath)
 	file, _ := os.Open(localFilePath)
 
@@ -318,7 +318,7 @@ func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *syn
 	wg.Done()
 }
 
-func ecRead(fileSizeInBytes int64, nodeIPs []string, blockHashs []string, blockIds []int, ecName string, localFilePath string) {
+func ecRead(fileSize int64, nodeIPs []string, blockHashs []string, blockIds []int, ecName string, localFilePath string) {
 	//根据ecName获得以下参数
 	wg := sync.WaitGroup{}
 	ecPolicies := *utils.GetEcPolicy()
@@ -328,7 +328,7 @@ func ecRead(fileSizeInBytes int64, nodeIPs []string, blockHashs []string, blockI
 	ecN := ecPolicy.GetN()
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 
-	numPacket := (fileSizeInBytes + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
+	numPacket := (fileSize + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
 	fmt.Println(numPacket)
 	//创建channel
 	getBufs := make([]chan []byte, ecN)

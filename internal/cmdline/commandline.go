@@ -39,13 +39,13 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 			fmt.Printf("invalid bucket id %s, err: %s", args[1], err.Error())
 			os.Exit(1)
 		}
-		repNum, _ := strconv.Atoi(args[3])
-		if repNum <= 0 || repNum > config.Cfg().MaxReplicateNumber {
-			fmt.Printf("replicate number should not be more than %d", config.Cfg().MaxReplicateNumber)
+		repCount, _ := strconv.Atoi(args[3])
+		if repCount <= 0 || repCount > config.Cfg().MaxRepCount {
+			fmt.Printf("replicate number should not be more than %d", config.Cfg().MaxRepCount)
 			os.Exit(1)
 		}
 
-		if err := c.RepWrite(args[0], bucketID, args[2], repNum); err != nil {
+		if err := c.RepWrite(args[0], bucketID, args[2], repCount); err != nil {
 			fmt.Printf("rep write failed, err: %s", err.Error())
 			os.Exit(1)
 		}

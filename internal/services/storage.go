@@ -7,7 +7,6 @@ import (
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
-	"gitlink.org.cn/cloudream/utils/consts"
 )
 
 type StorageService struct {
@@ -35,24 +34,19 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 	}
 	defer agentClient.Close()
 
-	switch preMoveResp.Body.Redundancy {
-	case consts.REDUNDANCY_REP:
-		agentMoveResp, err := agentClient.RepMove(agtmsg.NewRepMoveCommandBody(preMoveResp.Body.Directory, preMoveResp.Body.Hashes, objectID, userID, preMoveResp.Body.FileSizeInBytes))
-		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
-		}
-		if agentMoveResp.IsFailed() {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", preMoveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
-		}
-
-	case consts.REDUNDANCY_EC:
-		agentMoveResp, err := agentClient.ECMove(agtmsg.NewECMoveCommandBody(preMoveResp.Body.Directory, preMoveResp.Body.Hashes, preMoveResp.Body.IDs, *preMoveResp.Body.ECName, objectID, userID, preMoveResp.Body.FileSizeInBytes))
-		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
-		}
-		if agentMoveResp.IsFailed() {
-			return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", preMoveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
-		}
+	agentMoveResp, err := agentClient.MoveObjectToStorage(
+		agtmsg.NewMoveObjectToStorageBody(preMoveResp.Body.Directory,
+			objectID,
+			userID,
+			preMoveResp.Body.FileSize,
+			preMoveResp.Body.Redundancy,
+			preMoveResp.Body.RedundancyData,
+		))
+	if err != nil {
+		return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
+	}
+	if agentMoveResp.IsFailed() {
+		return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", preMoveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
 	}
 
 	moveResp, err := svc.coordinator.MoveObjectToStorage(coormsg.NewMoveObjectToStorageBody(objectID, storageID, userID))

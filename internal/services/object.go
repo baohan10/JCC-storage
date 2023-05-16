@@ -9,12 +9,14 @@ import (
 	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
+	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts"
 	mygrpc "gitlink.org.cn/cloudream/utils/grpc"
 	myio "gitlink.org.cn/cloudream/utils/io"
 	log "gitlink.org.cn/cloudream/utils/logger"
+	serder "gitlink.org.cn/cloudream/utils/serder"
 	mysort "gitlink.org.cn/cloudream/utils/sort"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -36,7 +38,7 @@ func (svc *ObjectService) GetObject(userID int, objectID int) (model.Object, err
 }
 
 func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
-	preDownloadResp, err := svc.coordinator.PreDownloadObject(coormsg.NewReadCommandBody(objectID, userID, config.Cfg().ExternalIP))
+	preDownloadResp, err := svc.coordinator.PreDownloadObject(coormsg.NewPreDownloadObjectBody(objectID, userID, config.Cfg().ExternalIP))
 	if err != nil {
 		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -46,22 +48,28 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 
 	switch preDownloadResp.Body.Redundancy {
 	case consts.REDUNDANCY_REP:
-		if len(preDownloadResp.Body.Entries) == 0 {
+		var repInfo ramsg.RespObjectRepInfo
+		err := serder.MapToObject(preDownloadResp.Body.RedundancyData.(map[string]any), &repInfo)
+		if err != nil {
+			return nil, fmt.Errorf("redundancy data to rep info failed, err: %w", err)
+		}
+
+		if len(repInfo.Nodes) == 0 {
 			return nil, fmt.Errorf("no node has this file")
 		}
 
 		// 选择下载节点
-		entry := svc.chooseDownloadNode(preDownloadResp.Body.Entries)
+		entry := svc.chooseDownloadNode(repInfo.Nodes)
 
 		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-		nodeIP := entry.NodeExternalIP
+		nodeIP := entry.ExternalIP
 		if entry.IsSameLocation {
-			nodeIP = entry.NodeLocalIP
+			nodeIP = entry.LocalIP
 
-			log.Infof("client and node %d are at the same location, use local ip\n", entry.NodeID)
+			log.Infof("client and node %d are at the same location, use local ip\n", entry.ID)
 		}
 
-		reader, err := svc.downloadRepObject(nodeIP, entry.FileHash)
+		reader, err := svc.downloadRepObject(nodeIP, repInfo.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
@@ -70,7 +78,7 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 
 		//case consts.REDUNDANCY_EC:
 		// TODO EC部分的代码要考虑重构
-		//	ecRead(readResp.FileSizeInBytes, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
+		//	ecRead(readResp.FileSize, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
 	}
 
 	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Body.Redundancy)
@@ -79,8 +87,8 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 // chooseDownloadNode 选择一个下载节点
 // 1. 从与当前客户端相同地域的节点中随机选一个
 // 2. 没有用的话从所有节点中随机选一个
-func (svc *ObjectService) chooseDownloadNode(entries []coormsg.PreDownloadObjectRespEntry) coormsg.PreDownloadObjectRespEntry {
-	sameLocationEntries := lo.Filter(entries, func(e coormsg.PreDownloadObjectRespEntry, i int) bool { return e.IsSameLocation })
+func (svc *ObjectService) chooseDownloadNode(entries []ramsg.RespNode) ramsg.RespNode {
+	sameLocationEntries := lo.Filter(entries, func(e ramsg.RespNode, i int) bool { return e.IsSameLocation })
 	if len(sameLocationEntries) > 0 {
 		return sameLocationEntries[rand.Intn(len(sameLocationEntries))]
 	}
@@ -132,7 +140,7 @@ func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser,
 	return reader, nil
 }
 
-func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repNum int) error {
+func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repCount int) error {
 
 	//发送写请求，请求Coor分配写入节点Ip
 	repWriteResp, err := svc.coordinator.PreUploadRepObject(coormsg.NewPreUploadRepObjectBody(bucketID, objectName, fileSize, userID, config.Cfg().ExternalIP))
@@ -182,7 +190,7 @@ func (svc *ObjectService) UploadRepObject(userID int, bucketID int, objectName s
 	}
 
 	// 记录写入的文件的Hash
-	createObjectResp, err := svc.coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(bucketID, objectName, fileSize, repNum, userID, uploadedNodeIDs, fileHash))
+	createObjectResp, err := svc.coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(bucketID, objectName, fileSize, repCount, userID, uploadedNodeIDs, fileHash))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
@@ -264,8 +272,8 @@ func (svc *ObjectService) uploadToLocalIPFS(file io.ReadCloser, nodeID int) (str
 // chooseUploadNode 选择一个上传文件的节点
 // 1. 从与当前客户端相同地域的节点中随机选一个
 // 2. 没有用的话从所有节点中随机选一个
-func (svc *ObjectService) chooseUploadNode(nodes []coormsg.PreUploadRespNode) coormsg.PreUploadRespNode {
-	sameLocationNodes := lo.Filter(nodes, func(e coormsg.PreUploadRespNode, i int) bool { return e.IsSameLocation })
+func (svc *ObjectService) chooseUploadNode(nodes []ramsg.RespNode) ramsg.RespNode {
+	sameLocationNodes := lo.Filter(nodes, func(e ramsg.RespNode, i int) bool { return e.IsSameLocation })
 	if len(sameLocationNodes) > 0 {
 		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]
 	}
