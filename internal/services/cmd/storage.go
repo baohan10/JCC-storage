@@ -10,16 +10,16 @@ import (
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/ec"
 	"gitlink.org.cn/cloudream/utils"
+	"gitlink.org.cn/cloudream/utils/consts"
 	log "gitlink.org.cn/cloudream/utils/logger"
+	"gitlink.org.cn/cloudream/utils/serder"
 
-	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
-func (service *Service) RepMove(msg *agtmsg.RepMoveCommand) *agtmsg.AgentMoveResp {
+func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *agtmsg.MoveObjectToStorageResp {
 	outFileName := utils.MakeMoveOperationFileName(msg.Body.ObjectID, msg.Body.UserID)
 	outFileDir := filepath.Join(config.Cfg().StorageBaseDir, msg.Body.Directory)
 	outFilePath := filepath.Join(outFileDir, outFileName)
@@ -27,55 +27,72 @@ func (service *Service) RepMove(msg *agtmsg.RepMoveCommand) *agtmsg.AgentMoveRes
 	err := os.MkdirAll(outFileDir, 0644)
 	if err != nil {
 		log.Warnf("create file directory %s failed, err: %s", outFileDir, err.Error())
-		return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "create local file directory failed")
+		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "create local file directory failed")
 	}
 
 	outFile, err := os.Create(outFilePath)
 	if err != nil {
 		log.Warnf("create file %s failed, err: %s", outFilePath, err.Error())
-		return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "create local file failed")
+		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "create local file failed")
 	}
 	defer outFile.Close()
 
-	hashs := msg.Body.Hashs
-	fileHash := hashs[0]
-	ipfsRd, err := service.ipfs.OpenRead(fileHash)
+	if msg.Body.Redundancy == consts.REDUNDANCY_REP {
+		err = service.moveRepObject(msg, outFile)
+		if err != nil {
+			log.Warnf("move rep object failed, err: %s", outFilePath, err.Error())
+			return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "move rep object failed")
+		}
+
+	} else {
+		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
+	}
+
+	/*
+		//向coor报告临时缓存hash
+		coorClient, err := coorcli.NewCoordinatorClient(&config.Cfg().RabbitMQ)
+		if err != nil {
+			return fmt.Errorf("new coordinator client failed, err: %s", err)
+		}
+		defer coorClient.Close()
+
+		// TODO 这里更新失败残留下的文件是否要删除？
+		// TODO 参考数据修复功能需求里描述的流程进行上报
+		coorClient.TempCacheReport(coormsg.NewTempCacheReportBody(config.Cfg().ID, hashs))
+	*/
+
+	return ramsg.ReplyOK(agtmsg.NewMoveObjectToStorageRespBody())
+}
+
+func (svc *Service) moveRepObject(msg *agtmsg.MoveObjectToStorage, outFile io.WriteCloser) error {
+	var repInfo ramsg.ObjectRepInfo
+	err := serder.MapToObject(msg.Body.RedundancyData.(map[string]any), &repInfo)
 	if err != nil {
-		log.Warnf("read ipfs file %s failed, err: %s", fileHash, err.Error())
-		return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "read ipfs file failed")
+		return fmt.Errorf("redundancy data to rep info failed, err: %w", err)
+	}
+
+	ipfsRd, err := svc.ipfs.OpenRead(repInfo.FileHash)
+	if err != nil {
+		return fmt.Errorf("read ipfs file failed, err: %w", err)
 	}
 	defer ipfsRd.Close()
 
 	_, err = io.Copy(outFile, ipfsRd)
 	if err != nil {
-		log.WithField("FileHash", fileHash).
-			Warnf("copy ipfs file data to local file failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "copy ipfs file data to local file failed")
+		return fmt.Errorf("copy ipfs file data to local file failed, err: %s", err)
 	}
 
-	//向coor报告临时缓存hash
-	coorClient, err := coorcli.NewCoordinatorClient(&config.Cfg().RabbitMQ)
-	if err != nil {
-		log.Warnf("new coordinator client failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[agtmsg.AgentMoveResp](errorcode.OPERATION_FAILED, "new coordinator client failed")
-	}
-	defer coorClient.Close()
-
-	// TODO 这里更新失败残留下的文件是否要删除？
-	// TODO 参考数据修复功能需求里描述的流程进行上报
-	coorClient.TempCacheReport(coormsg.NewTempCacheReportBody(config.Cfg().ID, hashs))
-
-	return ramsg.ReplyOK(agtmsg.NewAgentMoveRespBody())
+	return nil
 }
 
-func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.AgentMoveResp {
+/*
+func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.MoveObjectToStorageResp {
 	panic("not implement yet!")
-	/*
 		wg := sync.WaitGroup{}
 		fmt.Println("EcMove")
 		fmt.Println(msg.Hashs)
 		hashs := msg.Hashs
-		fileSizeInBytes := msg.FileSizeInBytes
+		fileSize := msg.FileSize
 		blockIds := msg.IDs
 		ecName := msg.ECName
 		goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
@@ -83,7 +100,7 @@ func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.AgentMoveResp 
 		ecPolicy := ecPolicies[ecName]
 		ecK := ecPolicy.GetK()
 		ecN := ecPolicy.GetN()
-		numPacket := (fileSizeInBytes + int64(ecK)*int64(config.Cfg().GRCPPacketSize) - 1) / (int64(ecK) * int64(config.Cfg().GRCPPacketSize))
+		numPacket := (fileSize + int64(ecK)*int64(config.Cfg().GRCPPacketSize) - 1) / (int64(ecK) * int64(config.Cfg().GRCPPacketSize))
 
 		getBufs := make([]chan []byte, ecN)
 		decodeBufs := make([]chan []byte, ecK)
@@ -116,8 +133,8 @@ func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.AgentMoveResp 
 		coorClient.TempCacheReport(NodeID, hashs)
 
 		return ramsg.NewAgentMoveRespOK()
-	*/
 }
+*/
 
 func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
 	fmt.Println("decode ")
