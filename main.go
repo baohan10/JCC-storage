@@ -23,7 +23,7 @@ func main() {
 		//-对于每一个blockhash,获得其blockId、objectId、innerID
 		//--判断blockhash是否在ipfs网络中
 		//--得到待修复object清单：记录下各个objectId对应的不在ipfs网络中的blockId、blockhash、innerID
-		//-查询待修复object清单中各个object的FileSizeInBytes、EcName等，并发出修复命令
+		//-查询待修复object清单中各个object的FileSize、EcName等，并发出修复命令
 		time.Sleep(time.Minute * 5)
 	}
 }
