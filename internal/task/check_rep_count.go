@@ -119,6 +119,7 @@ func (t *CheckRepCountTask) checkOneRepCount(fileHash string, execCtx *ExecuteCo
 		if finalAddCount > 0 {
 			newNodes := chooseNewRepNodes(allNodes, repNodes, finalAddCount)
 			if len(newNodes) < finalAddCount {
+				log.WithField("FileHash", fileHash).Warnf("need %d more rep nodes, but get only %d nodes", finalAddCount, len(newNodes))
 				// TODO 节点数不够，进行一个告警
 			}
 
