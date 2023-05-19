@@ -26,12 +26,12 @@ func NewAgentCheckStateTask(nodeIDs []int) AgentCheckStateTask {
 }
 
 func (t *AgentCheckStateTask) TryMerge(other Task) bool {
-	chkTask, ok := other.(*AgentCheckStateTask)
+	task, ok := other.(*AgentCheckStateTask)
 	if !ok {
 		return false
 	}
 
-	t.NodeIDs = lo.Union(t.NodeIDs, chkTask.NodeIDs)
+	t.NodeIDs = lo.Union(t.NodeIDs, task.NodeIDs)
 	return true
 }
 

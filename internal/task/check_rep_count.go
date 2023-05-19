@@ -28,12 +28,12 @@ func NewCheckRepCountTask(fileHashes []string) *CheckRepCountTask {
 }
 
 func (t *CheckRepCountTask) TryMerge(other Task) bool {
-	chkTask, ok := other.(*CheckRepCountTask)
+	task, ok := other.(*CheckRepCountTask)
 	if !ok {
 		return false
 	}
 
-	t.FileHashes = lo.Union(t.FileHashes, chkTask.FileHashes)
+	t.FileHashes = lo.Union(t.FileHashes, task.FileHashes)
 	return true
 }
 

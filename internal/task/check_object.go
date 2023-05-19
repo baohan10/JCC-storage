@@ -17,12 +17,12 @@ func NewCheckObjectTask(objIDs []int) CheckObjectTask {
 }
 
 func (t *CheckObjectTask) TryMerge(other Task) bool {
-	chkTask, ok := other.(*CheckObjectTask)
+	task, ok := other.(*CheckObjectTask)
 	if !ok {
 		return false
 	}
 
-	t.ObjectIDs = lo.Union(t.ObjectIDs, chkTask.ObjectIDs)
+	t.ObjectIDs = lo.Union(t.ObjectIDs, task.ObjectIDs)
 	return true
 }
 
