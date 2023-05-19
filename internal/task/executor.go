@@ -15,7 +15,7 @@ type ExecuteOption struct {
 }
 type ExecuteContext struct {
 	Executor *Executor
-	MyDB     *mydb.DB
+	DB       *mydb.DB
 }
 type postedTask struct {
 	Task   Task

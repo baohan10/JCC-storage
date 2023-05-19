@@ -78,7 +78,7 @@ func (t *AgentCheckCacheTask) checkOneAgentCache(entry AgentCheckCacheTaskEntry,
 	var isComplete bool
 	var caches []model.Cache
 
-	err := execCtx.MyDB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+	err := execCtx.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		// TODO unavailable的节点需不需要发送任务？
 
 		if entry.FileHashes == nil {

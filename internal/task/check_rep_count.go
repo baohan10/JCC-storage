@@ -7,8 +7,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
-	"gitlink.org.cn/cloudream/utils/consts"
 	log "gitlink.org.cn/cloudream/utils/logger"
 	mymath "gitlink.org.cn/cloudream/utils/math"
 	mysort "gitlink.org.cn/cloudream/utils/sort"
@@ -32,7 +32,7 @@ func (t *CheckRepCountTask) TryMerge(other Task) bool {
 }
 
 func (t *CheckRepCountTask) Execute(execCtx *ExecuteContext, myOpts ExecuteOption) {
-	var updatedNodeAndHashes map[int][]string
+	updatedNodeAndHashes := make(map[int][]string)
 
 	for _, fileHash := range t.FileHashes {
 		updatedNodeIDs, err := t.checkOneRepCount(fileHash, execCtx)
@@ -57,7 +57,7 @@ func (t *CheckRepCountTask) Execute(execCtx *ExecuteContext, myOpts ExecuteOptio
 
 func (t *CheckRepCountTask) checkOneRepCount(fileHash string, execCtx *ExecuteContext) ([]int, error) {
 	var updatedNodeIDs []int
-	err := execCtx.MyDB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+	err := execCtx.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		repMaxCnt, err := mysql.ObjectRep.GetFileMaxRepCount(tx, fileHash)
 		if err != nil {
 			return fmt.Errorf("get file max rep count failed, err: %w", err)
