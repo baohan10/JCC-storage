@@ -1,14 +1,16 @@
 module gitlink.org.cn/cloudream/agent
 
 require (
-	github.com/ipfs/go-ipfs-api v0.6.0
+	gitlink.org.cn/cloudream/common v0.0.0
 	gitlink.org.cn/cloudream/ec v0.0.0
+	gitlink.org.cn/cloudream/proto v0.0.0
 	gitlink.org.cn/cloudream/rabbitmq v0.0.0
 	gitlink.org.cn/cloudream/utils v0.0.0
 	google.golang.org/grpc v1.54.0
 )
 
 require (
+	github.com/antonfisher/nested-logrus-formatter v1.3.1 // indirect
 	github.com/baohan10/reedsolomon v0.0.0-20230406042632-43574cac9fa7 // indirect
 	github.com/beevik/etree v1.1.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
@@ -19,8 +21,10 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/ipfs/boxo v0.8.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
+	github.com/ipfs/go-ipfs-api v0.6.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
@@ -37,9 +41,11 @@ require (
 	github.com/multiformats/go-multihash v0.2.1 // indirect
 	github.com/multiformats/go-multistream v0.4.1 // indirect
 	github.com/multiformats/go-varint v0.0.7 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/streadway/amqp v1.0.0 // indirect
 	github.com/whyrusleeping/tar-utils v0.0.0-20201201191210-20a61371de5b // indirect
+	gitlink.org.cn/cloudream/db v0.0.0 // indirect
 	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
@@ -60,3 +66,7 @@ go 1.18
 // replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
 // 
 // replace gitlink.org.cn/cloudream/utils => ../utils
+// 
+// replace gitlink.org.cn/cloudream/common => ../common
+// 
+// replace gitlink.org.cn/cloudream/db => ../db

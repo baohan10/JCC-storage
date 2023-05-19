@@ -8,15 +8,15 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
+	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/ec"
 	"gitlink.org.cn/cloudream/utils"
-	"gitlink.org.cn/cloudream/utils/consts"
 	log "gitlink.org.cn/cloudream/utils/logger"
 	"gitlink.org.cn/cloudream/utils/serder"
 
+	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 )
 
 func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *agtmsg.MoveObjectToStorageResp {

@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
+	"gitlink.org.cn/cloudream/common/consts"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
-	"gitlink.org.cn/cloudream/utils/consts"
 	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
