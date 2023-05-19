@@ -21,6 +21,12 @@ type CheckRepCountTask struct {
 	FileHashes []string
 }
 
+func NewCheckRepCountTask(fileHashes []string) *CheckRepCountTask {
+	return &CheckRepCountTask{
+		FileHashes: fileHashes,
+	}
+}
+
 func (t *CheckRepCountTask) TryMerge(other Task) bool {
 	chkTask, ok := other.(*CheckRepCountTask)
 	if !ok {
