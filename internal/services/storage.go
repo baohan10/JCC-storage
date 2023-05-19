@@ -1,11 +1,11 @@
 package services
 
 import (
+	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/utils"
-	"gitlink.org.cn/cloudream/utils/consts"
-	"gitlink.org.cn/cloudream/utils/consts/errorcode"
 	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
