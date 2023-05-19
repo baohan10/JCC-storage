@@ -8,36 +8,39 @@ import (
 
 type UpdateCacheTaskEntry struct {
 	FileHash  string
-	NodeID    int
 	Operation string
 }
 
-func NewUpdateCacheTaskEntry(fileHash string, nodeID int, op string) UpdateCacheTaskEntry {
+func NewUpdateCacheTaskEntry(fileHash string, op string) UpdateCacheTaskEntry {
 	return UpdateCacheTaskEntry{
 		FileHash:  fileHash,
-		NodeID:    nodeID,
 		Operation: op,
 	}
 }
 
 type UpdateCacheTask struct {
+	NodeID  int
 	Entries []UpdateCacheTaskEntry
 }
 
-func NewUpdateCacheTask(entries []UpdateCacheTaskEntry) UpdateCacheTask {
+func NewUpdateCacheTask(nodeID int, entries []UpdateCacheTaskEntry) UpdateCacheTask {
 	return UpdateCacheTask{
+		NodeID:  nodeID,
 		Entries: entries,
 	}
 }
 
 func (t *UpdateCacheTask) TryMerge(other Task) bool {
-	chkTask, ok := other.(*UpdateCacheTask)
+	task, ok := other.(*UpdateCacheTask)
 	if !ok {
+		return false
+	}
+	if task.NodeID != t.NodeID {
 		return false
 	}
 
 	// TODO 可以考虑合并同FileHash和NodeID的记录
-	t.Entries = append(t.Entries, chkTask.Entries...)
+	t.Entries = append(t.Entries, task.Entries...)
 	return true
 }
 
@@ -45,11 +48,11 @@ func (t *UpdateCacheTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOptio
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case tskcst.UPDATE_CACHE_OP_UNTEMP:
-			err := mysql.Cache.DeleteTemp(execCtx.DB.SQLCtx(), entry.FileHash, entry.NodeID)
+			err := mysql.Cache.DeleteTemp(execCtx.DB.SQLCtx(), entry.FileHash, t.NodeID)
 
 			if err != nil {
 				logger.WithField("FileHash", entry.FileHash).
-					WithField("NodeID", entry.NodeID).
+					WithField("NodeID", t.NodeID).
 					Warnf("delete temp cache failed, err: %s", err.Error())
 			}
 		}
