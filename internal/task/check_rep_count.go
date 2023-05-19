@@ -53,12 +53,10 @@ func (t *CheckRepCountTask) Execute(execCtx *ExecuteContext, myOpts ExecuteOptio
 		}
 	}
 
-	var agtChkEntries []AgentCheckCacheTaskEntry
 	for nodeID, hashes := range updatedNodeAndHashes {
-		agtChkEntries = append(agtChkEntries, NewAgentCheckCacheTaskEntry(nodeID, hashes))
+		// 新任务继承本任务的执行设定（紧急任务依然保持紧急任务）
+		execCtx.Executor.Post(NewAgentCheckCacheTask(nodeID, hashes), myOpts)
 	}
-	// 新任务继承本任务的执行设定（紧急任务依然保持紧急任务）
-	execCtx.Executor.Post(NewAgentCheckCacheTask(agtChkEntries), myOpts)
 }
 
 func (t *CheckRepCountTask) checkOneRepCount(fileHash string, execCtx *ExecuteContext) ([]int, error) {
