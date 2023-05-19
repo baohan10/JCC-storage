@@ -6,6 +6,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/samber/lo v1.38.1
 	github.com/smartystreets/goconvey v1.8.0
+	gitlink.org.cn/cloudream/common v0.0.0
 	gitlink.org.cn/cloudream/db v0.0.0
 	gitlink.org.cn/cloudream/rabbitmq v0.0.0
 	gitlink.org.cn/cloudream/utils v0.0.0
@@ -38,3 +39,5 @@ require (
 // replace gitlink.org.cn/cloudream/utils => ../utils
 // 
 // replace gitlink.org.cn/cloudream/db => ../db
+// 
+// replace gitlink.org.cn/cloudream/common => ../common
