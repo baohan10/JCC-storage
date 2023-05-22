@@ -1,55 +1,55 @@
-package task
+package event
 
 import (
-	tskcst "gitlink.org.cn/cloudream/common/consts/task"
+	tskcst "gitlink.org.cn/cloudream/common/consts/event"
 	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 )
 
-type UpdateStorageTaskEntry struct {
+type UpdateStorageEntry struct {
 	ObjectID  int
 	Operation string
 }
 
-func NewUpdateStorageTaskEntry(objectID int, op string) UpdateStorageTaskEntry {
-	return UpdateStorageTaskEntry{
+func NewUpdateStorageEntry(objectID int, op string) UpdateStorageEntry {
+	return UpdateStorageEntry{
 		ObjectID:  objectID,
 		Operation: op,
 	}
 }
 
-type UpdateStorageTask struct {
+type UpdateStorage struct {
 	StorageID       int
 	DirectoryStatus string
-	Entries         []UpdateStorageTaskEntry
+	Entries         []UpdateStorageEntry
 }
 
-func NewUpdateStorageTask(dirStatus string, entries []UpdateStorageTaskEntry) UpdateStorageTask {
-	return UpdateStorageTask{
+func NewUpdateStorage(dirStatus string, entries []UpdateStorageEntry) UpdateStorage {
+	return UpdateStorage{
 		DirectoryStatus: dirStatus,
 		Entries:         entries,
 	}
 }
 
-func (t *UpdateStorageTask) TryMerge(other Task) bool {
-	task, ok := other.(*UpdateStorageTask)
+func (t *UpdateStorage) TryMerge(other Event) bool {
+	event, ok := other.(*UpdateStorage)
 	if !ok {
 		return false
 	}
-	if task.StorageID != t.StorageID {
+	if event.StorageID != t.StorageID {
 		return false
 	}
 
 	// 后投递的任务的状态更新一些
-	t.DirectoryStatus = task.DirectoryStatus
+	t.DirectoryStatus = event.DirectoryStatus
 	// TODO 可以考虑合并同FileHash和NodeID的记录
-	t.Entries = append(t.Entries, task.Entries...)
+	t.Entries = append(t.Entries, event.Entries...)
 	return true
 }
 
-func (t *UpdateStorageTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOption) {
+func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 
-	err := mysql.Storage.ChangeState(execCtx.DB.SQLCtx(), t.StorageID, t.DirectoryStatus)
+	err := mysql.Storage.ChangeState(execCtx.Args.DB.SQLCtx(), t.StorageID, t.DirectoryStatus)
 	if err != nil {
 		logger.WithField("StorageID", t.StorageID).Warnf("change storage state failed, err: %s", err.Error())
 	}
@@ -57,7 +57,7 @@ func (t *UpdateStorageTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOpt
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case tskcst.UPDATE_STORAGE_DELETE:
-			err := mysql.StorageObject.Delete(execCtx.DB.SQLCtx(), t.StorageID, entry.ObjectID)
+			err := mysql.StorageObject.Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID)
 			if err != nil {
 				logger.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
@@ -65,7 +65,7 @@ func (t *UpdateStorageTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOpt
 			}
 
 		case tskcst.UPDATE_STORAGE_SET_NORMAL:
-			err := mysql.StorageObject.SetStateNormal(execCtx.DB.SQLCtx(), t.StorageID, entry.ObjectID)
+			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID)
 			if err != nil {
 				logger.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).

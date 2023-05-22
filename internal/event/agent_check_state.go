@@ -1,4 +1,4 @@
-package task
+package event
 
 import (
 	"database/sql"
@@ -11,33 +11,33 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/task"
+	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
 
-type AgentCheckStateTask struct {
+type AgentCheckState struct {
 	NodeIDs []int
 }
 
-func NewAgentCheckStateTask(nodeIDs []int) AgentCheckStateTask {
-	return AgentCheckStateTask{
+func NewAgentCheckState(nodeIDs []int) AgentCheckState {
+	return AgentCheckState{
 		NodeIDs: nodeIDs,
 	}
 }
 
-func (t *AgentCheckStateTask) TryMerge(other Task) bool {
-	task, ok := other.(*AgentCheckStateTask)
+func (t *AgentCheckState) TryMerge(other Event) bool {
+	event, ok := other.(*AgentCheckState)
 	if !ok {
 		return false
 	}
 
-	t.NodeIDs = lo.Union(t.NodeIDs, task.NodeIDs)
+	t.NodeIDs = lo.Union(t.NodeIDs, event.NodeIDs)
 	return true
 }
 
-func (t *AgentCheckStateTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOption) {
+func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	for _, nodeID := range t.NodeIDs {
-		node, err := mysql.Node.GetByID(execCtx.DB.SQLCtx(), nodeID)
+		node, err := mysql.Node.GetByID(execCtx.Args.DB.SQLCtx(), nodeID)
 		if err == sql.ErrNoRows {
 			continue
 		}
@@ -53,20 +53,20 @@ func (t *AgentCheckStateTask) Execute(execCtx *ExecuteContext, execOpts ExecuteO
 
 		// 检查上次上报时间，超时的设置为不可用
 		if time.Since(node.LastReportTime) > time.Duration(config.Cfg().NodeUnavailableSeconds)*time.Second {
-			err := mysql.Node.ChangeState(execCtx.DB.SQLCtx(), nodeID, consts.NODE_STATE_UNAVAILABLE)
+			err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), nodeID, consts.NODE_STATE_UNAVAILABLE)
 			if err != nil {
 				logger.WithField("NodeID", nodeID).Warnf("set node state failed, err: %s", err.Error())
 				continue
 			}
 
-			caches, err := mysql.Cache.GetNodeCaches(execCtx.DB.SQLCtx(), nodeID)
+			caches, err := mysql.Cache.GetNodeCaches(execCtx.Args.DB.SQLCtx(), nodeID)
 			if err != nil {
 				logger.WithField("NodeID", nodeID).Warnf("get node caches failed, err: %s", err.Error())
 				continue
 			}
 
 			// 补充备份数
-			execCtx.Executor.Post(NewCheckRepCountTask(lo.Map(caches, func(ch model.Cache, index int) string { return ch.HashValue })))
+			execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.HashValue })))
 			continue
 		}
 
@@ -78,7 +78,7 @@ func (t *AgentCheckStateTask) Execute(execCtx *ExecuteContext, execOpts ExecuteO
 		defer agentClient.Close()
 
 		// 紧急任务
-		err = agentClient.PostTask(agtmsg.NewPostTaskBody(agttsk.NewCheckStateTask(), true, true))
+		err = agentClient.PostEvent(agtmsg.NewPostEventBody(agttsk.NewCheckState(), true, true))
 		if err != nil {
 			logger.WithField("NodeID", nodeID).Warnf("request to agent failed, err: %s", err.Error())
 		}

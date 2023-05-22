@@ -1,4 +1,4 @@
-package task
+package event
 
 import (
 	"gitlink.org.cn/cloudream/common/consts"
@@ -6,20 +6,20 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 )
 
-type UpdateAgentStateTask struct {
+type UpdateAgentState struct {
 	NodeID     int
 	IPFSStatus string
 }
 
-func (t *UpdateAgentStateTask) TryMerge(other Task) bool {
+func (t *UpdateAgentState) TryMerge(other Event) bool {
 	return false
 }
 
-func (t *UpdateAgentStateTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOption) {
+func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
 	if t.IPFSStatus != consts.IPFS_STATUS_OK {
 		logger.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", t.IPFSStatus)
 
-		err := mysql.Node.ChangeState(execCtx.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
+		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
 			logger.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 		}
@@ -27,7 +27,7 @@ func (t *UpdateAgentStateTask) Execute(execCtx *ExecuteContext, execOpts Execute
 	}
 
 	// TODO 如果以后还有其他的状态，要判断哪些状态下能设置Normal
-	err := mysql.Node.ChangeState(execCtx.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
+	err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
 	if err != nil {
 		logger.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 	}

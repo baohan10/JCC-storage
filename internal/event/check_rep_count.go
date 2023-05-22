@@ -1,4 +1,4 @@
-package task
+package event
 
 import (
 	"database/sql"
@@ -17,27 +17,27 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 )
 
-type CheckRepCountTask struct {
+type CheckRepCount struct {
 	FileHashes []string
 }
 
-func NewCheckRepCountTask(fileHashes []string) *CheckRepCountTask {
-	return &CheckRepCountTask{
+func NewCheckRepCount(fileHashes []string) *CheckRepCount {
+	return &CheckRepCount{
 		FileHashes: fileHashes,
 	}
 }
 
-func (t *CheckRepCountTask) TryMerge(other Task) bool {
-	task, ok := other.(*CheckRepCountTask)
+func (t *CheckRepCount) TryMerge(other Event) bool {
+	event, ok := other.(*CheckRepCount)
 	if !ok {
 		return false
 	}
 
-	t.FileHashes = lo.Union(t.FileHashes, task.FileHashes)
+	t.FileHashes = lo.Union(t.FileHashes, event.FileHashes)
 	return true
 }
 
-func (t *CheckRepCountTask) Execute(execCtx *ExecuteContext, myOpts ExecuteOption) {
+func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
 	updatedNodeAndHashes := make(map[int][]string)
 
 	for _, fileHash := range t.FileHashes {
@@ -55,13 +55,13 @@ func (t *CheckRepCountTask) Execute(execCtx *ExecuteContext, myOpts ExecuteOptio
 
 	for nodeID, hashes := range updatedNodeAndHashes {
 		// 新任务继承本任务的执行设定（紧急任务依然保持紧急任务）
-		execCtx.Executor.Post(NewAgentCheckCacheTask(nodeID, hashes), myOpts)
+		execCtx.Executor.Post(NewAgentCheckCache(nodeID, hashes), execCtx.Option)
 	}
 }
 
-func (t *CheckRepCountTask) checkOneRepCount(fileHash string, execCtx *ExecuteContext) ([]int, error) {
+func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext) ([]int, error) {
 	var updatedNodeIDs []int
-	err := execCtx.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		repMaxCnt, err := mysql.ObjectRep.GetFileMaxRepCount(tx, fileHash)
 		if err != nil {
 			return fmt.Errorf("get file max rep count failed, err: %w", err)

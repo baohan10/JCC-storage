@@ -1,4 +1,4 @@
-package task
+package event
 
 import (
 	"database/sql"
@@ -12,30 +12,30 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 )
 
-type CheckUnavailableCacheTask struct {
+type CheckUnavailableCache struct {
 	NodeID int
 }
 
-func NewCheckUnavailableCacheTask(nodeID int) CheckUnavailableCacheTask {
-	return CheckUnavailableCacheTask{
+func NewCheckUnavailableCache(nodeID int) CheckUnavailableCache {
+	return CheckUnavailableCache{
 		NodeID: nodeID,
 	}
 }
 
-func (t *CheckUnavailableCacheTask) TryMerge(other Task) bool {
-	task, ok := other.(*CheckUnavailableCacheTask)
+func (t *CheckUnavailableCache) TryMerge(other Event) bool {
+	event, ok := other.(*CheckUnavailableCache)
 	if !ok {
 		return false
 	}
-	if task.NodeID != t.NodeID {
+	if event.NodeID != t.NodeID {
 		return false
 	}
 
 	return true
 }
 
-func (t *CheckUnavailableCacheTask) Execute(execCtx *ExecuteContext, myOpts ExecuteOption) {
-	err := execCtx.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+func (t *CheckUnavailableCache) Execute(execCtx ExecuteContext) {
+	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		node, err := mysql.Node.GetByID(tx, t.NodeID)
 		if err == sql.ErrNoRows {
 			return nil
@@ -58,7 +58,7 @@ func (t *CheckUnavailableCacheTask) Execute(execCtx *ExecuteContext, myOpts Exec
 			return fmt.Errorf("delete node all caches failed, err: %w", err)
 		}
 
-		execCtx.Executor.Post(NewCheckRepCountTask(lo.Map(caches, func(ch model.Cache, index int) string { return ch.HashValue })))
+		execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.HashValue })))
 		return nil
 	})
 

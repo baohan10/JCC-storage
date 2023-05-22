@@ -1,4 +1,4 @@
-package task
+package event
 
 import (
 	"database/sql"
@@ -10,37 +10,37 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/task"
+	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
 
-type AgentCheckStorageTask struct {
+type AgentCheckStorage struct {
 	StorageID int
 	ObjectIDs []int // 需要检查的Object文件列表，如果为nil（不是为空），则代表进行全量检查
 }
 
-func (t *AgentCheckStorageTask) TryMerge(other Task) bool {
-	task, ok := other.(*AgentCheckStorageTask)
+func (t *AgentCheckStorage) TryMerge(other Event) bool {
+	event, ok := other.(*AgentCheckStorage)
 	if !ok {
 		return false
 	}
 
-	if t.StorageID != task.StorageID {
+	if t.StorageID != event.StorageID {
 		return false
 	}
 
 	// ObjectIDs为nil时代表全量检查
-	if task.ObjectIDs == nil {
+	if event.ObjectIDs == nil {
 		t.ObjectIDs = nil
 	} else if t.ObjectIDs != nil {
-		t.ObjectIDs = lo.Union(t.ObjectIDs, task.ObjectIDs)
+		t.ObjectIDs = lo.Union(t.ObjectIDs, event.ObjectIDs)
 	}
 
 	return true
 }
 
-func (t *AgentCheckStorageTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOption) {
-	stg, err := mysql.Storage.GetByID(execCtx.DB.SQLCtx(), t.StorageID)
+func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
+	stg, err := mysql.Storage.GetByID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			logger.WithField("StorageID", t.StorageID).Warnf("get storage failed, err: %s", err.Error())
@@ -48,7 +48,7 @@ func (t *AgentCheckStorageTask) Execute(execCtx *ExecuteContext, execOpts Execut
 		return
 	}
 
-	node, err := mysql.Node.GetByID(execCtx.DB.SQLCtx(), stg.NodeID)
+	node, err := mysql.Node.GetByID(execCtx.Args.DB.SQLCtx(), stg.NodeID)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			logger.WithField("StorageID", t.StorageID).Warnf("get storage node failed, err: %s", err.Error())
@@ -66,7 +66,7 @@ func (t *AgentCheckStorageTask) Execute(execCtx *ExecuteContext, execOpts Execut
 	var objects []model.StorageObject
 	if t.ObjectIDs == nil {
 		var err error
-		objects, err = mysql.StorageObject.GetAllByStorageID(execCtx.DB.SQLCtx(), t.StorageID)
+		objects, err = mysql.StorageObject.GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 		if err != nil {
 			logger.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
 			return
@@ -74,7 +74,7 @@ func (t *AgentCheckStorageTask) Execute(execCtx *ExecuteContext, execOpts Execut
 		isComplete = true
 	} else {
 		for _, objID := range t.ObjectIDs {
-			obj, err := mysql.StorageObject.Get(execCtx.DB.SQLCtx(), t.StorageID, objID)
+			obj, err := mysql.StorageObject.Get(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
 			if err == sql.ErrNoRows {
 				continue
 			}
@@ -98,10 +98,10 @@ func (t *AgentCheckStorageTask) Execute(execCtx *ExecuteContext, execOpts Execut
 	}
 	defer agentClient.Close()
 
-	err = agentClient.PostTask(agtmsg.NewPostTaskBody(
-		agttsk.NewCheckStorageTask(stg.Directory, isComplete, objects),
-		execOpts.IsEmergency, // 继承本任务的执行选项
-		execOpts.DontMerge))
+	err = agentClient.PostEvent(agtmsg.NewPostEventBody(
+		agttsk.NewCheckStorage(stg.Directory, isComplete, objects),
+		execCtx.Option.IsEmergency, // 继承本任务的执行选项
+		execCtx.Option.DontMerge))
 	if err != nil {
 		logger.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", stg.NodeID, err.Error())
 	}

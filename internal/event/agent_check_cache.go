@@ -1,4 +1,4 @@
-package task
+package event
 
 import (
 	"database/sql"
@@ -11,38 +11,38 @@ import (
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/task"
+	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 )
 
-type AgentCheckCacheTask struct {
+type AgentCheckCache struct {
 	NodeID     int
 	FileHashes []string // 需要检查的FileHash列表，如果为nil（不是为空），则代表进行全量检查
 }
 
-func NewAgentCheckCacheTask(nodeID int, fileHashes []string) *AgentCheckCacheTask {
-	return &AgentCheckCacheTask{
+func NewAgentCheckCache(nodeID int, fileHashes []string) *AgentCheckCache {
+	return &AgentCheckCache{
 		NodeID:     nodeID,
 		FileHashes: fileHashes,
 	}
 }
 
-func (t *AgentCheckCacheTask) TryMerge(other Task) bool {
-	task, ok := other.(*AgentCheckCacheTask)
+func (t *AgentCheckCache) TryMerge(other Event) bool {
+	event, ok := other.(*AgentCheckCache)
 	if !ok {
 		return false
 	}
 
 	// FileHashes为nil时代表全量检查
-	if task.FileHashes == nil {
+	if event.FileHashes == nil {
 		t.FileHashes = nil
 	} else if t.FileHashes != nil {
-		t.FileHashes = lo.Union(t.FileHashes, task.FileHashes)
+		t.FileHashes = lo.Union(t.FileHashes, event.FileHashes)
 	}
 
 	return true
 }
 
-func (t *AgentCheckCacheTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOption) {
+func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	var isComplete bool
 	var caches []model.Cache
 
@@ -50,7 +50,7 @@ func (t *AgentCheckCacheTask) Execute(execCtx *ExecuteContext, execOpts ExecuteO
 
 	if t.FileHashes == nil {
 		var err error
-		caches, err = mysql.Cache.GetNodeCaches(execCtx.DB.SQLCtx(), t.NodeID)
+		caches, err = mysql.Cache.GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
 		if err != nil {
 			logger.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
 			return
@@ -59,7 +59,7 @@ func (t *AgentCheckCacheTask) Execute(execCtx *ExecuteContext, execOpts ExecuteO
 
 	} else {
 		for _, hash := range t.FileHashes {
-			ch, err := mysql.Cache.Get(execCtx.DB.SQLCtx(), hash, t.NodeID)
+			ch, err := mysql.Cache.Get(execCtx.Args.DB.SQLCtx(), hash, t.NodeID)
 			// 记录不存在则跳过
 			if err == sql.ErrNoRows {
 				continue
@@ -83,10 +83,10 @@ func (t *AgentCheckCacheTask) Execute(execCtx *ExecuteContext, execOpts ExecuteO
 	}
 	defer agentClient.Close()
 
-	err = agentClient.PostTask(agtmsg.NewPostTaskBody(
-		agttsk.NewCheckCacheTask(isComplete, caches),
-		execOpts.IsEmergency, // 继承本任务的执行选项
-		execOpts.DontMerge))
+	err = agentClient.PostEvent(agtmsg.NewPostEventBody(
+		agttsk.NewCheckCache(isComplete, caches),
+		execCtx.Option.IsEmergency, // 继承本任务的执行选项
+		execCtx.Option.DontMerge))
 	if err != nil {
 		logger.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 		return
