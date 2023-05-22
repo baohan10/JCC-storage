@@ -99,7 +99,7 @@ func (t *AgentCheckStorageTask) Execute(execCtx *ExecuteContext, execOpts Execut
 	defer agentClient.Close()
 
 	err = agentClient.PostTask(agtmsg.NewPostTaskBody(
-		agttsk.NewCheckStorageTask(isComplete, objects),
+		agttsk.NewCheckStorageTask(stg.Directory, isComplete, objects),
 		execOpts.IsEmergency, // 继承本任务的执行选项
 		execOpts.DontMerge))
 	if err != nil {

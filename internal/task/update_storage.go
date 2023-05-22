@@ -19,15 +19,15 @@ func NewUpdateStorageTaskEntry(objectID int, op string) UpdateStorageTaskEntry {
 }
 
 type UpdateStorageTask struct {
-	StorageID      int
-	DirectoryState string
-	Entries        []UpdateStorageTaskEntry
+	StorageID       int
+	DirectoryStatus string
+	Entries         []UpdateStorageTaskEntry
 }
 
-func NewUpdateStorageTask(dirState string, entries []UpdateStorageTaskEntry) UpdateStorageTask {
+func NewUpdateStorageTask(dirStatus string, entries []UpdateStorageTaskEntry) UpdateStorageTask {
 	return UpdateStorageTask{
-		DirectoryState: dirState,
-		Entries:        entries,
+		DirectoryStatus: dirStatus,
+		Entries:         entries,
 	}
 }
 
@@ -41,7 +41,7 @@ func (t *UpdateStorageTask) TryMerge(other Task) bool {
 	}
 
 	// 后投递的任务的状态更新一些
-	t.DirectoryState = task.DirectoryState
+	t.DirectoryStatus = task.DirectoryStatus
 	// TODO 可以考虑合并同FileHash和NodeID的记录
 	t.Entries = append(t.Entries, task.Entries...)
 	return true
@@ -49,7 +49,7 @@ func (t *UpdateStorageTask) TryMerge(other Task) bool {
 
 func (t *UpdateStorageTask) Execute(execCtx *ExecuteContext, execOpts ExecuteOption) {
 
-	err := mysql.Storage.ChangeState(execCtx.DB.SQLCtx(), t.StorageID, t.DirectoryState)
+	err := mysql.Storage.ChangeState(execCtx.DB.SQLCtx(), t.StorageID, t.DirectoryStatus)
 	if err != nil {
 		logger.WithField("StorageID", t.StorageID).Warnf("change storage state failed, err: %s", err.Error())
 	}
