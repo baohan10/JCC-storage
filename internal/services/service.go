@@ -1,8 +1,8 @@
 package services
 
 import (
+	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
-	"gitlink.org.cn/cloudream/utils/ipfs"
 )
 
 type Service struct {

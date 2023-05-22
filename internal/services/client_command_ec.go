@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/client/internal/config"
+	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/ec"
-	"gitlink.org.cn/cloudream/utils"
 )
 
 func EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {

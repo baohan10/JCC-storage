@@ -9,9 +9,9 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/cmdline"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
+	"gitlink.org.cn/cloudream/common/utils/ipfs"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
-	"gitlink.org.cn/cloudream/utils/ipfs"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func main() {
