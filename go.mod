@@ -5,7 +5,6 @@ require (
 	gitlink.org.cn/cloudream/ec v0.0.0
 	gitlink.org.cn/cloudream/proto v0.0.0
 	gitlink.org.cn/cloudream/rabbitmq v0.0.0
-	gitlink.org.cn/cloudream/utils v0.0.0
 	google.golang.org/grpc v1.54.0
 )
 
@@ -64,8 +63,6 @@ go 1.18
 // replace gitlink.org.cn/cloudream/proto => ../proto
 // 
 // replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
-// 
-// replace gitlink.org.cn/cloudream/utils => ../utils
 // 
 // replace gitlink.org.cn/cloudream/common => ../common
 // 

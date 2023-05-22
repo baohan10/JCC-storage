@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
+	"gitlink.org.cn/cloudream/common/utils/ipfs"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	agentserver "gitlink.org.cn/cloudream/proto"
-	"gitlink.org.cn/cloudream/utils/ipfs"
-	log "gitlink.org.cn/cloudream/utils/logger"
 
 	"google.golang.org/grpc"
 

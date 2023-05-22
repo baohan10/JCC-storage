@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	"github.com/zyedidia/generic/list"
+	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	mydb "gitlink.org.cn/cloudream/db"
 	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
-	"gitlink.org.cn/cloudream/utils/ipfs"
 	"golang.org/x/sync/semaphore"
 )
 

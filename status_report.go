@@ -6,10 +6,10 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/utils"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
-	"gitlink.org.cn/cloudream/utils"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func reportStatus(wg *sync.WaitGroup) {
@@ -52,7 +52,7 @@ func reportStatus(wg *sync.WaitGroup) {
 		//TODO: 查看本地IPFS daemon是否正常，记录到ipfsStatus
 		ipfsStatus := consts.IPFS_STATUS_OK
 		//TODO：访问自身资源目录（配置文件中获取路径），记录是否正常，记录到localDirStatus
-		localDirStatus := consts.LOCAL_DIR_STATUS_OK
+		localDirStatus := consts.STORAGE_DIRECTORY_STATUS_OK
 
 		//发送心跳
 		// TODO 由于数据结构未定，暂时不发送真实数据

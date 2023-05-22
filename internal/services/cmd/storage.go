@@ -9,10 +9,10 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/utils"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/ec"
-	"gitlink.org.cn/cloudream/utils"
-	log "gitlink.org.cn/cloudream/utils/logger"
-	"gitlink.org.cn/cloudream/utils/serder"
 
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"

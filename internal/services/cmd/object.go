@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func (svc *Service) PinObject(msg *agtmsg.PinObject) *agtmsg.PinObjectResp {

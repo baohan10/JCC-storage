@@ -1,10 +1,10 @@
 package config
 
 import (
+	c "gitlink.org.cn/cloudream/common/utils/config"
+	"gitlink.org.cn/cloudream/common/utils/ipfs"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	racfg "gitlink.org.cn/cloudream/rabbitmq/config"
-	c "gitlink.org.cn/cloudream/utils/config"
-	"gitlink.org.cn/cloudream/utils/ipfs"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 type Config struct {
