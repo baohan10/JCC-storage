@@ -5,13 +5,13 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/task"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
-	"gitlink.org.cn/cloudream/utils/logger"
 )
 
 type AgentCheckStorageTask struct {

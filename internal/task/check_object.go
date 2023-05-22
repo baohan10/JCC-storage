@@ -2,8 +2,8 @@ package task
 
 import (
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
-	"gitlink.org.cn/cloudream/utils/logger"
 )
 
 type CheckObjectTask struct {

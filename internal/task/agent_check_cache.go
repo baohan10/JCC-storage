@@ -4,10 +4,10 @@ import (
 	"database/sql"
 
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
-	"gitlink.org.cn/cloudream/utils/logger"
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"

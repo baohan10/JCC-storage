@@ -7,9 +7,9 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
-	"gitlink.org.cn/cloudream/utils/logger"
 )
 
 type CheckUnavailableCacheTask struct {

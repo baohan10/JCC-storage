@@ -9,7 +9,6 @@ require (
 	gitlink.org.cn/cloudream/common v0.0.0
 	gitlink.org.cn/cloudream/db v0.0.0
 	gitlink.org.cn/cloudream/rabbitmq v0.0.0
-	gitlink.org.cn/cloudream/utils v0.0.0
 	golang.org/x/sync v0.1.0
 )
 
@@ -35,8 +34,6 @@ require (
 
 // 运行go mod tidy时需要将下面几行取消注释
 // replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
-// 
-// replace gitlink.org.cn/cloudream/utils => ../utils
 // 
 // replace gitlink.org.cn/cloudream/db => ../db
 // 
