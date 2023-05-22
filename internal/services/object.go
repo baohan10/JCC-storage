@@ -7,10 +7,10 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.PreDownloadObjectResp {

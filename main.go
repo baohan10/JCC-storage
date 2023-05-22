@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"gitlink.org.cn/cloudream/common/utils/logger"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/coordinator/internal/config"
 	"gitlink.org.cn/cloudream/coordinator/internal/services"
 	mydb "gitlink.org.cn/cloudream/db"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/coordinator"
-	"gitlink.org.cn/cloudream/utils/logger"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func main() {

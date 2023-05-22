@@ -3,10 +3,10 @@ package services
 import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/utils"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
-	"gitlink.org.cn/cloudream/utils"
-	log "gitlink.org.cn/cloudream/utils/logger"
 )
 
 func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) *coormsg.PreMoveObjectToStorageResp {
