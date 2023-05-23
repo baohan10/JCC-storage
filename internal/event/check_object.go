@@ -10,8 +10,8 @@ type CheckObject struct {
 	ObjectIDs []int
 }
 
-func NewCheckObject(objIDs []int) CheckObject {
-	return CheckObject{
+func NewCheckObject(objIDs []int) *CheckObject {
+	return &CheckObject{
 		ObjectIDs: objIDs,
 	}
 }
