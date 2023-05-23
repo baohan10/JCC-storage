@@ -19,6 +19,13 @@ type AgentCheckStorage struct {
 	ObjectIDs []int // 需要检查的Object文件列表，如果为nil（不是为空），则代表进行全量检查
 }
 
+func NewAgentCheckStorage(storageID int, objectIDs []int) *AgentCheckStorage {
+	return &AgentCheckStorage{
+		StorageID: storageID,
+		ObjectIDs: objectIDs,
+	}
+}
+
 func (t *AgentCheckStorage) TryMerge(other Event) bool {
 	event, ok := other.(*AgentCheckStorage)
 	if !ok {
