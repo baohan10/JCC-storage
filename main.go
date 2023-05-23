@@ -1,29 +1,78 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"sync"
 
-	//"path/filepath"
-	//"sync"
-
-	"time"
-	//agentcaller "proto"
-	//"github.com/pborman/uuid"
-	//"github.com/streadway/amqp"
-	//"google.golang.org/grpc"
+	log "gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/db"
+	scsvr "gitlink.org.cn/cloudream/rabbitmq/server/scanner"
+	"gitlink.org.cn/cloudream/scanner/internal/config"
+	"gitlink.org.cn/cloudream/scanner/internal/event"
+	"gitlink.org.cn/cloudream/scanner/internal/services"
 )
 
 func main() {
-	for {
-		//jh:遍历对象副本表，
-		//-对于每一个rephash,
-		//--根据objectId查询对象表中的RepNum
-		//--查询缓存表中rephash对应的TempOrPin为false的nodeIp
-		//--如果查到的NodeIp数少于RepNum，需发起复制命令
-		//jh:遍历对象编码块表，
-		//-对于每一个blockhash,获得其blockId、objectId、innerID
-		//--判断blockhash是否在ipfs网络中
-		//--得到待修复object清单：记录下各个objectId对应的不在ipfs网络中的blockId、blockhash、innerID
-		//-查询待修复object清单中各个object的FileSize、EcName等，并发出修复命令
-		time.Sleep(time.Minute * 5)
+	err := config.Init()
+	if err != nil {
+		fmt.Printf("init config failed, err: %s", err.Error())
+		os.Exit(1)
 	}
+
+	err = log.Init(&config.Cfg().Logger)
+	if err != nil {
+		fmt.Printf("init logger failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
+	db, err := db.NewDB(&config.Cfg().DB)
+	if err != nil {
+		log.Fatalf("new db failed, err: %s", err.Error())
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	eventExecutor := event.NewExecutor(db)
+	go serveEventExecutor(&eventExecutor, &wg)
+
+	agtSvr, err := scsvr.NewScannerServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
+	if err != nil {
+		log.Fatalf("new agent server failed, err: %s", err.Error())
+	}
+	agtSvr.OnError = func(err error) {
+		log.Warnf("agent server err: %s", err.Error())
+	}
+	go serveScannerServer(agtSvr, &wg)
+
+	wg.Wait()
+}
+
+func serveEventExecutor(executor *event.Executor, wg *sync.WaitGroup) {
+	log.Info("start serving event executor")
+
+	err := executor.Execute()
+
+	if err != nil {
+		log.Errorf("event executor stopped with error: %s", err.Error())
+	}
+
+	log.Info("event executor stopped")
+
+	wg.Done()
+}
+
+func serveScannerServer(server *scsvr.ScannerServer, wg *sync.WaitGroup) {
+	log.Info("start serving scanner server")
+
+	err := server.Serve()
+
+	if err != nil {
+		log.Errorf("scanner server stopped with error: %s", err.Error())
+	}
+
+	log.Info("scanner server stopped")
+
+	wg.Done()
 }

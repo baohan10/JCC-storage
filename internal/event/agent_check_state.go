@@ -11,7 +11,7 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
 
@@ -78,7 +78,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		defer agentClient.Close()
 
 		// 紧急任务
-		err = agentClient.PostEvent(agtmsg.NewPostEventBody(agttsk.NewCheckState(), true, true))
+		err = agentClient.PostEvent(agtmsg.NewPostEventBody(agtevt.NewCheckState(), true, true))
 		if err != nil {
 			logger.WithField("NodeID", nodeID).Warnf("request to agent failed, err: %s", err.Error())
 		}

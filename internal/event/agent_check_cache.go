@@ -11,7 +11,7 @@ import (
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 )
 
 type AgentCheckCache struct {
@@ -84,7 +84,7 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	defer agentClient.Close()
 
 	err = agentClient.PostEvent(agtmsg.NewPostEventBody(
-		agttsk.NewCheckCache(isComplete, caches),
+		agtevt.NewCheckCache(isComplete, caches),
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
 		execCtx.Option.DontMerge))
 	if err != nil {

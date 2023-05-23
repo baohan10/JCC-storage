@@ -10,7 +10,7 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	agttsk "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
 
@@ -99,7 +99,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	defer agentClient.Close()
 
 	err = agentClient.PostEvent(agtmsg.NewPostEventBody(
-		agttsk.NewCheckStorage(stg.Directory, isComplete, objects),
+		agtevt.NewCheckStorage(stg.Directory, isComplete, objects),
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
 		execCtx.Option.DontMerge))
 	if err != nil {
