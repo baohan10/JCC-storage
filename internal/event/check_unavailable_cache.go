@@ -16,8 +16,8 @@ type CheckUnavailableCache struct {
 	NodeID int
 }
 
-func NewCheckUnavailableCache(nodeID int) CheckUnavailableCache {
-	return CheckUnavailableCache{
+func NewCheckUnavailableCache(nodeID int) *CheckUnavailableCache {
+	return &CheckUnavailableCache{
 		NodeID: nodeID,
 	}
 }
