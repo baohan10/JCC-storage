@@ -25,7 +25,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := mydb.NewDB(config.Cfg().DB.MakeSourceString())
+	db, err := mydb.NewDB(&config.Cfg().DB)
 	if err != nil {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
