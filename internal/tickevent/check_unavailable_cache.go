@@ -9,6 +9,10 @@ import (
 type CheckUnavailableCache struct {
 }
 
+func NewCheckUnavailableCache() *CheckUnavailableCache {
+	return &CheckUnavailableCache{}
+}
+
 func (e *CheckUnavailableCache) Execute(ctx ExecuteContext) {
 	nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
 	if err != nil {

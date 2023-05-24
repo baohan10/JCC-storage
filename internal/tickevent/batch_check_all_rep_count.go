@@ -12,6 +12,10 @@ type BatchCheckAllRepCount struct {
 	lastCheckStart int
 }
 
+func NewBatchCheckAllRepCount() *BatchCheckAllRepCount {
+	return &BatchCheckAllRepCount{}
+}
+
 func (e *BatchCheckAllRepCount) Execute(ctx ExecuteContext) {
 	fileHashes, err := mysql.Cache.BatchGetAllFileHashes(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_CACHE_BATCH_SIZE)
 	if err != nil {

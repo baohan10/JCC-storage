@@ -10,11 +10,15 @@ import (
 
 const AGENT_CHECK_CACHE_BATCH_SIZE = 2
 
-type BatchAgentCheckCache struct {
+type BatchAllAgentCheckCache struct {
 	nodeIDs []int
 }
 
-func (e *BatchAgentCheckCache) Execute(ctx ExecuteContext) {
+func NewBatchAllAgentCheckCache() *BatchAllAgentCheckCache {
+	return &BatchAllAgentCheckCache{}
+}
+
+func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 	if e.nodeIDs == nil || len(e.nodeIDs) == 0 {
 		nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
 		if err != nil {

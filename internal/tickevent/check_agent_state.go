@@ -9,6 +9,10 @@ import (
 type CheckAgentState struct {
 }
 
+func NewCheckAgentState() *CheckAgentState {
+	return &CheckAgentState{}
+}
+
 func (e *CheckAgentState) Execute(ctx ExecuteContext) {
 	nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 	"gitlink.org.cn/cloudream/scanner/internal/services"
+	"gitlink.org.cn/cloudream/scanner/internal/tickevent"
 )
 
 func main() {
@@ -46,6 +47,11 @@ func main() {
 	}
 	go serveScannerServer(agtSvr, &wg)
 
+	tickExecutor := tickevent.NewExecutor(tickevent.ExecuteArgs{
+		DB: db,
+	})
+	startTickEvent(&tickExecutor)
+
 	wg.Wait()
 }
 
@@ -75,4 +81,20 @@ func serveScannerServer(server *scsvr.ScannerServer, wg *sync.WaitGroup) {
 	log.Info("scanner server stopped")
 
 	wg.Done()
+}
+
+func startTickEvent(tickExecutor *tickevent.Executor) {
+	// TODO 可以考虑增加配置文件，配置这些任务间隔时间
+
+	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), 5*60*100)
+
+	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), 5*60*100)
+
+	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), 5*60*100)
+
+	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*100)
+
+	tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*100)
+
+	tickExecutor.Start(tickevent.NewCheckUnavailableCache(), 5*60*100)
 }

@@ -16,3 +16,7 @@ type Executor = tickevent.Executor[ExecuteArgs]
 type ExecuteContext = tickevent.ExecuteContext[ExecuteArgs]
 
 type Event = tickevent.TickEvent[ExecuteArgs]
+
+func NewExecutor(args ExecuteArgs) Executor {
+	return tickevent.NewExecutor(args)
+}

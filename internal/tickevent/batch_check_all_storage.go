@@ -8,11 +8,15 @@ import (
 
 const CHECK_STORAGE_BATCH_SIZE = 5
 
-type BatchCheckStorage struct {
+type BatchCheckAllStorage struct {
 	lastCheckStart int
 }
 
-func (e *BatchCheckStorage) Execute(ctx ExecuteContext) {
+func NewBatchCheckAllStorage() *BatchCheckAllStorage {
+	return &BatchCheckAllStorage{}
+}
+
+func (e *BatchCheckAllStorage) Execute(ctx ExecuteContext) {
 	storageIDs, err := mysql.Storage.BatchGetAllStorageIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_STORAGE_BATCH_SIZE)
 	if err != nil {
 		logger.Warnf("batch get storage ids failed, err: %s", err.Error())

@@ -8,11 +8,15 @@ import (
 
 const CHECK_OBJECT_BATCH_SIZE = 100
 
-type BatchCheckObject struct {
+type BatchCheckAllObject struct {
 	lastCheckStart int
 }
 
-func (e *BatchCheckObject) Execute(ctx ExecuteContext) {
+func NewBatchCheckAllObject() *BatchCheckAllObject {
+	return &BatchCheckAllObject{}
+}
+
+func (e *BatchCheckAllObject) Execute(ctx ExecuteContext) {
 	objectIDs, err := mysql.Object.BatchGetAllObjectIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_OBJECT_BATCH_SIZE)
 	if err != nil {
 		logger.Warnf("batch get object ids failed, err: %s", err.Error())
