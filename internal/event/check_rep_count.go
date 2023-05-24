@@ -15,15 +15,16 @@ import (
 
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
 type CheckRepCount struct {
-	FileHashes []string
+	scevt.CheckRepCount
 }
 
 func NewCheckRepCount(fileHashes []string) *CheckRepCount {
 	return &CheckRepCount{
-		FileHashes: fileHashes,
+		CheckRepCount: scevt.NewCheckRepCount(fileHashes),
 	}
 }
 

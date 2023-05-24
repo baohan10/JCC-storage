@@ -4,29 +4,18 @@ import (
 	evtcst "gitlink.org.cn/cloudream/common/consts/event"
 	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
-type UpdateCacheEntry struct {
-	FileHash  string
-	Operation string
-}
-
-func NewUpdateCacheEntry(fileHash string, op string) UpdateCacheEntry {
-	return UpdateCacheEntry{
-		FileHash:  fileHash,
-		Operation: op,
-	}
-}
+type UpdateCacheEntry = scevt.UpdateCacheEntry
 
 type UpdateCache struct {
-	NodeID  int
-	Entries []UpdateCacheEntry
+	scevt.UpdateCache
 }
 
-func NewUpdateCache(nodeID int, entries []UpdateCacheEntry) UpdateCache {
+func NewUpdateCache(nodeID int, entries []scevt.UpdateCacheEntry) UpdateCache {
 	return UpdateCache{
-		NodeID:  nodeID,
-		Entries: entries,
+		UpdateCache: scevt.NewUpdateCache(nodeID, entries),
 	}
 }
 

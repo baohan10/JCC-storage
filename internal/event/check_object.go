@@ -4,15 +4,16 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
 type CheckObject struct {
-	ObjectIDs []int
+	scevt.CheckObject
 }
 
 func NewCheckObject(objIDs []int) *CheckObject {
 	return &CheckObject{
-		ObjectIDs: objIDs,
+		CheckObject: scevt.NewCheckObject(objIDs),
 	}
 }
 

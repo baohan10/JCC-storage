@@ -11,18 +11,17 @@ import (
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
 
 type AgentCheckStorage struct {
-	StorageID int
-	ObjectIDs []int // 需要检查的Object文件列表，如果为nil（不是为空），则代表进行全量检查
+	scevt.AgentCheckStorage
 }
 
 func NewAgentCheckStorage(storageID int, objectIDs []int) *AgentCheckStorage {
 	return &AgentCheckStorage{
-		StorageID: storageID,
-		ObjectIDs: objectIDs,
+		AgentCheckStorage: scevt.NewAgentCheckStorage(storageID, objectIDs),
 	}
 }
 

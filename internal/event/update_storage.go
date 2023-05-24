@@ -4,32 +4,17 @@ import (
 	tskcst "gitlink.org.cn/cloudream/common/consts/event"
 	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
-type UpdateStorageEntry struct {
-	ObjectID  int
-	UserID    int
-	Operation string
-}
-
-func NewUpdateStorageEntry(objectID int, userID int, op string) UpdateStorageEntry {
-	return UpdateStorageEntry{
-		ObjectID:  objectID,
-		UserID:    userID,
-		Operation: op,
-	}
-}
-
+type UpdateStorageEntry = scevt.UpdateStorageEntry
 type UpdateStorage struct {
-	StorageID       int
-	DirectoryStatus string
-	Entries         []UpdateStorageEntry
+	scevt.UpdateStorage
 }
 
-func NewUpdateStorage(dirStatus string, entries []UpdateStorageEntry) UpdateStorage {
+func NewUpdateStorage(dirState string, entries []UpdateStorageEntry) UpdateStorage {
 	return UpdateStorage{
-		DirectoryStatus: dirStatus,
-		Entries:         entries,
+		UpdateStorage: scevt.NewUpdateStorage(dirState, entries),
 	}
 }
 
@@ -43,7 +28,7 @@ func (t *UpdateStorage) TryMerge(other Event) bool {
 	}
 
 	// 后投递的任务的状态更新一些
-	t.DirectoryStatus = event.DirectoryStatus
+	t.DirectoryState = event.DirectoryState
 	// TODO 可以考虑合并同FileHash和NodeID的记录
 	t.Entries = append(t.Entries, event.Entries...)
 	return true
@@ -51,7 +36,7 @@ func (t *UpdateStorage) TryMerge(other Event) bool {
 
 func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 
-	err := mysql.Storage.ChangeState(execCtx.Args.DB.SQLCtx(), t.StorageID, t.DirectoryStatus)
+	err := mysql.Storage.ChangeState(execCtx.Args.DB.SQLCtx(), t.StorageID, t.DirectoryState)
 	if err != nil {
 		logger.WithField("StorageID", t.StorageID).Warnf("change storage state failed, err: %s", err.Error())
 	}

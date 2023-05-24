@@ -4,11 +4,17 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
 type UpdateAgentState struct {
-	NodeID     int
-	IPFSStatus string
+	scevt.UpdateAgentState
+}
+
+func NewUpdateAgentState(nodeID int, ipfsState string) *UpdateAgentState {
+	return &UpdateAgentState{
+		UpdateAgentState: scevt.NewUpdateAgentState(nodeID, ipfsState),
+	}
 }
 
 func (t *UpdateAgentState) TryMerge(other Event) bool {
@@ -16,8 +22,8 @@ func (t *UpdateAgentState) TryMerge(other Event) bool {
 }
 
 func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
-	if t.IPFSStatus != consts.IPFS_STATUS_OK {
-		logger.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", t.IPFSStatus)
+	if t.IPFSState != consts.IPFS_STATUS_OK {
+		logger.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", t.IPFSState)
 
 		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
