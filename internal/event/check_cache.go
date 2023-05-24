@@ -113,11 +113,17 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 	for hash, _ := range filesMap {
 		updateCacheOps = append(updateCacheOps, scevt.NewUpdateCacheEntry(hash, evcst.UPDATE_CACHE_CREATE_TEMP))
 	}
-	execCtx.Args.Scanner.PostEvent(scmsg.NewPostEventBody(
+
+	evtmsg, err := scmsg.NewPostEventBody(
 		scevt.NewUpdateCache(config.Cfg().ID, updateCacheOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
-	))
+	)
+	if err == nil {
+		execCtx.Args.Scanner.PostEvent(evtmsg)
+	} else {
+		logger.Warnf("new post event body failed, err: %s", err.Error())
+	}
 }
 
 func init() {

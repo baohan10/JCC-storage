@@ -10,7 +10,6 @@ import (
 	"gitlink.org.cn/cloudream/agent/internal/event"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	log "gitlink.org.cn/cloudream/common/utils/logger"
-	"gitlink.org.cn/cloudream/db"
 	agentserver "gitlink.org.cn/cloudream/proto"
 
 	"google.golang.org/grpc"
@@ -46,11 +45,6 @@ func main() {
 		log.Fatalf("new scanner client failed, err: %s", err.Error())
 	}
 
-	db, err := db.NewDB(&config.Cfg().DB)
-	if err != nil {
-		log.Fatalf("new db failed, err: %s", err.Error())
-	}
-
 	ipfs, err := ipfs.NewIPFS(&config.Cfg().IPFS)
 	if err != nil {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
@@ -60,7 +54,7 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 
-	eventExecutor := event.NewExecutor(scanner, db, ipfs)
+	eventExecutor := event.NewExecutor(scanner, ipfs)
 	go serveEventExecutor(&eventExecutor, &wg)
 
 	// 启动命令服务器

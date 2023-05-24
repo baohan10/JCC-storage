@@ -9,7 +9,7 @@ import (
 
 func (svc *Service) PostEvent(msg *agtmsg.PostEvent) {
 
-	evtMsg, err := agtevt.MapToMessage(msg.Body.Event.(map[string]any))
+	evtMsg, err := agtevt.MapToMessage(msg.Body.Event)
 	if err != nil {
 		logger.Warnf("convert map to event message failed, err: %s", err.Error())
 		return

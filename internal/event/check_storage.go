@@ -55,10 +55,15 @@ func (t *CheckStorage) Execute(execCtx ExecuteContext) {
 	if err != nil {
 		logger.Warnf("list storage directory failed, err: %s", err.Error())
 
-		execCtx.Args.Scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewUpdateStorage(
+		evtmsg, err := scmsg.NewPostEventBody(scevt.NewUpdateStorage(
 			err.Error(),
 			nil,
-		), execCtx.Option.IsEmergency, execCtx.Option.DontMerge))
+		), execCtx.Option.IsEmergency, execCtx.Option.DontMerge)
+		if err == nil {
+			execCtx.Args.Scanner.PostEvent(evtmsg)
+		} else {
+			logger.Warnf("new post event body failed, err: %s", err.Error())
+		}
 		return
 	}
 
@@ -94,12 +99,16 @@ func (t *CheckStorage) checkIncrement(fileInfos []fs.FileInfo, execCtx ExecuteCo
 	}
 
 	// 增量情况下，不需要对infosMap中没检查的记录进行处理
-
-	execCtx.Args.Scanner.PostEvent(scmsg.NewPostEventBody(
+	evtmsg, err := scmsg.NewPostEventBody(
 		scevt.NewUpdateStorage(consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
-	))
+	)
+	if err == nil {
+		execCtx.Args.Scanner.PostEvent(evtmsg)
+	} else {
+		logger.Warnf("new post event body failed, err: %s", err.Error())
+	}
 }
 
 func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteContext) {
@@ -125,12 +134,16 @@ func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteCon
 	}
 
 	// Storage中多出来的文件不做处理
-
-	execCtx.Args.Scanner.PostEvent(scmsg.NewPostEventBody(
+	evtmsg, err := scmsg.NewPostEventBody(
 		scevt.NewUpdateStorage(consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
-	))
+	)
+	if err == nil {
+		execCtx.Args.Scanner.PostEvent(evtmsg)
+	} else {
+		logger.Warnf("new post event body failed, err: %s", err.Error())
+	}
 }
 
 func init() {
