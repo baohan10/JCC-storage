@@ -1,13 +1,18 @@
 package services
 
-import mydb "gitlink.org.cn/cloudream/db"
+import (
+	mydb "gitlink.org.cn/cloudream/db"
+	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
+)
 
 type Service struct {
-	db *mydb.DB
+	db      *mydb.DB
+	scanner *sccli.ScannerClient
 }
 
-func NewService(db *mydb.DB) *Service {
+func NewService(db *mydb.DB, scanner *sccli.ScannerClient) *Service {
 	return &Service{
-		db: db,
+		db:      db,
+		scanner: scanner,
 	}
 }

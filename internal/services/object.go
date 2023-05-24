@@ -7,10 +7,13 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/utils/logger"
 	log "gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
 func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.PreDownloadObjectResp {
@@ -180,7 +183,8 @@ func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.Creat
 		return ramsg.ReplyFailed[coormsg.CreateObjectResp](errorcode.OPERATION_FAILED, "create rep object failed")
 	}
 
-	// TODO 通知scanner检查备份数
+	// 紧急任务
+	svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewCheckRepCount([]string{msg.Body.FileHash}), true, true))
 
 	return ramsg.ReplyOK(coormsg.NewCreateObjectRespBody())
 }
@@ -255,6 +259,9 @@ func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.Updat
 
 	}
 
+	// 紧急任务
+	svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewCheckRepCount([]string{msg.Body.FileHash}), true, true))
+
 	return ramsg.ReplyOK(coormsg.NewUpdateRepObjectRespBody())
 }
 
@@ -266,6 +273,23 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjec
 			WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("set object deleted failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "set object deleted failed")
+	}
+
+	stgs, err := svc.db.StorageObject().FindObjectStorages(svc.db.SQLCtx(), msg.Body.ObjectID)
+	if err != nil {
+		logger.Warnf("find object storages failed, but this will not affect the deleting, err: %s", err.Error())
+		return ramsg.ReplyOK(coormsg.NewDeleteObjectRespBody())
+	}
+
+	// 不追求及时、准确
+	if len(stgs) == 0 {
+		// 如果没有被引用，直接投递CheckObject的任务
+		svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewCheckObject([]int{msg.Body.ObjectID}), false, false))
+	} else {
+		// 有引用则让Agent去检查StorageObject
+		for _, stg := range stgs {
+			svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewAgentCheckStorage(stg.StorageID, []int{msg.Body.ObjectID}), false, false))
+		}
 	}
 
 	return ramsg.ReplyOK(coormsg.NewDeleteObjectRespBody())

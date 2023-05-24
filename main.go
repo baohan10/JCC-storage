@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/coordinator/internal/config"
 	"gitlink.org.cn/cloudream/coordinator/internal/services"
 	mydb "gitlink.org.cn/cloudream/db"
+	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/coordinator"
 )
 
@@ -30,7 +31,12 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	coorSvr, err := rasvr.NewCoordinatorServer(services.NewService(db), &config.Cfg().RabbitMQ)
+	scanner, err := sccli.NewScannerClient(&config.Cfg().RabbitMQ)
+	if err != nil {
+		log.Fatalf("new scanner client failed, err: %s", err.Error())
+	}
+
+	coorSvr, err := rasvr.NewCoordinatorServer(services.NewService(db, scanner), &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
