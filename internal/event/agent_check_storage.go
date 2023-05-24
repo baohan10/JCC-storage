@@ -109,3 +109,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		logger.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", stg.NodeID, err.Error())
 	}
 }
+
+func init() {
+	Register(func(msg AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.ObjectIDs) })
+}

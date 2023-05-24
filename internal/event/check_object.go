@@ -35,3 +35,7 @@ func (t *CheckObject) Execute(execCtx ExecuteContext) {
 		}
 	}
 }
+
+func init() {
+	Register(func(msg CheckObject) Event { return NewCheckObject(msg.ObjectIDs) })
+}

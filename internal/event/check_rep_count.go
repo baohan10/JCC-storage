@@ -196,3 +196,7 @@ func chooseDeleteAvaiRepNodes(allNodes []model.Node, curAvaiRepNodes []model.Nod
 
 	return alternatedNodes[:mymath.Min(delCount, len(alternatedNodes))]
 }
+
+func init() {
+	Register(func(msg CheckRepCount) Event { return NewCheckRepCount(msg.FileHashes) })
+}

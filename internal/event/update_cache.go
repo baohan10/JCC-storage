@@ -13,8 +13,8 @@ type UpdateCache struct {
 	scevt.UpdateCache
 }
 
-func NewUpdateCache(nodeID int, entries []scevt.UpdateCacheEntry) UpdateCache {
-	return UpdateCache{
+func NewUpdateCache(nodeID int, entries []scevt.UpdateCacheEntry) *UpdateCache {
+	return &UpdateCache{
 		UpdateCache: scevt.NewUpdateCache(nodeID, entries),
 	}
 }
@@ -54,4 +54,8 @@ func (t *UpdateCache) Execute(execCtx ExecuteContext) {
 			}
 		}
 	}
+}
+
+func init() {
+	Register(func(msg UpdateCache) Event { return NewUpdateCache(msg.NodeID, msg.Entries) })
 }

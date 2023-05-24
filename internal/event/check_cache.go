@@ -12,18 +12,18 @@ import (
 	mysql "gitlink.org.cn/cloudream/db/sql"
 )
 
-type CheckUnavailableCache struct {
+type CheckCache struct {
 	NodeID int
 }
 
-func NewCheckUnavailableCache(nodeID int) *CheckUnavailableCache {
-	return &CheckUnavailableCache{
+func NewCheckCache(nodeID int) *CheckCache {
+	return &CheckCache{
 		NodeID: nodeID,
 	}
 }
 
-func (t *CheckUnavailableCache) TryMerge(other Event) bool {
-	event, ok := other.(*CheckUnavailableCache)
+func (t *CheckCache) TryMerge(other Event) bool {
+	event, ok := other.(*CheckCache)
 	if !ok {
 		return false
 	}
@@ -34,7 +34,7 @@ func (t *CheckUnavailableCache) TryMerge(other Event) bool {
 	return true
 }
 
-func (t *CheckUnavailableCache) Execute(execCtx ExecuteContext) {
+func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		node, err := mysql.Node.GetByID(tx, t.NodeID)
 		if err == sql.ErrNoRows {
@@ -65,4 +65,8 @@ func (t *CheckUnavailableCache) Execute(execCtx ExecuteContext) {
 	if err != nil {
 		logger.WithField("NodeID", t.NodeID).Warn(err.Error())
 	}
+}
+
+func init() {
+	Register(func(msg CheckCache) Event { return NewCheckCache(msg.NodeID) })
 }

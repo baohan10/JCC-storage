@@ -6,14 +6,14 @@ import (
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )
 
-type CheckUnavailableCache struct {
+type CheckCache struct {
 }
 
-func NewCheckUnavailableCache() *CheckUnavailableCache {
-	return &CheckUnavailableCache{}
+func NewCheckUnavailableCache() *CheckCache {
+	return &CheckCache{}
 }
 
-func (e *CheckUnavailableCache) Execute(ctx ExecuteContext) {
+func (e *CheckCache) Execute(ctx ExecuteContext) {
 	nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
 	if err != nil {
 		logger.Warnf("get all nodes failed, err: %s", err.Error())
@@ -21,6 +21,6 @@ func (e *CheckUnavailableCache) Execute(ctx ExecuteContext) {
 	}
 
 	for _, node := range nodes {
-		ctx.Args.EventExecutor.Post(event.NewCheckUnavailableCache(node.NodeID))
+		ctx.Args.EventExecutor.Post(event.NewCheckCache(node.NodeID))
 	}
 }

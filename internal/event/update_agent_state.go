@@ -38,3 +38,7 @@ func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
 		logger.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 	}
 }
+
+func init() {
+	Register(func(msg UpdateAgentState) Event { return NewUpdateAgentState(msg.NodeID, msg.IPFSState) })
+}

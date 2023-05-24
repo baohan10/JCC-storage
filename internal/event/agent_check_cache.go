@@ -92,3 +92,7 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 		return
 	}
 }
+
+func init() {
+	Register(func(msg AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
+}

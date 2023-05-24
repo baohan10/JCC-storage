@@ -81,3 +81,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		logger.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 	}
 }
+
+func init() {
+	Register(func(msg AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
+}

@@ -12,8 +12,8 @@ type UpdateStorage struct {
 	scevt.UpdateStorage
 }
 
-func NewUpdateStorage(dirState string, entries []UpdateStorageEntry) UpdateStorage {
-	return UpdateStorage{
+func NewUpdateStorage(dirState string, entries []UpdateStorageEntry) *UpdateStorage {
+	return &UpdateStorage{
 		UpdateStorage: scevt.NewUpdateStorage(dirState, entries),
 	}
 }
@@ -60,4 +60,8 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 			}
 		}
 	}
+}
+
+func init() {
+	Register(func(msg UpdateStorage) Event { return NewUpdateStorage(msg.DirectoryState, msg.Entries) })
 }
