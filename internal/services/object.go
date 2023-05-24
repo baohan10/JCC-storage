@@ -184,7 +184,12 @@ func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.Creat
 	}
 
 	// 紧急任务
-	svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewCheckRepCount([]string{msg.Body.FileHash}), true, true))
+	evtmsg, err := scmsg.NewPostEventBody(scevt.NewCheckRepCount([]string{msg.Body.FileHash}), true, true)
+	if err == nil {
+		svc.scanner.PostEvent(evtmsg)
+	} else {
+		logger.Warnf("new post event body failed, but this will not affect creating, err: %s", err.Error())
+	}
 
 	return ramsg.ReplyOK(coormsg.NewCreateObjectRespBody())
 }
@@ -256,11 +261,15 @@ func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.Updat
 		log.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("update rep object failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.UpdateRepObjectResp](errorcode.OPERATION_FAILED, "update rep object failed")
-
 	}
 
 	// 紧急任务
-	svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewCheckRepCount([]string{msg.Body.FileHash}), true, true))
+	evtmsg, err := scmsg.NewPostEventBody(scevt.NewCheckRepCount([]string{msg.Body.FileHash}), true, true)
+	if err == nil {
+		svc.scanner.PostEvent(evtmsg)
+	} else {
+		logger.Warnf("new post event body failed, but this will not affect updating, err: %s", err.Error())
+	}
 
 	return ramsg.ReplyOK(coormsg.NewUpdateRepObjectRespBody())
 }
@@ -284,11 +293,22 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjec
 	// 不追求及时、准确
 	if len(stgs) == 0 {
 		// 如果没有被引用，直接投递CheckObject的任务
-		svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewCheckObject([]int{msg.Body.ObjectID}), false, false))
+		evtmsg, err := scmsg.NewPostEventBody(scevt.NewCheckObject([]int{msg.Body.ObjectID}), false, false)
+		if err == nil {
+			svc.scanner.PostEvent(evtmsg)
+		} else {
+			logger.Warnf("new post event body failed, but this will not affect deleting, err: %s", err.Error())
+		}
+
 	} else {
 		// 有引用则让Agent去检查StorageObject
 		for _, stg := range stgs {
-			svc.scanner.PostEvent(scmsg.NewPostEventBody(scevt.NewAgentCheckStorage(stg.StorageID, []int{msg.Body.ObjectID}), false, false))
+			evtmsg, err := scmsg.NewPostEventBody(scevt.NewAgentCheckStorage(stg.StorageID, []int{msg.Body.ObjectID}), false, false)
+			if err == nil {
+				svc.scanner.PostEvent(evtmsg)
+			} else {
+				logger.Warnf("new post event body failed, but this will not affect deleting, err: %s", err.Error())
+			}
 		}
 	}
 
