@@ -81,10 +81,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		isComplete = true
 	} else {
 		for _, objID := range t.ObjectIDs {
-			obj, err := mysql.StorageObject.Get(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
-			if err == sql.ErrNoRows {
-				continue
-			}
+			objs, err := mysql.StorageObject.GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
 			if err != nil {
 				logger.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", objID).
@@ -92,7 +89,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 				return
 			}
 
-			objects = append(objects, obj)
+			objects = append(objects, objs...)
 		}
 		isComplete = false
 	}

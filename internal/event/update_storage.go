@@ -8,12 +8,14 @@ import (
 
 type UpdateStorageEntry struct {
 	ObjectID  int
+	UserID    int
 	Operation string
 }
 
-func NewUpdateStorageEntry(objectID int, op string) UpdateStorageEntry {
+func NewUpdateStorageEntry(objectID int, userID int, op string) UpdateStorageEntry {
 	return UpdateStorageEntry{
 		ObjectID:  objectID,
+		UserID:    userID,
 		Operation: op,
 	}
 }
@@ -57,7 +59,7 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case tskcst.UPDATE_STORAGE_DELETE:
-			err := mysql.StorageObject.Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID)
+			err := mysql.StorageObject.Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
 				logger.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
@@ -65,7 +67,7 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 			}
 
 		case tskcst.UPDATE_STORAGE_SET_NORMAL:
-			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID)
+			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
 				logger.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
