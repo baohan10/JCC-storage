@@ -14,14 +14,12 @@ import (
 )
 
 type CheckCache struct {
-	IsComplete bool
-	Caches     []model.Cache
+	agtevt.CheckCache
 }
 
 func NewCheckCache(isComplete bool, caches []model.Cache) *CheckCache {
 	return &CheckCache{
-		IsComplete: isComplete,
-		Caches:     caches,
+		CheckCache: agtevt.NewCheckCache(isComplete, caches),
 	}
 }
 

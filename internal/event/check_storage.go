@@ -18,16 +18,12 @@ import (
 )
 
 type CheckStorage struct {
-	Directory  string
-	IsComplete bool
-	Objects    []model.StorageObject
+	agtevt.CheckStorage
 }
 
 func NewCheckStorage(dir string, isComplete bool, objects []model.StorageObject) *CheckStorage {
 	return &CheckStorage{
-		Directory:  dir,
-		IsComplete: isComplete,
-		Objects:    objects,
+		CheckStorage: agtevt.NewCheckStorage(dir, isComplete, objects),
 	}
 }
 
