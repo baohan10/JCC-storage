@@ -48,19 +48,6 @@ func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *ag
 		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
 	}
 
-	/*
-		//向coor报告临时缓存hash
-		coorClient, err := coorcli.NewCoordinatorClient(&config.Cfg().RabbitMQ)
-		if err != nil {
-			return fmt.Errorf("new coordinator client failed, err: %s", err)
-		}
-		defer coorClient.Close()
-
-		// TODO 这里更新失败残留下的文件是否要删除？
-		// TODO 参考数据修复功能需求里描述的流程进行上报
-		coorClient.TempCacheReport(coormsg.NewTempCacheReportBody(config.Cfg().ID, hashs))
-	*/
-
 	return ramsg.ReplyOK(agtmsg.NewMoveObjectToStorageRespBody())
 }
 
