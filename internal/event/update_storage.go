@@ -41,6 +41,7 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 		logger.WithField("StorageID", t.StorageID).Warnf("change storage state failed, err: %s", err.Error())
 	}
 
+	var chkObjIDs []int
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case tskcst.UPDATE_STORAGE_DELETE:
@@ -50,6 +51,7 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 					WithField("ObjectID", entry.ObjectID).
 					Warnf("delete storage object failed, err: %s", err.Error())
 			}
+			chkObjIDs = append(chkObjIDs, entry.ObjectID)
 
 		case tskcst.UPDATE_STORAGE_SET_NORMAL:
 			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
@@ -59,6 +61,10 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 					Warnf("change storage object state failed, err: %s", err.Error())
 			}
 		}
+	}
+
+	if len(chkObjIDs) > 0 {
+		execCtx.Executor.Post(NewCheckObject(chkObjIDs))
 	}
 }
 
