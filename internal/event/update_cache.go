@@ -1,7 +1,7 @@
 package event
 
 import (
-	tskcst "gitlink.org.cn/cloudream/common/consts/event"
+	evtcst "gitlink.org.cn/cloudream/common/consts/event"
 	"gitlink.org.cn/cloudream/common/utils/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 )
@@ -47,13 +47,21 @@ func (t *UpdateCache) TryMerge(other Event) bool {
 func (t *UpdateCache) Execute(execCtx ExecuteContext) {
 	for _, entry := range t.Entries {
 		switch entry.Operation {
-		case tskcst.UPDATE_CACHE_OP_UNTEMP:
+		case evtcst.UPDATE_CACHE_UNTEMP:
 			err := mysql.Cache.DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 
 			if err != nil {
 				logger.WithField("FileHash", entry.FileHash).
 					WithField("NodeID", t.NodeID).
 					Warnf("delete temp cache failed, err: %s", err.Error())
+			}
+
+		case evtcst.UPDATE_CACHE_CREATE_TEMP:
+			err := mysql.Cache.CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
+			if err != nil {
+				logger.WithField("FileHash", entry.FileHash).
+					WithField("NodeID", t.NodeID).
+					Warnf("create temp cache failed, err: %s", err.Error())
 			}
 		}
 	}
