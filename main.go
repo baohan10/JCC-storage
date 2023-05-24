@@ -48,7 +48,8 @@ func main() {
 	go serveScannerServer(agtSvr, &wg)
 
 	tickExecutor := tickevent.NewExecutor(tickevent.ExecuteArgs{
-		DB: db,
+		EventExecutor: &eventExecutor,
+		DB:            db,
 	})
 	startTickEvent(&tickExecutor)
 

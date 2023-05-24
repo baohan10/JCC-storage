@@ -101,10 +101,16 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	}
 	defer agentClient.Close()
 
-	err = agentClient.PostEvent(agtmsg.NewPostEventBody(
+	evtmsg, err := agtmsg.NewPostEventBody(
 		agtevt.NewCheckStorage(stg.Directory, isComplete, objects),
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
-		execCtx.Option.DontMerge))
+		execCtx.Option.DontMerge)
+	if err != nil {
+		logger.Warnf("new post event body failed, err: %s", err.Error())
+		return
+	}
+
+	err = agentClient.PostEvent(evtmsg)
 	if err != nil {
 		logger.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", stg.NodeID, err.Error())
 	}

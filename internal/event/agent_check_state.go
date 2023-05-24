@@ -76,7 +76,12 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	defer agentClient.Close()
 
 	// 紧急任务
-	err = agentClient.PostEvent(agtmsg.NewPostEventBody(agtevt.NewCheckState(), true, true))
+	evtmsg, err := agtmsg.NewPostEventBody(agtevt.NewCheckState(), true, true)
+	if err != nil {
+		logger.Warnf("new post event body failed, err: %s", err.Error())
+		return
+	}
+	err = agentClient.PostEvent(evtmsg)
 	if err != nil {
 		logger.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 	}

@@ -27,7 +27,7 @@ func NewExecutor(db *mydb.DB) Executor {
 	})
 }
 
-var msgDispatcher typedispatcher.TypeDispatcher[Event]
+var msgDispatcher = typedispatcher.NewTypeDispatcher[Event]()
 
 func FromMessage(msg any) (Event, error) {
 	event, ok := msgDispatcher.Dispatch(msg)
