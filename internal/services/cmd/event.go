@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"gitlink.org.cn/cloudream/agent/internal/event"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 )

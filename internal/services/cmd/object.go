@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )

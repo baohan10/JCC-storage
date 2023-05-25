@@ -8,7 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
 	evcst "gitlink.org.cn/cloudream/common/consts/event"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"

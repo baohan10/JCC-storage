@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
 	agentserver "gitlink.org.cn/cloudream/proto"
 )
 

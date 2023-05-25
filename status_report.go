@@ -6,8 +6,8 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )

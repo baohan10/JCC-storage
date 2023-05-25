@@ -8,8 +8,8 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/agent/internal/event"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
 	agentserver "gitlink.org.cn/cloudream/proto"
 
 	"google.golang.org/grpc"

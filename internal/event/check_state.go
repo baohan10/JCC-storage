@@ -3,7 +3,7 @@ package event
 import (
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"

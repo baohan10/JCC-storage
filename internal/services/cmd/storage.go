@@ -9,8 +9,8 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/ec"
 
