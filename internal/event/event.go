@@ -38,6 +38,6 @@ func FromMessage(msg any) (Event, error) {
 	return event, nil
 }
 
-func Register[T any](converter func(msg T) Event) {
+func RegisterMessageConvertor[T any](converter func(msg T) Event) {
 	typedispatcher.Add(msgDispatcher, converter)
 }

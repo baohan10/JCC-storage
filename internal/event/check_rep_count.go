@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/utils/logger"
 	log "gitlink.org.cn/cloudream/common/utils/logger"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
@@ -39,6 +40,8 @@ func (t *CheckRepCount) TryMerge(other Event) bool {
 }
 
 func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin check rep count")
+
 	updatedNodeAndHashes := make(map[int][]string)
 
 	for _, fileHash := range t.FileHashes {
@@ -99,7 +102,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 
 		// 如果Available的备份数超过期望备份数，则让一些节点退出
 		if len(normalNodes) > needRepCount {
-			delNodes := chooseDeleteAvaiRepNodes(allNodes, normalNodes, needRepCount-len(normalNodes))
+			delNodes := chooseDeleteAvaiRepNodes(allNodes, normalNodes, len(normalNodes)-needRepCount)
 			for _, node := range delNodes {
 				err := mysql.Cache.ChangeState(tx, fileHash, node.NodeID, consts.CACHE_STATE_TEMP)
 				if err != nil {
@@ -198,5 +201,5 @@ func chooseDeleteAvaiRepNodes(allNodes []model.Node, curAvaiRepNodes []model.Nod
 }
 
 func init() {
-	Register(func(msg CheckRepCount) Event { return NewCheckRepCount(msg.FileHashes) })
+	RegisterMessageConvertor(func(msg scevt.CheckRepCount) Event { return NewCheckRepCount(msg.FileHashes) })
 }

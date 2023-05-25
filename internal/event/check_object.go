@@ -27,6 +27,8 @@ func (t *CheckObject) TryMerge(other Event) bool {
 }
 
 func (t *CheckObject) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin check object")
+
 	for _, objID := range t.ObjectIDs {
 		err := execCtx.Args.DB.Object().DeleteUnused(execCtx.Args.DB.SQLCtx(), objID)
 		if err != nil {
@@ -36,5 +38,5 @@ func (t *CheckObject) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	Register(func(msg CheckObject) Event { return NewCheckObject(msg.ObjectIDs) })
+	RegisterMessageConvertor(func(msg scevt.CheckObject) Event { return NewCheckObject(msg.ObjectIDs) })
 }

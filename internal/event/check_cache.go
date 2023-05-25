@@ -35,6 +35,8 @@ func (t *CheckCache) TryMerge(other Event) bool {
 }
 
 func (t *CheckCache) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin check cache")
+
 	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		node, err := mysql.Node.GetByID(tx, t.NodeID)
 		if err == sql.ErrNoRows {
@@ -58,7 +60,7 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 			return fmt.Errorf("delete node all caches failed, err: %w", err)
 		}
 
-		execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.HashValue })))
+		execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
 		return nil
 	})
 
@@ -67,6 +69,6 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	}
 }
 
-func init() {
-	Register(func(msg CheckCache) Event { return NewCheckCache(msg.NodeID) })
-}
+// func init() {
+// 	Register(func(msg scevt.CheckCache) Event { return NewCheckCache(msg.NodeID) })
+// }

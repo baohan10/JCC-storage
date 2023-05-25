@@ -35,6 +35,7 @@ func (t *UpdateStorage) TryMerge(other Event) bool {
 }
 
 func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin update storage")
 
 	err := mysql.Storage.ChangeState(execCtx.Args.DB.SQLCtx(), t.StorageID, t.DirectoryState)
 	if err != nil {
@@ -69,5 +70,5 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	Register(func(msg UpdateStorage) Event { return NewUpdateStorage(msg.DirectoryState, msg.Entries) })
+	RegisterMessageConvertor(func(msg scevt.UpdateStorage) Event { return NewUpdateStorage(msg.DirectoryState, msg.Entries) })
 }

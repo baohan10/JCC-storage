@@ -22,6 +22,8 @@ func (t *UpdateAgentState) TryMerge(other Event) bool {
 }
 
 func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin update agent state")
+
 	if t.IPFSState != consts.IPFS_STATUS_OK {
 		logger.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", t.IPFSState)
 
@@ -40,5 +42,5 @@ func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	Register(func(msg UpdateAgentState) Event { return NewUpdateAgentState(msg.NodeID, msg.IPFSState) })
+	RegisterMessageConvertor(func(msg scevt.UpdateAgentState) Event { return NewUpdateAgentState(msg.NodeID, msg.IPFSState) })
 }

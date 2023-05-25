@@ -43,6 +43,8 @@ func (t *AgentCheckCache) TryMerge(other Event) bool {
 }
 
 func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin agent check cache")
+
 	var isComplete bool
 	var caches []model.Cache
 
@@ -66,7 +68,7 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 			}
 
 			if err != nil {
-				logger.WithField("FileHash", hash).WithField("NodeID", t.NodeID).Warnf("get cache failed, err: %w", err)
+				logger.WithField("FileHash", hash).WithField("NodeID", t.NodeID).Warnf("get cache failed, err: %s", err.Error())
 				return
 			}
 
@@ -99,6 +101,6 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	}
 }
 
-func init() {
-	Register(func(msg AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
-}
+//func init() {
+//	Register(func(msg scevt.AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
+//}

@@ -31,9 +31,10 @@ func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 		logger.Debugf("new check start, get all nodes")
 	}
 
-	for i := 0; i < len(e.nodeIDs) && i < AGENT_CHECK_CACHE_BATCH_SIZE; i++ {
+	checkedCnt := 0
+	for ; checkedCnt < len(e.nodeIDs) && checkedCnt < AGENT_CHECK_CACHE_BATCH_SIZE; checkedCnt++ {
 		// nil代表进行全量检查
-		ctx.Args.EventExecutor.Post(event.NewAgentCheckCache(e.nodeIDs[i], nil))
+		ctx.Args.EventExecutor.Post(event.NewAgentCheckCache(e.nodeIDs[checkedCnt], nil))
 	}
-	e.nodeIDs = e.nodeIDs[AGENT_CHECK_CACHE_BATCH_SIZE:]
+	e.nodeIDs = e.nodeIDs[checkedCnt:]
 }

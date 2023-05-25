@@ -34,6 +34,8 @@ func (t *UpdateCache) TryMerge(other Event) bool {
 }
 
 func (t *UpdateCache) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin update cache")
+
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case evtcst.UPDATE_CACHE_UNTEMP:
@@ -57,5 +59,5 @@ func (t *UpdateCache) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	Register(func(msg UpdateCache) Event { return NewUpdateCache(msg.NodeID, msg.Entries) })
+	RegisterMessageConvertor(func(msg scevt.UpdateCache) Event { return NewUpdateCache(msg.NodeID, msg.Entries) })
 }

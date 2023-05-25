@@ -35,6 +35,8 @@ func (t *AgentCheckState) TryMerge(other Event) bool {
 }
 
 func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin agent check state")
+
 	node, err := mysql.Node.GetByID(execCtx.Args.DB.SQLCtx(), t.NodeID)
 	if err == sql.ErrNoRows {
 		return
@@ -50,7 +52,8 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 
 	// 检查上次上报时间，超时的设置为不可用
-	if time.Since(node.LastReportTime) > time.Duration(config.Cfg().NodeUnavailableSeconds)*time.Second {
+	// TODO 没有上报过是否要特殊处理？
+	if node.LastReportTime == nil && time.Since(*node.LastReportTime) > time.Duration(config.Cfg().NodeUnavailableSeconds)*time.Second {
 		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
 			logger.WithField("NodeID", t.NodeID).Warnf("set node state failed, err: %s", err.Error())
@@ -64,7 +67,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		}
 
 		// 补充备份数
-		execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.HashValue })))
+		execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
 		return
 	}
 
@@ -87,6 +90,6 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 }
 
-func init() {
-	Register(func(msg AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
-}
+// func init() {
+// 	Register(func(msg scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
+// }

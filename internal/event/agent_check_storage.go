@@ -46,6 +46,8 @@ func (t *AgentCheckStorage) TryMerge(other Event) bool {
 }
 
 func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin agent check storage")
+
 	stg, err := mysql.Storage.GetByID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 	if err != nil {
 		if err != sql.ErrNoRows {
@@ -112,10 +114,10 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 
 	err = agentClient.PostEvent(evtmsg)
 	if err != nil {
-		logger.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", stg.NodeID, err.Error())
+		logger.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 	}
 }
 
 func init() {
-	Register(func(msg AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.ObjectIDs) })
+	RegisterMessageConvertor(func(msg scevt.AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.ObjectIDs) })
 }
