@@ -37,7 +37,7 @@ func (t *CheckCache) TryMerge(other Event) bool {
 
 	if !t.IsComplete {
 		t.Caches = append(t.Caches, event.Caches...)
-		t.Caches = lo.UniqBy(t.Caches, func(ch model.Cache) string { return ch.HashValue })
+		t.Caches = lo.UniqBy(t.Caches, func(ch model.Cache) string { return ch.FileHash })
 		return true
 	}
 
@@ -45,6 +45,8 @@ func (t *CheckCache) TryMerge(other Event) bool {
 }
 
 func (t *CheckCache) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin check cache")
+
 	filesMap, err := execCtx.Args.IPFS.GetPinnedFiles()
 	if err != nil {
 		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
@@ -61,21 +63,21 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 
 func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx ExecuteContext) {
 	for _, cache := range t.Caches {
-		_, ok := filesMap[cache.HashValue]
+		_, ok := filesMap[cache.FileHash]
 		if ok {
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 不处理
 			} else if cache.State == consts.CACHE_STATE_TEMP {
-				execCtx.Args.IPFS.Unpin(cache.HashValue)
+				execCtx.Args.IPFS.Unpin(cache.FileHash)
 			}
 
 			// 删除map中的记录，表示此记录已被检查过
-			delete(filesMap, cache.HashValue)
+			delete(filesMap, cache.FileHash)
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 需要考虑此处是否是同步的过程
-				execCtx.Args.IPFS.Pin(cache.HashValue)
+				execCtx.Args.IPFS.Pin(cache.FileHash)
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				// 不处理
 			}
@@ -87,21 +89,21 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 
 func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx ExecuteContext) {
 	for _, cache := range t.Caches {
-		_, ok := filesMap[cache.HashValue]
+		_, ok := filesMap[cache.FileHash]
 		if ok {
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 不处理
 			} else if cache.State == consts.CACHE_STATE_TEMP {
-				execCtx.Args.IPFS.Unpin(cache.HashValue)
+				execCtx.Args.IPFS.Unpin(cache.FileHash)
 			}
 
 			// 删除map中的记录，表示此记录已被检查过
-			delete(filesMap, cache.HashValue)
+			delete(filesMap, cache.FileHash)
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 需要考虑此处是否是同步的过程
-				execCtx.Args.IPFS.Pin(cache.HashValue)
+				execCtx.Args.IPFS.Pin(cache.FileHash)
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				// 不处理
 			}

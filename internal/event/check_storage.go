@@ -49,6 +49,8 @@ func (t *CheckStorage) TryMerge(other Event) bool {
 }
 
 func (t *CheckStorage) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin check storage")
+
 	dirFullPath := filepath.Join(config.Cfg().StorageBaseDir, t.Directory)
 
 	infos, err := ioutil.ReadDir(dirFullPath)

@@ -22,6 +22,8 @@ func (t *CheckState) TryMerge(other Event) bool {
 }
 
 func (t *CheckState) Execute(execCtx ExecuteContext) {
+	logger.Debugf("begin check state")
+
 	ipfsStatus := consts.IPFS_STATUS_OK
 
 	if execCtx.Args.IPFS.IsUp() {
