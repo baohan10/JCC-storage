@@ -299,6 +299,7 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjec
 		} else {
 			logger.Warnf("new post event body failed, but this will not affect deleting, err: %s", err.Error())
 		}
+		logger.Debugf("post check object event")
 
 	} else {
 		// 有引用则让Agent去检查StorageObject
@@ -310,6 +311,7 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjec
 				logger.Warnf("new post event body failed, but this will not affect deleting, err: %s", err.Error())
 			}
 		}
+		logger.Debugf("post agent check storage event")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewDeleteObjectRespBody())
