@@ -12,9 +12,9 @@ type UpdateStorage struct {
 	scevt.UpdateStorage
 }
 
-func NewUpdateStorage(dirState string, entries []UpdateStorageEntry) *UpdateStorage {
+func NewUpdateStorage(storageID int, dirState string, entries []UpdateStorageEntry) *UpdateStorage {
 	return &UpdateStorage{
-		UpdateStorage: scevt.NewUpdateStorage(dirState, entries),
+		UpdateStorage: scevt.NewUpdateStorage(storageID, dirState, entries),
 	}
 }
 
@@ -54,6 +54,11 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 			}
 			chkObjIDs = append(chkObjIDs, entry.ObjectID)
 
+			logger.WithField("StorageID", t.StorageID).
+				WithField("ObjectID", entry.ObjectID).
+				WithField("UserID", entry.UserID).
+				Debugf("delete storage object")
+
 		case tskcst.UPDATE_STORAGE_SET_NORMAL:
 			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
@@ -61,6 +66,11 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 					WithField("ObjectID", entry.ObjectID).
 					Warnf("change storage object state failed, err: %s", err.Error())
 			}
+
+			logger.WithField("StorageID", t.StorageID).
+				WithField("ObjectID", entry.ObjectID).
+				WithField("UserID", entry.UserID).
+				Debugf("set storage object normal")
 		}
 	}
 
@@ -70,5 +80,7 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.UpdateStorage) Event { return NewUpdateStorage(msg.DirectoryState, msg.Entries) })
+	RegisterMessageConvertor(func(msg scevt.UpdateStorage) Event {
+		return NewUpdateStorage(msg.StorageID, msg.DirectoryState, msg.Entries)
+	})
 }

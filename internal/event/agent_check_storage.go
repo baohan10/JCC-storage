@@ -104,7 +104,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	defer agentClient.Close()
 
 	evtmsg, err := agtmsg.NewPostEventBody(
-		agtevt.NewCheckStorage(stg.Directory, isComplete, objects),
+		agtevt.NewCheckStorage(stg.StorageID, stg.Directory, isComplete, objects),
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
 		execCtx.Option.DontMerge)
 	if err != nil {

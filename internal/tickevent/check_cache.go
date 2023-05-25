@@ -9,7 +9,7 @@ import (
 type CheckCache struct {
 }
 
-func NewCheckUnavailableCache() *CheckCache {
+func NewCheckCache() *CheckCache {
 	return &CheckCache{}
 }
 
