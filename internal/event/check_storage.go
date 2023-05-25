@@ -21,9 +21,9 @@ type CheckStorage struct {
 	agtevt.CheckStorage
 }
 
-func NewCheckStorage(dir string, isComplete bool, objects []model.StorageObject) *CheckStorage {
+func NewCheckStorage(storageID int, dir string, isComplete bool, objects []model.StorageObject) *CheckStorage {
 	return &CheckStorage{
-		CheckStorage: agtevt.NewCheckStorage(dir, isComplete, objects),
+		CheckStorage: agtevt.NewCheckStorage(storageID, dir, isComplete, objects),
 	}
 }
 
@@ -58,6 +58,7 @@ func (t *CheckStorage) Execute(execCtx ExecuteContext) {
 		logger.Warnf("list storage directory failed, err: %s", err.Error())
 
 		evtmsg, err := scmsg.NewPostEventBody(scevt.NewUpdateStorage(
+			t.StorageID,
 			err.Error(),
 			nil,
 		), execCtx.Option.IsEmergency, execCtx.Option.DontMerge)
@@ -102,7 +103,7 @@ func (t *CheckStorage) checkIncrement(fileInfos []fs.FileInfo, execCtx ExecuteCo
 
 	// 增量情况下，不需要对infosMap中没检查的记录进行处理
 	evtmsg, err := scmsg.NewPostEventBody(
-		scevt.NewUpdateStorage(consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
+		scevt.NewUpdateStorage(t.StorageID, consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
 	)
@@ -137,7 +138,7 @@ func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteCon
 
 	// Storage中多出来的文件不做处理
 	evtmsg, err := scmsg.NewPostEventBody(
-		scevt.NewUpdateStorage(consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
+		scevt.NewUpdateStorage(t.StorageID, consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
 	)
@@ -150,6 +151,6 @@ func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteCon
 
 func init() {
 	Register(func(val agtevt.CheckStorage) Event {
-		return NewCheckStorage(val.Directory, val.IsComplete, val.Objects)
+		return NewCheckStorage(val.StorageID, val.Directory, val.IsComplete, val.Objects)
 	})
 }
