@@ -1,6 +1,8 @@
 package event
 
 import (
+	"time"
+
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/agent/internal/config"
@@ -62,13 +64,18 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 }
 
 func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx ExecuteContext) {
+	var updateCacheOps []scevt.UpdateCacheEntry
+
 	for _, cache := range t.Caches {
 		_, ok := filesMap[cache.FileHash]
 		if ok {
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 不处理
 			} else if cache.State == consts.CACHE_STATE_TEMP {
-				execCtx.Args.IPFS.Unpin(cache.FileHash)
+				err := execCtx.Args.IPFS.Unpin(cache.FileHash)
+				if err != nil {
+					logger.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
+				}
 			}
 
 			// 删除map中的记录，表示此记录已被检查过
@@ -76,25 +83,49 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
-				// 需要考虑此处是否是同步的过程
-				execCtx.Args.IPFS.Pin(cache.FileHash)
+				// TODO 需要考虑此处是否是同步的过程
+				err := execCtx.Args.IPFS.Pin(cache.FileHash)
+				if err != nil {
+					logger.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
+				}
+
 			} else if cache.State == consts.CACHE_STATE_TEMP {
-				// 不处理
+				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
+					updateCacheOps = append(updateCacheOps, scevt.NewUpdateCacheEntry(cache.FileHash, evcst.UPDATE_CACHE_DELETE_TEMP))
+				}
 			}
 		}
 	}
 
 	// 增量情况下，不需要对filesMap中没检查的记录进行处理
+
+	if len(updateCacheOps) > 0 {
+		evtmsg, err := scmsg.NewPostEventBody(
+			scevt.NewUpdateCache(config.Cfg().ID, updateCacheOps),
+			execCtx.Option.IsEmergency,
+			execCtx.Option.DontMerge,
+		)
+		if err == nil {
+			execCtx.Args.Scanner.PostEvent(evtmsg)
+		} else {
+			logger.Warnf("new post event body failed, err: %s", err.Error())
+		}
+	}
 }
 
 func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx ExecuteContext) {
+	var updateCacheOps []scevt.UpdateCacheEntry
+
 	for _, cache := range t.Caches {
 		_, ok := filesMap[cache.FileHash]
 		if ok {
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 不处理
 			} else if cache.State == consts.CACHE_STATE_TEMP {
-				execCtx.Args.IPFS.Unpin(cache.FileHash)
+				err := execCtx.Args.IPFS.Unpin(cache.FileHash)
+				if err != nil {
+					logger.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
+				}
 			}
 
 			// 删除map中的记录，表示此记录已被检查过
@@ -102,15 +133,20 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
-				// 需要考虑此处是否是同步的过程
-				execCtx.Args.IPFS.Pin(cache.FileHash)
+				// TODO 需要考虑此处是否是同步的过程
+				err := execCtx.Args.IPFS.Pin(cache.FileHash)
+				if err != nil {
+					logger.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
+				}
+
 			} else if cache.State == consts.CACHE_STATE_TEMP {
-				// 不处理
+				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
+					updateCacheOps = append(updateCacheOps, scevt.NewUpdateCacheEntry(cache.FileHash, evcst.UPDATE_CACHE_DELETE_TEMP))
+				}
 			}
 		}
 	}
 
-	var updateCacheOps []scevt.UpdateCacheEntry
 	// map中剩下的数据是没有被遍历过，即Cache中没有记录的
 	for hash, _ := range filesMap {
 		updateCacheOps = append(updateCacheOps, scevt.NewUpdateCacheEntry(hash, evcst.UPDATE_CACHE_CREATE_TEMP))

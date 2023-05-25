@@ -12,6 +12,7 @@ type Config struct {
 	GRPCListenAddress string       `json:"grpcListenAddress"`
 	LocalIP           string       `json:"localIP"`
 	StorageBaseDir    string       `json:"storageBaseDir"`
+	TempFileLifetime  int          `json:"tempFileLifetime"` // temp状态的副本最多能保持多久时间，单位：秒
 	Logger            log.Config   `json:"logger"`
 	RabbitMQ          racfg.Config `json:"rabbitMQ"`
 	IPFS              ipfs.Config  `json:"ipfs"`
