@@ -7,9 +7,9 @@ import (
 
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/consts"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
 	serder "gitlink.org.cn/cloudream/common/utils/serder"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 	"gitlink.org.cn/cloudream/db/model"

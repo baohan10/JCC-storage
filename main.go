@@ -9,8 +9,8 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/cmdline"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	log "gitlink.org.cn/cloudream/common/utils/logger"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 )
 

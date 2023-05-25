@@ -1,9 +1,9 @@
 package config
 
 import (
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/config"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	"gitlink.org.cn/cloudream/common/utils/logger"
 	racfg "gitlink.org.cn/cloudream/rabbitmq/config"
 )
 
