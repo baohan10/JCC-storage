@@ -4,7 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/config"

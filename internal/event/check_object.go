@@ -2,7 +2,7 @@ package event
 
 import (
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 

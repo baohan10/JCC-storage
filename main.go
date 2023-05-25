@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	log "gitlink.org.cn/cloudream/common/utils/logger"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db"
 	scsvr "gitlink.org.cn/cloudream/rabbitmq/server/scanner"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
@@ -87,15 +87,15 @@ func serveScannerServer(server *scsvr.ScannerServer, wg *sync.WaitGroup) {
 func startTickEvent(tickExecutor *tickevent.Executor) {
 	// TODO 可以考虑增加配置文件，配置这些任务间隔时间
 
-	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), 5*60*100)
+	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), 5*60*1000)
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), 5*60*100)
+	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), 5*60*1000)
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), 5*60*100)
+	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), 5*60*1000)
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*100)
+	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*1000)
 
-	tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*100)
+	tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000)
 
-	tickExecutor.Start(tickevent.NewCheckUnavailableCache(), 5*60*100)
+	tickExecutor.Start(tickevent.NewCheckCache(), 5*60*1000)
 }

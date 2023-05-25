@@ -2,7 +2,7 @@ package tickevent
 
 import (
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )

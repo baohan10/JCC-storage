@@ -2,7 +2,7 @@ package event
 
 import (
 	"gitlink.org.cn/cloudream/common/consts"
-	"gitlink.org.cn/cloudream/common/utils/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
