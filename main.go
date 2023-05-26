@@ -12,6 +12,7 @@ import (
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
+	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
 )
 
 func main() {
@@ -33,6 +34,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	scanner, err := sccli.NewScannerClient(&config.Cfg().RabbitMQ)
+	if err != nil {
+		log.Warnf("new scanner client failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
 	var ipfsCli *ipfs.IPFS
 	if config.Cfg().IPFS != nil {
 		log.Infof("IPFS config is not empty, so create a ipfs client")
@@ -44,7 +51,7 @@ func main() {
 		}
 	}
 
-	svc, err := services.NewService(coorClient, ipfsCli)
+	svc, err := services.NewService(coorClient, ipfsCli, scanner)
 	if err != nil {
 		log.Warnf("new services failed, err: %s", err.Error())
 		os.Exit(1)
