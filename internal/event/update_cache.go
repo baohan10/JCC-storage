@@ -34,31 +34,32 @@ func (t *UpdateCache) TryMerge(other Event) bool {
 }
 
 func (t *UpdateCache) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin update cache")
+	log := logger.WithType[UpdateCache]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case evtcst.UPDATE_CACHE_DELETE_TEMP:
 			err := mysql.Cache.DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 			if err != nil {
-				logger.WithField("FileHash", entry.FileHash).
+				log.WithField("FileHash", entry.FileHash).
 					WithField("NodeID", t.NodeID).
 					Warnf("delete temp cache failed, err: %s", err.Error())
 			}
 
-			logger.WithField("FileHash", entry.FileHash).
+			log.WithField("FileHash", entry.FileHash).
 				WithField("NodeID", t.NodeID).
 				Debugf("delete temp cache")
 
 		case evtcst.UPDATE_CACHE_CREATE_TEMP:
 			err := mysql.Cache.CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 			if err != nil {
-				logger.WithField("FileHash", entry.FileHash).
+				log.WithField("FileHash", entry.FileHash).
 					WithField("NodeID", t.NodeID).
 					Warnf("create temp cache failed, err: %s", err.Error())
 			}
 
-			logger.WithField("FileHash", entry.FileHash).
+			log.WithField("FileHash", entry.FileHash).
 				WithField("NodeID", t.NodeID).
 				Debugf("create temp cache")
 		}

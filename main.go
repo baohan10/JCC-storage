@@ -95,7 +95,7 @@ func startTickEvent(tickExecutor *tickevent.Executor) {
 
 	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*1000)
 
-	tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000)
+	//tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000)
 
 	tickExecutor.Start(tickevent.NewCheckCache(), 5*60*1000)
 }

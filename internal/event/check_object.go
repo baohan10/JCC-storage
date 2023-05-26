@@ -27,12 +27,13 @@ func (t *CheckObject) TryMerge(other Event) bool {
 }
 
 func (t *CheckObject) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin check object")
+	log := logger.WithType[CheckObject]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	for _, objID := range t.ObjectIDs {
 		err := execCtx.Args.DB.Object().DeleteUnused(execCtx.Args.DB.SQLCtx(), objID)
 		if err != nil {
-			logger.WithField("ObjectID", objID).Warnf("delete unused object failed, err: %s", err.Error())
+			log.WithField("ObjectID", objID).Warnf("delete unused object failed, err: %s", err.Error())
 		}
 	}
 }

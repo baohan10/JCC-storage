@@ -22,14 +22,15 @@ func (t *UpdateAgentState) TryMerge(other Event) bool {
 }
 
 func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin update agent state")
+	log := logger.WithType[UpdateAgentState]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	if t.IPFSState != consts.IPFS_STATUS_OK {
-		logger.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", t.IPFSState)
+		log.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", t.IPFSState)
 
 		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
-			logger.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
+			log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 		}
 		return
 	}
@@ -37,7 +38,7 @@ func (t *UpdateAgentState) Execute(execCtx ExecuteContext) {
 	// TODO 如果以后还有其他的状态，要判断哪些状态下能设置Normal
 	err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
 	if err != nil {
-		logger.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
+		log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 	}
 }
 

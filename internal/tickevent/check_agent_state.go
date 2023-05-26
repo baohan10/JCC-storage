@@ -14,9 +14,12 @@ func NewCheckAgentState() *CheckAgentState {
 }
 
 func (e *CheckAgentState) Execute(ctx ExecuteContext) {
+	log := logger.WithType[CheckAgentState]("TickEvent")
+	log.Debugf("begin")
+
 	nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
 	if err != nil {
-		logger.Warnf("get all nodes failed, err: %s", err.Error())
+		log.Warnf("get all nodes failed, err: %s", err.Error())
 		return
 	}
 

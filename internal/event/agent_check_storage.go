@@ -46,12 +46,13 @@ func (t *AgentCheckStorage) TryMerge(other Event) bool {
 }
 
 func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin agent check storage")
+	log := logger.WithType[AgentCheckStorage]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	stg, err := mysql.Storage.GetByID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 	if err != nil {
 		if err != sql.ErrNoRows {
-			logger.WithField("StorageID", t.StorageID).Warnf("get storage failed, err: %s", err.Error())
+			log.WithField("StorageID", t.StorageID).Warnf("get storage failed, err: %s", err.Error())
 		}
 		return
 	}
@@ -59,7 +60,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	node, err := mysql.Node.GetByID(execCtx.Args.DB.SQLCtx(), stg.NodeID)
 	if err != nil {
 		if err != sql.ErrNoRows {
-			logger.WithField("StorageID", t.StorageID).Warnf("get storage node failed, err: %s", err.Error())
+			log.WithField("StorageID", t.StorageID).Warnf("get storage node failed, err: %s", err.Error())
 		}
 		return
 	}
@@ -76,7 +77,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		var err error
 		objects, err = mysql.StorageObject.GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 		if err != nil {
-			logger.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
+			log.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
 			return
 		}
 		isComplete = true
@@ -84,7 +85,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		for _, objID := range t.ObjectIDs {
 			objs, err := mysql.StorageObject.GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
 			if err != nil {
-				logger.WithField("StorageID", t.StorageID).
+				log.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", objID).
 					Warnf("get storage object failed, err: %s", err.Error())
 				return
@@ -98,7 +99,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	// 投递任务
 	agentClient, err := agtcli.NewAgentClient(stg.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
-		logger.WithField("NodeID", stg.NodeID).Warnf("create agent client failed, err: %s", err.Error())
+		log.WithField("NodeID", stg.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
 	defer agentClient.Close()
@@ -108,13 +109,13 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
 		execCtx.Option.DontMerge)
 	if err != nil {
-		logger.Warnf("new post event body failed, err: %s", err.Error())
+		log.Warnf("new post event body failed, err: %s", err.Error())
 		return
 	}
 
 	err = agentClient.PostEvent(evtmsg)
 	if err != nil {
-		logger.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", err.Error())
+		log.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 	}
 }
 

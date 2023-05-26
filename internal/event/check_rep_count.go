@@ -9,7 +9,6 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
@@ -40,7 +39,8 @@ func (t *CheckRepCount) TryMerge(other Event) bool {
 }
 
 func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin check rep count")
+	log := logger.WithType[CheckRepCount]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	updatedNodeAndHashes := make(map[int][]string)
 
@@ -64,6 +64,8 @@ func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
 }
 
 func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext) ([]int, error) {
+	log := logger.WithType[CheckRepCount]("Event")
+
 	var updatedNodeIDs []int
 	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		repMaxCnt, err := mysql.ObjectRep.GetFileMaxRepCount(tx, fileHash)

@@ -19,16 +19,19 @@ func NewBatchAllAgentCheckCache() *BatchAllAgentCheckCache {
 }
 
 func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
+	log := logger.WithType[BatchAllAgentCheckCache]("TickEvent")
+	log.Debugf("begin")
+
 	if e.nodeIDs == nil || len(e.nodeIDs) == 0 {
 		nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
 		if err != nil {
-			logger.Warnf("get all nodes failed, err: %s", err.Error())
+			log.Warnf("get all nodes failed, err: %s", err.Error())
 			return
 		}
 
 		e.nodeIDs = lo.Map(nodes, func(node model.Node, index int) int { return node.NodeID })
 
-		logger.Debugf("new check start, get all nodes")
+		log.Debugf("new check start, get all nodes")
 	}
 
 	checkedCnt := 0

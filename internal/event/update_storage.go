@@ -35,11 +35,12 @@ func (t *UpdateStorage) TryMerge(other Event) bool {
 }
 
 func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin update storage")
+	log := logger.WithType[UpdateStorage]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	err := mysql.Storage.ChangeState(execCtx.Args.DB.SQLCtx(), t.StorageID, t.DirectoryState)
 	if err != nil {
-		logger.WithField("StorageID", t.StorageID).Warnf("change storage state failed, err: %s", err.Error())
+		log.WithField("StorageID", t.StorageID).Warnf("change storage state failed, err: %s", err.Error())
 	}
 
 	var chkObjIDs []int
@@ -48,13 +49,13 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 		case tskcst.UPDATE_STORAGE_DELETE:
 			err := mysql.StorageObject.Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
-				logger.WithField("StorageID", t.StorageID).
+				log.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
 					Warnf("delete storage object failed, err: %s", err.Error())
 			}
 			chkObjIDs = append(chkObjIDs, entry.ObjectID)
 
-			logger.WithField("StorageID", t.StorageID).
+			log.WithField("StorageID", t.StorageID).
 				WithField("ObjectID", entry.ObjectID).
 				WithField("UserID", entry.UserID).
 				Debugf("delete storage object")
@@ -62,12 +63,12 @@ func (t *UpdateStorage) Execute(execCtx ExecuteContext) {
 		case tskcst.UPDATE_STORAGE_SET_NORMAL:
 			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
-				logger.WithField("StorageID", t.StorageID).
+				log.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
 					Warnf("change storage object state failed, err: %s", err.Error())
 			}
 
-			logger.WithField("StorageID", t.StorageID).
+			log.WithField("StorageID", t.StorageID).
 				WithField("ObjectID", entry.ObjectID).
 				WithField("UserID", entry.UserID).
 				Debugf("set storage object normal")

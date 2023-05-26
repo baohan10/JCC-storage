@@ -35,7 +35,8 @@ func (t *CheckCache) TryMerge(other Event) bool {
 }
 
 func (t *CheckCache) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin check cache")
+	log := logger.WithType[AgentCheckStorage]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		node, err := mysql.Node.GetByID(tx, t.NodeID)
@@ -65,10 +66,6 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	})
 
 	if err != nil {
-		logger.WithField("NodeID", t.NodeID).Warn(err.Error())
+		log.WithField("NodeID", t.NodeID).Warn(err.Error())
 	}
 }
-
-// func init() {
-// 	Register(func(msg scevt.CheckCache) Event { return NewCheckCache(msg.NodeID) })
-// }
