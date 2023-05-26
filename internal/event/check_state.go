@@ -5,7 +5,6 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
-	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -32,11 +31,9 @@ func (t *CheckState) Execute(execCtx ExecuteContext) {
 	}
 
 	// 紧急任务
-	evtmsg, err := scmsg.NewPostEventBody(scevt.NewUpdateAgentState(config.Cfg().ID, ipfsStatus), true, true)
-	if err == nil {
-		execCtx.Args.Scanner.PostEvent(evtmsg)
-	} else {
-		log.Warnf("new post event body failed, err: %s", err.Error())
+	err := execCtx.Args.Scanner.PostEvent(scevt.NewUpdateAgentState(config.Cfg().ID, ipfsStatus), true, true)
+	if err != nil {
+		log.Warnf("post event to scanner failed, err: %s", err.Error())
 	}
 }
 

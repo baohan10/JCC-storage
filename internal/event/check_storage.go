@@ -13,7 +13,6 @@ import (
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/db/model"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
-	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -62,15 +61,12 @@ func (t *CheckStorage) Execute(execCtx ExecuteContext) {
 	if err != nil {
 		log.Warnf("list storage directory failed, err: %s", err.Error())
 
-		evtmsg, err := scmsg.NewPostEventBody(scevt.NewUpdateStorage(
-			t.StorageID,
-			err.Error(),
-			nil,
-		), execCtx.Option.IsEmergency, execCtx.Option.DontMerge)
-		if err == nil {
-			execCtx.Args.Scanner.PostEvent(evtmsg)
-		} else {
-			log.Warnf("new post event body failed, err: %s", err.Error())
+		err := execCtx.Args.Scanner.PostEvent(scevt.NewUpdateStorage(t.StorageID, err.Error(), nil),
+			execCtx.Option.IsEmergency,
+			execCtx.Option.DontMerge,
+		)
+		if err != nil {
+			log.Warnf("post event to scanner failed, err: %s", err.Error())
 		}
 		return
 	}
@@ -109,15 +105,13 @@ func (t *CheckStorage) checkIncrement(fileInfos []fs.FileInfo, execCtx ExecuteCo
 	}
 
 	// 增量情况下，不需要对infosMap中没检查的记录进行处理
-	evtmsg, err := scmsg.NewPostEventBody(
+	err := execCtx.Args.Scanner.PostEvent(
 		scevt.NewUpdateStorage(t.StorageID, consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
 	)
-	if err == nil {
-		execCtx.Args.Scanner.PostEvent(evtmsg)
-	} else {
-		log.Warnf("new post event body failed, err: %s", err.Error())
+	if err != nil {
+		log.Warnf("post event to scanner failed, err: %s", err.Error())
 	}
 }
 
@@ -146,15 +140,14 @@ func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteCon
 	}
 
 	// Storage中多出来的文件不做处理
-	evtmsg, err := scmsg.NewPostEventBody(
+
+	err := execCtx.Args.Scanner.PostEvent(
 		scevt.NewUpdateStorage(t.StorageID, consts.STORAGE_DIRECTORY_STATUS_OK, updateStorageOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
 	)
-	if err == nil {
-		execCtx.Args.Scanner.PostEvent(evtmsg)
-	} else {
-		log.Warnf("new post event body failed, err: %s", err.Error())
+	if err != nil {
+		log.Warnf("post event to scanner failed, err: %s", err.Error())
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
-	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -103,15 +102,13 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 	// 增量情况下，不需要对filesMap中没检查的记录进行处理
 
 	if len(updateCacheOps) > 0 {
-		evtmsg, err := scmsg.NewPostEventBody(
+		err := execCtx.Args.Scanner.PostEvent(
 			scevt.NewUpdateCache(config.Cfg().ID, updateCacheOps),
 			execCtx.Option.IsEmergency,
 			execCtx.Option.DontMerge,
 		)
-		if err == nil {
-			execCtx.Args.Scanner.PostEvent(evtmsg)
-		} else {
-			log.Warnf("new post event body failed, err: %s", err.Error())
+		if err != nil {
+			log.Warnf("post event to scanner failed, err: %s", err.Error())
 		}
 	}
 }
@@ -157,15 +154,13 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 		updateCacheOps = append(updateCacheOps, scevt.NewUpdateCacheEntry(hash, evcst.UPDATE_CACHE_CREATE_TEMP))
 	}
 
-	evtmsg, err := scmsg.NewPostEventBody(
+	err := execCtx.Args.Scanner.PostEvent(
 		scevt.NewUpdateCache(config.Cfg().ID, updateCacheOps),
 		execCtx.Option.IsEmergency,
 		execCtx.Option.DontMerge,
 	)
-	if err == nil {
-		execCtx.Args.Scanner.PostEvent(evtmsg)
-	} else {
-		log.Warnf("new post event body failed, err: %s", err.Error())
+	if err != nil {
+		log.Warnf("post event to scanner failed, err: %s", err.Error())
 	}
 }
 
