@@ -47,11 +47,12 @@ func (t *CheckCache) TryMerge(other Event) bool {
 }
 
 func (t *CheckCache) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin check cache")
+	log := logger.WithType[CheckCache]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	filesMap, err := execCtx.Args.IPFS.GetPinnedFiles()
 	if err != nil {
-		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
+		log.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
 		return
 	}
 
@@ -64,6 +65,8 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 }
 
 func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx ExecuteContext) {
+	log := logger.WithType[CheckCache]("Event")
+
 	var updateCacheOps []scevt.UpdateCacheEntry
 
 	for _, cache := range t.Caches {
@@ -74,7 +77,7 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				err := execCtx.Args.IPFS.Unpin(cache.FileHash)
 				if err != nil {
-					logger.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
+					log.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
 				}
 			}
 
@@ -86,7 +89,7 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 				// TODO 需要考虑此处是否是同步的过程
 				err := execCtx.Args.IPFS.Pin(cache.FileHash)
 				if err != nil {
-					logger.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
+					log.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
 				}
 
 			} else if cache.State == consts.CACHE_STATE_TEMP {
@@ -108,12 +111,14 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 		if err == nil {
 			execCtx.Args.Scanner.PostEvent(evtmsg)
 		} else {
-			logger.Warnf("new post event body failed, err: %s", err.Error())
+			log.Warnf("new post event body failed, err: %s", err.Error())
 		}
 	}
 }
 
 func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx ExecuteContext) {
+	log := logger.WithType[CheckCache]("Event")
+
 	var updateCacheOps []scevt.UpdateCacheEntry
 
 	for _, cache := range t.Caches {
@@ -124,7 +129,7 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				err := execCtx.Args.IPFS.Unpin(cache.FileHash)
 				if err != nil {
-					logger.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
+					log.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
 				}
 			}
 
@@ -136,7 +141,7 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 				// TODO 需要考虑此处是否是同步的过程
 				err := execCtx.Args.IPFS.Pin(cache.FileHash)
 				if err != nil {
-					logger.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
+					log.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
 				}
 
 			} else if cache.State == consts.CACHE_STATE_TEMP {
@@ -160,7 +165,7 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 	if err == nil {
 		execCtx.Args.Scanner.PostEvent(evtmsg)
 	} else {
-		logger.Warnf("new post event body failed, err: %s", err.Error())
+		log.Warnf("new post event body failed, err: %s", err.Error())
 	}
 }
 

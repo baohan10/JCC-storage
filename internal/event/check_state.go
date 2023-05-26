@@ -22,7 +22,8 @@ func (t *CheckState) TryMerge(other Event) bool {
 }
 
 func (t *CheckState) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin check state")
+	log := logger.WithType[CheckState]("Event")
+	log.Debugf("begin")
 
 	ipfsStatus := consts.IPFS_STATUS_OK
 
@@ -35,7 +36,7 @@ func (t *CheckState) Execute(execCtx ExecuteContext) {
 	if err == nil {
 		execCtx.Args.Scanner.PostEvent(evtmsg)
 	} else {
-		logger.Warnf("new post event body failed, err: %s", err.Error())
+		log.Warnf("new post event body failed, err: %s", err.Error())
 	}
 }
 

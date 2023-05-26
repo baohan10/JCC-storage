@@ -33,6 +33,10 @@ func (t *CheckStorage) TryMerge(other Event) bool {
 		return false
 	}
 
+	if event.StorageID != t.StorageID {
+		return false
+	}
+
 	if event.IsComplete {
 		t.IsComplete = true
 		t.Objects = event.Objects
@@ -49,13 +53,14 @@ func (t *CheckStorage) TryMerge(other Event) bool {
 }
 
 func (t *CheckStorage) Execute(execCtx ExecuteContext) {
-	logger.Debugf("begin check storage")
+	log := logger.WithType[CheckStorage]("Event")
+	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	dirFullPath := filepath.Join(config.Cfg().StorageBaseDir, t.Directory)
 
 	infos, err := ioutil.ReadDir(dirFullPath)
 	if err != nil {
-		logger.Warnf("list storage directory failed, err: %s", err.Error())
+		log.Warnf("list storage directory failed, err: %s", err.Error())
 
 		evtmsg, err := scmsg.NewPostEventBody(scevt.NewUpdateStorage(
 			t.StorageID,
@@ -65,7 +70,7 @@ func (t *CheckStorage) Execute(execCtx ExecuteContext) {
 		if err == nil {
 			execCtx.Args.Scanner.PostEvent(evtmsg)
 		} else {
-			logger.Warnf("new post event body failed, err: %s", err.Error())
+			log.Warnf("new post event body failed, err: %s", err.Error())
 		}
 		return
 	}
@@ -80,6 +85,8 @@ func (t *CheckStorage) Execute(execCtx ExecuteContext) {
 }
 
 func (t *CheckStorage) checkIncrement(fileInfos []fs.FileInfo, execCtx ExecuteContext) {
+	log := logger.WithType[CheckStorage]("Event")
+
 	infosMap := make(map[string]fs.FileInfo)
 	for _, info := range fileInfos {
 		infosMap[info.Name()] = info
@@ -110,11 +117,13 @@ func (t *CheckStorage) checkIncrement(fileInfos []fs.FileInfo, execCtx ExecuteCo
 	if err == nil {
 		execCtx.Args.Scanner.PostEvent(evtmsg)
 	} else {
-		logger.Warnf("new post event body failed, err: %s", err.Error())
+		log.Warnf("new post event body failed, err: %s", err.Error())
 	}
 }
 
 func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteContext) {
+	log := logger.WithType[CheckStorage]("Event")
+
 	infosMap := make(map[string]fs.FileInfo)
 	for _, info := range fileInfos {
 		infosMap[info.Name()] = info
@@ -145,7 +154,7 @@ func (t *CheckStorage) checkComplete(fileInfos []fs.FileInfo, execCtx ExecuteCon
 	if err == nil {
 		execCtx.Args.Scanner.PostEvent(evtmsg)
 	} else {
-		logger.Warnf("new post event body failed, err: %s", err.Error())
+		log.Warnf("new post event body failed, err: %s", err.Error())
 	}
 }
 
