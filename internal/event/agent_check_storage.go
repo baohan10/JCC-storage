@@ -9,7 +9,6 @@ import (
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
@@ -104,16 +103,10 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	}
 	defer agentClient.Close()
 
-	evtmsg, err := agtmsg.NewPostEventBody(
+	err = agentClient.PostEvent(
 		agtevt.NewCheckStorage(stg.StorageID, stg.Directory, isComplete, objects),
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
 		execCtx.Option.DontMerge)
-	if err != nil {
-		log.Warnf("new post event body failed, err: %s", err.Error())
-		return
-	}
-
-	err = agentClient.PostEvent(evtmsg)
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 	}

@@ -10,6 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
 type CheckCache struct {
@@ -68,4 +69,8 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warn(err.Error())
 	}
+}
+
+func init() {
+	RegisterMessageConvertor(func(msg scevt.CheckCache) Event { return NewCheckCache(msg.NodeID) })
 }

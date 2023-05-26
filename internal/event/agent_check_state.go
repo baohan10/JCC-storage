@@ -10,8 +10,8 @@ import (
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
 
@@ -80,13 +80,12 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	defer agentClient.Close()
 
 	// 紧急任务
-	evtmsg, err := agtmsg.NewPostEventBody(agtevt.NewCheckState(), true, true)
-	if err != nil {
-		log.Warnf("new post event body failed, err: %s", err.Error())
-		return
-	}
-	err = agentClient.PostEvent(evtmsg)
+	err = agentClient.PostEvent(agtevt.NewCheckState(), true, true)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 	}
+}
+
+func init() {
+	RegisterMessageConvertor(func(msg scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
 }

@@ -10,8 +10,8 @@ import (
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
 type AgentCheckCache struct {
@@ -90,18 +90,15 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	}
 	defer agentClient.Close()
 
-	evtmsg, err := agtmsg.NewPostEventBody(
+	err = agentClient.PostEvent(
 		agtevt.NewCheckCache(isComplete, caches),
 		execCtx.Option.IsEmergency, // 继承本任务的执行选项
 		execCtx.Option.DontMerge)
 	if err != nil {
-		log.Warnf("new post event body failed, err: %s", err.Error())
-		return
-	}
-
-	err = agentClient.PostEvent(evtmsg)
-	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 		return
 	}
+}
+func init() {
+	RegisterMessageConvertor(func(msg scevt.AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
 }
