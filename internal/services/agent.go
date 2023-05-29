@@ -11,7 +11,7 @@ type AgentService struct {
 	*Service
 }
 
-func AgentSvc(svc *Service) *AgentService {
+func (svc *Service) AgentSvc() *AgentService {
 	return &AgentService{Service: svc}
 }
 

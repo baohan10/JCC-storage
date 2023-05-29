@@ -63,8 +63,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	args := os.Args
-	cmds.DispatchCommand(args[1], args[2:])
+	cmds.DispatchCommand(os.Args[1:])
 	/*
 		TO DO future:
 		1. ls命令，显示用户指定桶下的所有对象，及相关的元数据

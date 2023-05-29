@@ -10,7 +10,7 @@ import (
 func (c *Commandline) ListUserBuckets() error {
 	userID := 0
 
-	buckets, err := services.BucketSvc(c.svc).GetUserBuckets(userID)
+	buckets, err := services.BucketSvc(c.Svc).GetUserBuckets(userID)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (c *Commandline) ListUserBuckets() error {
 func (c *Commandline) CreateBucket(bucketName string) error {
 	userID := 0
 
-	bucketID, err := services.BucketSvc(c.svc).CreateBucket(userID, bucketName)
+	bucketID, err := services.BucketSvc(c.Svc).CreateBucket(userID, bucketName)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (c *Commandline) CreateBucket(bucketName string) error {
 func (c *Commandline) DeleteBucket(bucketID int) error {
 	userID := 0
 
-	err := services.BucketSvc(c.svc).DeleteBucket(userID, bucketID)
+	err := services.BucketSvc(c.Svc).DeleteBucket(userID, bucketID)
 	if err != nil {
 		return err
 	}

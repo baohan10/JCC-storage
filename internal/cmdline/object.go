@@ -13,7 +13,7 @@ import (
 func (c *Commandline) ListBucketObjects(bucketID int) error {
 	userID := 0
 
-	objects, err := services.BucketSvc(c.svc).GetBucketObjects(userID, bucketID)
+	objects, err := services.BucketSvc(c.Svc).GetBucketObjects(userID, bucketID)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	defer outputFile.Close()
 
 	// 下载文件
-	reader, err := services.ObjectSvc(c.svc).DownloadObject(0, objectID)
+	reader, err := services.ObjectSvc(c.Svc).DownloadObject(0, objectID)
 	if err != nil {
 		return fmt.Errorf("download object failed, err: %w", err)
 	}
@@ -81,7 +81,7 @@ func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName st
 	}
 	fileSize := fileInfo.Size()
 
-	err = services.ObjectSvc(c.svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repCount)
+	err = services.ObjectSvc(c.Svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repCount)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
@@ -109,7 +109,7 @@ func (c *Commandline) UpdateRepObject(objectID int, filePath string) error {
 	}
 	fileSize := fileInfo.Size()
 
-	err = services.ObjectSvc(c.svc).UpdateRepObject(userID, objectID, file, fileSize)
+	err = services.ObjectSvc(c.Svc).UpdateRepObject(userID, objectID, file, fileSize)
 	if err != nil {
 		return fmt.Errorf("update object %d failed, err: %w", objectID, err)
 	}
@@ -119,7 +119,7 @@ func (c *Commandline) UpdateRepObject(objectID int, filePath string) error {
 
 func (c *Commandline) DeleteObject(objectID int) error {
 	userID := 0
-	err := services.ObjectSvc(c.svc).DeleteObject(userID, objectID)
+	err := services.ObjectSvc(c.Svc).DeleteObject(userID, objectID)
 	if err != nil {
 		return fmt.Errorf("delete object %d failed, err: %w", objectID, err)
 	}

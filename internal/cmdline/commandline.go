@@ -7,19 +7,29 @@ import (
 
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
+	"gitlink.org.cn/cloudream/common/pkg/cmdtrie"
 )
 
+type CommandContext struct {
+	Cmdline *Commandline
+}
+
+var commands cmdtrie.CommandTrie[CommandContext, error]
+
 type Commandline struct {
-	svc *services.Service
+	Svc *services.Service
 }
 
 func NewCommandline(svc *services.Service) (*Commandline, error) {
 	return &Commandline{
-		svc: svc,
+		Svc: svc,
 	}, nil
 }
 
-func (c *Commandline) DispatchCommand(cmd string, args []string) {
+func (c *Commandline) DispatchCommand(allArgs []string) {
+	cmd := allArgs[0]
+	args := allArgs[1:]
+
 	switch cmd {
 	case "read":
 		objectID, err := strconv.Atoi(args[1])
@@ -162,6 +172,25 @@ func (c *Commandline) DispatchCommand(cmd string, args []string) {
 				os.Exit(1)
 			}
 		}
+
+	default:
+		// TODO 将上面的命令也用cmdTrie管理
+		cmdCtx := CommandContext{
+			Cmdline: c,
+		}
+		cmdErr, err := commands.Execute(cmdCtx, allArgs...)
+		if err != nil {
+			fmt.Printf("execute command failed, err: %s", err.Error())
+			os.Exit(1)
+		}
+		if cmdErr != nil {
+			fmt.Printf("execute command failed, err: %s", err.Error())
+			os.Exit(1)
+		}
 	}
 
+}
+
+func init() {
+	commands = cmdtrie.NewCommandTrie[CommandContext, error]()
 }

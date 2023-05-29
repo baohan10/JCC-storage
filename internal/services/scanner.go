@@ -8,7 +8,7 @@ type ScannerService struct {
 	*Service
 }
 
-func ScannerSvc(svc *Service) *ScannerService {
+func (svc *Service) ScannerSvc() *ScannerService {
 	return &ScannerService{Service: svc}
 }
 
