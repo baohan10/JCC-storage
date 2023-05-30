@@ -11,6 +11,8 @@ type ExecuteArgs struct {
 	DB            *mydb.DB
 }
 
+type StartOption = tickevent.StartOption
+
 type Executor = tickevent.Executor[ExecuteArgs]
 
 type ExecuteContext = tickevent.ExecuteContext[ExecuteArgs]

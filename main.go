@@ -87,15 +87,15 @@ func serveScannerServer(server *scsvr.ScannerServer, wg *sync.WaitGroup) {
 func startTickEvent(tickExecutor *tickevent.Executor) {
 	// TODO 可以考虑增加配置文件，配置这些任务间隔时间
 
-	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), 5*60*1000)
+	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), 5*60*1000)
+	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), 5*60*1000)
+	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*1000)
+	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	//tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000)
+	//tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000, tickevent.StartOption{RandomFirstStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewCheckCache(), 5*60*1000)
+	tickExecutor.Start(tickevent.NewCheckCache(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 }
