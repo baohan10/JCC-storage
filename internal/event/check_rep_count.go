@@ -134,7 +134,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 			}
 
 			for _, node := range newNodes {
-				err := mysql.Cache.Create(tx, fileHash, node.NodeID)
+				err := mysql.Cache.CreatePinned(tx, fileHash, node.NodeID)
 				if err != nil {
 					return fmt.Errorf("create cache failed, err: %w", err)
 				}
