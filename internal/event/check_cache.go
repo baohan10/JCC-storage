@@ -6,6 +6,7 @@ import (
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/agent/internal/config"
+	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
 	evcst "gitlink.org.cn/cloudream/common/consts/event"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
@@ -85,11 +86,7 @@ func (t *CheckCache) checkIncrement(filesMap map[string]shell.PinInfo, execCtx E
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
-				// TODO 需要考虑此处是否是同步的过程
-				err := execCtx.Args.IPFS.Pin(cache.FileHash)
-				if err != nil {
-					log.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
-				}
+				execCtx.Args.TaskManager.StartCmp(task.NewIPFSPin(cache.FileHash))
 
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
@@ -135,11 +132,7 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
-				// TODO 需要考虑此处是否是同步的过程
-				err := execCtx.Args.IPFS.Pin(cache.FileHash)
-				if err != nil {
-					log.WithField("FileHash", cache.FileHash).Warnf("pin file failed, err: %s", err.Error())
-				}
+				execCtx.Args.TaskManager.StartCmp(task.NewIPFSPin(cache.FileHash))
 
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {

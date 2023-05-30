@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
+	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
@@ -21,24 +21,10 @@ import (
 
 func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *agtmsg.MoveObjectToStorageResp {
 	outFileName := utils.MakeMoveOperationFileName(msg.Body.ObjectID, msg.Body.UserID)
-	outFileDir := filepath.Join(config.Cfg().StorageBaseDir, msg.Body.Directory)
-	outFilePath := filepath.Join(outFileDir, outFileName)
-
-	err := os.MkdirAll(outFileDir, 0644)
-	if err != nil {
-		log.Warnf("create file directory %s failed, err: %s", outFileDir, err.Error())
-		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "create local file directory failed")
-	}
-
-	outFile, err := os.Create(outFilePath)
-	if err != nil {
-		log.Warnf("create file %s failed, err: %s", outFilePath, err.Error())
-		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "create local file failed")
-	}
-	defer outFile.Close()
+	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Body.Directory, outFileName)
 
 	if msg.Body.Redundancy == consts.REDUNDANCY_REP {
-		err = service.moveRepObject(msg, outFile)
+		err := service.moveRepObject(msg, outFilePath)
 		if err != nil {
 			log.Warnf("move rep object failed, err: %s", outFilePath, err.Error())
 			return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "move rep object failed")
@@ -51,22 +37,19 @@ func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *ag
 	return ramsg.ReplyOK(agtmsg.NewMoveObjectToStorageRespBody())
 }
 
-func (svc *Service) moveRepObject(msg *agtmsg.MoveObjectToStorage, outFile io.WriteCloser) error {
+func (svc *Service) moveRepObject(msg *agtmsg.MoveObjectToStorage, outFilePath string) error {
 	var repInfo ramsg.ObjectRepInfo
 	err := serder.MapToObject(msg.Body.RedundancyData.(map[string]any), &repInfo)
 	if err != nil {
 		return fmt.Errorf("redundancy data to rep info failed, err: %w", err)
 	}
 
-	ipfsRd, err := svc.ipfs.OpenRead(repInfo.FileHash)
-	if err != nil {
-		return fmt.Errorf("read ipfs file failed, err: %w", err)
-	}
-	defer ipfsRd.Close()
+	// TODO 可以考虑把整个API都做成异步的
+	tsk := svc.taskManager.StartCmp(task.NewIPFSRead(repInfo.FileHash, outFilePath))
+	tsk.Wait()
 
-	_, err = io.Copy(outFile, ipfsRd)
-	if err != nil {
-		return fmt.Errorf("copy ipfs file data to local file failed, err: %s", err)
+	if tsk.Error() != nil {
+		return tsk.Error()
 	}
 
 	return nil

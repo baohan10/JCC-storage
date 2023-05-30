@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"gitlink.org.cn/cloudream/agent/internal/task"
 	event "gitlink.org.cn/cloudream/common/pkg/event"
 	"gitlink.org.cn/cloudream/common/pkg/typedispatcher"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
@@ -11,8 +12,9 @@ import (
 )
 
 type ExecuteArgs struct {
-	Scanner *sccli.ScannerClient
-	IPFS    *ipfs.IPFS
+	Scanner     *sccli.ScannerClient
+	IPFS        *ipfs.IPFS
+	TaskManager *task.Manager
 }
 
 type Executor = event.Executor[ExecuteArgs]
@@ -23,10 +25,11 @@ type Event = event.Event[ExecuteArgs]
 
 type ExecuteOption = event.ExecuteOption
 
-func NewExecutor(scanner *sccli.ScannerClient, ipfs *ipfs.IPFS) Executor {
+func NewExecutor(scanner *sccli.ScannerClient, ipfs *ipfs.IPFS, taskMgr *task.Manager) Executor {
 	return event.NewExecutor(ExecuteArgs{
-		Scanner: scanner,
-		IPFS:    ipfs,
+		Scanner:     scanner,
+		IPFS:        ipfs,
+		TaskManager: taskMgr,
 	})
 }
 

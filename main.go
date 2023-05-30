@@ -8,6 +8,7 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/agent/internal/event"
+	"gitlink.org.cn/cloudream/agent/internal/task"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	agentserver "gitlink.org.cn/cloudream/proto"
@@ -54,12 +55,14 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 
-	eventExecutor := event.NewExecutor(scanner, ipfs)
+	taskMgr := task.NewManager(ipfs)
+
+	eventExecutor := event.NewExecutor(scanner, ipfs, &taskMgr)
 	go serveEventExecutor(&eventExecutor, &wg)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := rasvr.NewAgentServer(cmdsvc.NewService(ipfs, &eventExecutor), config.Cfg().ID, &config.Cfg().RabbitMQ)
+	agtSvr, err := rasvr.NewAgentServer(cmdsvc.NewService(ipfs, &eventExecutor, &taskMgr), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
