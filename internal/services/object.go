@@ -132,6 +132,7 @@ func (svc *ObjectService) downloadFromNode(nodeIP string, fileHash string) (io.R
 }
 
 func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
+	// TODO 这里也可以改成Task
 	reader, err := svc.ipfs.OpenRead(fileHash)
 	if err != nil {
 		return nil, fmt.Errorf("read ipfs file failed, err: %w", err)
