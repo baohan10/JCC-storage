@@ -14,7 +14,7 @@ type CommandContext struct {
 	Cmdline *Commandline
 }
 
-var commands cmdtrie.CommandTrie[CommandContext, error]
+var commands cmdtrie.CommandTrie[CommandContext, error] = cmdtrie.NewCommandTrie[CommandContext, error]()
 
 type Commandline struct {
 	Svc *services.Service
@@ -189,8 +189,4 @@ func (c *Commandline) DispatchCommand(allArgs []string) {
 		}
 	}
 
-}
-
-func init() {
-	commands = cmdtrie.NewCommandTrie[CommandContext, error]()
 }

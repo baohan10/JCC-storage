@@ -8,16 +8,16 @@ import (
 	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
 )
 
-var parseAgentEventCmdTrie cmdtrie.StaticCommandTrie[any]
+var parseAgentEventCmdTrie cmdtrie.StaticCommandTrie[any] = cmdtrie.NewStaticCommandTrie[any]()
 
-func AgentPostEvent(c *Commandline, nodeID int, args []string) error {
+func AgentPostEvent(ctx CommandContext, nodeID int, args []string) error {
 	ret, err := parseAgentEventCmdTrie.Execute(args...)
 	if err != nil {
 		return fmt.Errorf("execute parsing event command failed, err: %w", err)
 	}
 
 	// TODO 支持设置标志
-	err = c.Svc.AgentSvc().PostEvent(nodeID, ret, false, false)
+	err = ctx.Cmdline.Svc.AgentSvc().PostEvent(nodeID, ret, false, false)
 	if err != nil {
 		return fmt.Errorf("post event to agent failed, err: %w", err)
 	}
@@ -26,11 +26,11 @@ func AgentPostEvent(c *Commandline, nodeID int, args []string) error {
 }
 
 func init() {
-	parseAgentEventCmdTrie.Add(agtevt.NewCheckCache, myreflect.TypeNameOf[agtevt.CheckCache]())
+	parseAgentEventCmdTrie.MustAdd(agtevt.NewCheckCache, myreflect.TypeNameOf[agtevt.CheckCache]())
 
-	parseAgentEventCmdTrie.Add(agtevt.NewCheckState, myreflect.TypeNameOf[agtevt.CheckState]())
+	parseAgentEventCmdTrie.MustAdd(agtevt.NewCheckState, myreflect.TypeNameOf[agtevt.CheckState]())
 
-	parseAgentEventCmdTrie.Add(agtevt.NewCheckStorage, myreflect.TypeNameOf[agtevt.CheckStorage]())
+	parseAgentEventCmdTrie.MustAdd(agtevt.NewCheckStorage, myreflect.TypeNameOf[agtevt.CheckStorage]())
 
-	commands.Add(ScannerPostEvent, "agent", "event")
+	commands.MustAdd(AgentPostEvent, "agent", "event")
 }
