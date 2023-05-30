@@ -2,7 +2,6 @@ package tickevent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )
 
@@ -20,7 +19,7 @@ func (e *BatchCheckAllRepCount) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchCheckAllRepCount]("TickEvent")
 	log.Debugf("begin")
 
-	fileHashes, err := mysql.Cache.BatchGetAllFileHashes(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_CACHE_BATCH_SIZE)
+	fileHashes, err := ctx.Args.DB.Cache().BatchGetAllFileHashes(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_CACHE_BATCH_SIZE)
 	if err != nil {
 		log.Warnf("batch get file hashes failed, err: %s", err.Error())
 		return

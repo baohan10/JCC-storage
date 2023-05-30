@@ -61,7 +61,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 			return
 		}
 
-		caches, err := mysql.Cache.GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
+		caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
 		if err != nil {
 			log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
 			return

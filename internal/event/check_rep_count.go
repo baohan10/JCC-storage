@@ -81,9 +81,9 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 		// 计算所需的最少备份数：
 		// ObjectRep中期望备份数的最大值
 		// 如果ObjectBlock存在对此文件的引用，则至少为1
-		needRepCount := mymath.Max(repMaxCnt, mymath.Max(1, blkCnt))
+		needRepCount := mymath.Max(repMaxCnt, mymath.Min(1, blkCnt))
 
-		repNodes, err := mysql.Cache.GetCachingFileNodes(tx, fileHash)
+		repNodes, err := execCtx.Args.DB.Cache().GetCachingFileNodes(tx, fileHash)
 		if err != nil {
 			return fmt.Errorf("get caching file nodes failed, err: %w", err)
 		}
@@ -106,7 +106,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 		if len(normalNodes) > needRepCount {
 			delNodes := chooseDeleteAvaiRepNodes(allNodes, normalNodes, len(normalNodes)-needRepCount)
 			for _, node := range delNodes {
-				err := mysql.Cache.ChangeState(tx, fileHash, node.NodeID, consts.CACHE_STATE_TEMP)
+				err := execCtx.Args.DB.Cache().SetTemp(tx, fileHash, node.NodeID)
 				if err != nil {
 					return fmt.Errorf("change cache state failed, err: %w", err)
 				}
@@ -134,7 +134,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 			}
 
 			for _, node := range newNodes {
-				err := mysql.Cache.CreatePinned(tx, fileHash, node.NodeID)
+				err := execCtx.Args.DB.Cache().CreatePinned(tx, fileHash, node.NodeID)
 				if err != nil {
 					return fmt.Errorf("create cache failed, err: %w", err)
 				}

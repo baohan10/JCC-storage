@@ -6,7 +6,6 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
@@ -57,7 +56,7 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 
 	if t.FileHashes == nil {
 		var err error
-		caches, err = mysql.Cache.GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
+		caches, err = execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
 		if err != nil {
 			log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
 			return
@@ -66,7 +65,7 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 
 	} else {
 		for _, hash := range t.FileHashes {
-			ch, err := mysql.Cache.Get(execCtx.Args.DB.SQLCtx(), hash, t.NodeID)
+			ch, err := execCtx.Args.DB.Cache().Get(execCtx.Args.DB.SQLCtx(), hash, t.NodeID)
 			// 记录不存在则跳过
 			if err == sql.ErrNoRows {
 				continue

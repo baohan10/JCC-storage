@@ -3,7 +3,6 @@ package event
 import (
 	evtcst "gitlink.org.cn/cloudream/common/consts/event"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -40,7 +39,7 @@ func (t *UpdateCache) Execute(execCtx ExecuteContext) {
 	for _, entry := range t.Entries {
 		switch entry.Operation {
 		case evtcst.UPDATE_CACHE_DELETE_TEMP:
-			err := mysql.Cache.DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
+			err := execCtx.Args.DB.Cache().DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 			if err != nil {
 				log.WithField("FileHash", entry.FileHash).
 					WithField("NodeID", t.NodeID).
@@ -52,7 +51,7 @@ func (t *UpdateCache) Execute(execCtx ExecuteContext) {
 				Debugf("delete temp cache")
 
 		case evtcst.UPDATE_CACHE_CREATE_TEMP:
-			err := mysql.Cache.CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
+			err := execCtx.Args.DB.Cache().CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 			if err != nil {
 				log.WithField("FileHash", entry.FileHash).
 					WithField("NodeID", t.NodeID).

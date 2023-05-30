@@ -52,12 +52,12 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 			return nil
 		}
 
-		caches, err := mysql.Cache.GetNodeCaches(tx, t.NodeID)
+		caches, err := execCtx.Args.DB.Cache().GetNodeCaches(tx, t.NodeID)
 		if err != nil {
 			return fmt.Errorf("get node caches failed, err: %w", err)
 		}
 
-		err = mysql.Cache.DeleteNodeAll(tx, t.NodeID)
+		err = execCtx.Args.DB.Cache().DeleteNodeAll(tx, t.NodeID)
 		if err != nil {
 			return fmt.Errorf("delete node all caches failed, err: %w", err)
 		}
