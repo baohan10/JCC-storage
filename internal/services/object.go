@@ -44,7 +44,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 		}
 
 		// 注：由于采用了IPFS存储，因此每个备份文件的FileHash都是一样的
-		nodes, err := svc.db.Cache().FindCachingFileUserNodes(msg.Body.UserID, objectRep.FileHash)
+		nodes, err := svc.db.Cache().FindCachingFileUserNodes(svc.db.SQLCtx(), msg.Body.UserID, objectRep.FileHash)
 		if err != nil {
 			log.WithField("FileHash", objectRep.FileHash).
 				Warnf("query Cache failed, err: %s", err.Error())
@@ -230,7 +230,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 	}
 
 	// 查询保存了旧文件的节点信息
-	cachingNodes, err := svc.db.Cache().FindCachingFileUserNodes(msg.Body.UserID, objRep.FileHash)
+	cachingNodes, err := svc.db.Cache().FindCachingFileUserNodes(svc.db.SQLCtx(), msg.Body.UserID, objRep.FileHash)
 	if err != nil {
 		log.Warnf("find caching file user nodes failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "find caching file user nodes failed")
