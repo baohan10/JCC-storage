@@ -4,13 +4,12 @@ import (
 	"fmt"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"gitlink.org.cn/cloudream/client/internal/services"
 )
 
-func (c *Commandline) ListUserBuckets() error {
+func BucketListUserBuckets(ctx CommandContext) error {
 	userID := 0
 
-	buckets, err := services.BucketSvc(c.Svc).GetUserBuckets(userID)
+	buckets, err := ctx.Cmdline.Svc.BucketSvc().GetUserBuckets(userID)
 	if err != nil {
 		return err
 	}
@@ -28,10 +27,10 @@ func (c *Commandline) ListUserBuckets() error {
 	return nil
 }
 
-func (c *Commandline) CreateBucket(bucketName string) error {
+func BucketCreateBucket(ctx CommandContext, bucketName string) error {
 	userID := 0
 
-	bucketID, err := services.BucketSvc(c.Svc).CreateBucket(userID, bucketName)
+	bucketID, err := ctx.Cmdline.Svc.BucketSvc().CreateBucket(userID, bucketName)
 	if err != nil {
 		return err
 	}
@@ -40,14 +39,22 @@ func (c *Commandline) CreateBucket(bucketName string) error {
 	return nil
 }
 
-func (c *Commandline) DeleteBucket(bucketID int) error {
+func BucketDeleteBucket(ctx CommandContext, bucketID int) error {
 	userID := 0
 
-	err := services.BucketSvc(c.Svc).DeleteBucket(userID, bucketID)
+	err := ctx.Cmdline.Svc.BucketSvc().DeleteBucket(userID, bucketID)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Delete bucket %d success ", bucketID)
 	return nil
+}
+
+func init() {
+	commands.MustAdd(BucketListUserBuckets, "bucket", "ls")
+
+	commands.MustAdd(BucketCreateBucket, "bucket", "new")
+
+	commands.MustAdd(BucketDeleteBucket, "bucket", "delete")
 }

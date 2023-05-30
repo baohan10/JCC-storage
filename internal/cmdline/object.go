@@ -7,13 +7,12 @@ import (
 	"path/filepath"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"gitlink.org.cn/cloudream/client/internal/services"
 )
 
-func (c *Commandline) ListBucketObjects(bucketID int) error {
+func ObjectListBucketObjects(ctx CommandContext, bucketID int) error {
 	userID := 0
 
-	objects, err := services.BucketSvc(c.Svc).GetBucketObjects(userID, bucketID)
+	objects, err := ctx.Cmdline.Svc.BucketSvc().GetBucketObjects(userID, bucketID)
 	if err != nil {
 		return err
 	}
@@ -31,7 +30,7 @@ func (c *Commandline) ListBucketObjects(bucketID int) error {
 	return nil
 }
 
-func (c *Commandline) Read(localFilePath string, objectID int) error {
+func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int) error {
 	// 创建本地文件
 	curExecPath, err := os.Executable()
 	if err != nil {
@@ -53,7 +52,7 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	defer outputFile.Close()
 
 	// 下载文件
-	reader, err := services.ObjectSvc(c.Svc).DownloadObject(0, objectID)
+	reader, err := ctx.Cmdline.Svc.ObjectSvc().DownloadObject(0, objectID)
 	if err != nil {
 		return fmt.Errorf("download object failed, err: %w", err)
 	}
@@ -68,7 +67,7 @@ func (c *Commandline) Read(localFilePath string, objectID int) error {
 	return nil
 }
 
-func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName string, repCount int) error {
+func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID int, objectName string, repCount int) error {
 	file, err := os.Open(localFilePath)
 	if err != nil {
 		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)
@@ -81,7 +80,7 @@ func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName st
 	}
 	fileSize := fileInfo.Size()
 
-	err = services.ObjectSvc(c.Svc).UploadRepObject(0, bucketID, objectName, file, fileSize, repCount)
+	err = ctx.Cmdline.Svc.ObjectSvc().UploadRepObject(0, bucketID, objectName, file, fileSize, repCount)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
@@ -89,12 +88,12 @@ func (c *Commandline) RepWrite(localFilePath string, bucketID int, objectName st
 	return nil
 }
 
-func (c *Commandline) EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
+func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int, objectName string, ecName string) error {
 	// TODO
 	panic("not implement yet")
 }
 
-func (c *Commandline) UpdateRepObject(objectID int, filePath string) error {
+func ObjectUpdateRepObject(ctx CommandContext, objectID int, filePath string) error {
 	userID := 0
 
 	file, err := os.Open(filePath)
@@ -109,7 +108,7 @@ func (c *Commandline) UpdateRepObject(objectID int, filePath string) error {
 	}
 	fileSize := fileInfo.Size()
 
-	err = services.ObjectSvc(c.Svc).UpdateRepObject(userID, objectID, file, fileSize)
+	err = ctx.Cmdline.Svc.ObjectSvc().UpdateRepObject(userID, objectID, file, fileSize)
 	if err != nil {
 		return fmt.Errorf("update object %d failed, err: %w", objectID, err)
 	}
@@ -117,11 +116,23 @@ func (c *Commandline) UpdateRepObject(objectID int, filePath string) error {
 	return nil
 }
 
-func (c *Commandline) DeleteObject(objectID int) error {
+func ObjectDeleteObject(ctx CommandContext, objectID int) error {
 	userID := 0
-	err := services.ObjectSvc(c.Svc).DeleteObject(userID, objectID)
+	err := ctx.Cmdline.Svc.ObjectSvc().DeleteObject(userID, objectID)
 	if err != nil {
 		return fmt.Errorf("delete object %d failed, err: %w", objectID, err)
 	}
 	return nil
+}
+
+func init() {
+	commands.MustAdd(ObjectListBucketObjects, "object", "ls")
+
+	commands.MustAdd(ObjectUploadRepObject, "object", "new", "rep")
+
+	commands.MustAdd(ObjectDownloadObject, "object", "get")
+
+	commands.MustAdd(ObjectUpdateRepObject, "object", "update", "rep")
+
+	commands.MustAdd(ObjectDeleteObject, "object", "delete")
 }

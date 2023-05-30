@@ -11,7 +11,7 @@ import (
 var parseScannerEventCmdTrie cmdtrie.StaticCommandTrie[any] = cmdtrie.NewStaticCommandTrie[any]()
 
 func ScannerPostEvent(ctx CommandContext, args []string) error {
-	ret, err := parseScannerEventCmdTrie.Execute(args...)
+	ret, err := parseScannerEventCmdTrie.Execute(args, cmdtrie.ExecuteOption{ReplaceEmptyArrayWithNil: true})
 	if err != nil {
 		return fmt.Errorf("execute parsing event command failed, err: %w", err)
 	}

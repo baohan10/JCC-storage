@@ -28,7 +28,7 @@ type ObjectService struct {
 	*Service
 }
 
-func ObjectSvc(svc *Service) *ObjectService {
+func (svc *Service) ObjectSvc() *ObjectService {
 	return &ObjectService{Service: svc}
 }
 

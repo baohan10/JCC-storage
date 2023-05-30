@@ -11,7 +11,7 @@ import (
 var parseAgentEventCmdTrie cmdtrie.StaticCommandTrie[any] = cmdtrie.NewStaticCommandTrie[any]()
 
 func AgentPostEvent(ctx CommandContext, nodeID int, args []string) error {
-	ret, err := parseAgentEventCmdTrie.Execute(args...)
+	ret, err := parseAgentEventCmdTrie.Execute(args, cmdtrie.ExecuteOption{ReplaceEmptyArrayWithNil: true})
 	if err != nil {
 		return fmt.Errorf("execute parsing event command failed, err: %w", err)
 	}

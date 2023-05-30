@@ -1,7 +1,9 @@
 package cmdline
 
-import "gitlink.org.cn/cloudream/client/internal/services"
+func StorageMoveObjectToStorage(ctx CommandContext, objectID int, storageID int) error {
+	return ctx.Cmdline.Svc.StorageSvc().MoveObjectToStorage(0, objectID, storageID)
+}
 
-func (c *Commandline) MoveObjectToStorage(objectID int, storageID int) error {
-	return services.StorageSvc(c.Svc).MoveObjectToStorage(0, objectID, storageID)
+func init() {
+	commands.MustAdd(StorageMoveObjectToStorage, "storage", "move")
 }

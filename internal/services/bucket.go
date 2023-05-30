@@ -11,7 +11,7 @@ type BucketService struct {
 	*Service
 }
 
-func BucketSvc(svc *Service) *BucketService {
+func (svc *Service) BucketSvc() *BucketService {
 	return &BucketService{Service: svc}
 }
 

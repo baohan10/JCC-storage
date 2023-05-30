@@ -13,7 +13,7 @@ type StorageService struct {
 	*Service
 }
 
-func StorageSvc(svc *Service) *StorageService {
+func (svc *Service) StorageSvc() *StorageService {
 	return &StorageService{Service: svc}
 }
 
