@@ -143,7 +143,7 @@ func (t *CheckCache) checkComplete(filesMap map[string]shell.PinInfo, execCtx Ex
 	}
 
 	// map中剩下的数据是没有被遍历过，即Cache中没有记录的
-	for hash, _ := range filesMap {
+	for hash := range filesMap {
 		updateCacheOps = append(updateCacheOps, scevt.NewUpdateCacheEntry(hash, evcst.UPDATE_CACHE_CREATE_TEMP))
 	}
 
