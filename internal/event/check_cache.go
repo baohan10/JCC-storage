@@ -14,12 +14,12 @@ import (
 )
 
 type CheckCache struct {
-	NodeID int
+	scevt.CheckCache
 }
 
 func NewCheckCache(nodeID int) *CheckCache {
 	return &CheckCache{
-		NodeID: nodeID,
+		CheckCache: scevt.NewCheckCache(nodeID),
 	}
 }
 

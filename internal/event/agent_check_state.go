@@ -16,12 +16,12 @@ import (
 )
 
 type AgentCheckState struct {
-	NodeID int
+	scevt.AgentCheckState
 }
 
 func NewAgentCheckState(nodeID int) *AgentCheckState {
 	return &AgentCheckState{
-		NodeID: nodeID,
+		AgentCheckState: scevt.NewAgentCheckState(nodeID),
 	}
 }
 
