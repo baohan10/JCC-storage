@@ -25,7 +25,6 @@ func NewCommandline(svc *services.Service) (*Commandline, error) {
 }
 
 func (c *Commandline) DispatchCommand(allArgs []string) {
-	// TODO 需要区分nil数组和空数组
 	cmdCtx := CommandContext{
 		Cmdline: c,
 	}
