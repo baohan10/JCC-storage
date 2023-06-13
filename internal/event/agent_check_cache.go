@@ -9,7 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -80,20 +80,50 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := agtcli.NewAgentClient(t.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtcli.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
 	defer agentClient.Close()
 
-	err = agentClient.PostEvent(
-		agtevt.NewCheckCache(isComplete, caches),
-		execCtx.Option.IsEmergency, // 继承本任务的执行选项
-		execCtx.Option.DontMerge)
+	checkResp, err := agentClient.CheckIPFS(agtmsg.NewCheckIPFSBody(isComplete, caches))
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
 		return
+	}
+	if checkResp.IsFailed() {
+		log.WithField("NodeID", t.NodeID).Warnf("agent operation failed, err: %s", err.Error())
+		return
+	}
+
+	// 根据返回结果修改数据库
+	for _, entry := range checkResp.Body.Entries {
+		switch entry.Operation {
+		case agtmsg.CHECK_IPFS_RESP_OP_DELETE_TEMP:
+			err := execCtx.Args.DB.Cache().DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
+			if err != nil {
+				log.WithField("FileHash", entry.FileHash).
+					WithField("NodeID", t.NodeID).
+					Warnf("delete temp cache failed, err: %s", err.Error())
+			}
+
+			log.WithField("FileHash", entry.FileHash).
+				WithField("NodeID", t.NodeID).
+				Debugf("delete temp cache")
+
+		case agtmsg.CHECK_IPFS_RESP_OP_CREATE_TEMP:
+			err := execCtx.Args.DB.Cache().CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
+			if err != nil {
+				log.WithField("FileHash", entry.FileHash).
+					WithField("NodeID", t.NodeID).
+					Warnf("create temp cache failed, err: %s", err.Error())
+			}
+
+			log.WithField("FileHash", entry.FileHash).
+				WithField("NodeID", t.NodeID).
+				Debugf("create temp cache")
+		}
 	}
 }
 func init() {

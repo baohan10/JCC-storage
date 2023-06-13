@@ -9,7 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
@@ -96,19 +96,56 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	}
 
 	// 投递任务
-	agentClient, err := agtcli.NewAgentClient(stg.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtcli.NewClient(stg.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
 	defer agentClient.Close()
 
-	err = agentClient.PostEvent(
-		agtevt.NewCheckStorage(stg.StorageID, stg.Directory, isComplete, objects),
-		execCtx.Option.IsEmergency, // 继承本任务的执行选项
-		execCtx.Option.DontMerge)
+	checkResp, err := agentClient.CheckStorage(agtmsg.NewCheckStorageBody(stg.StorageID, stg.Directory, isComplete, objects))
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", err.Error())
+	}
+	if checkResp.IsFailed() {
+		log.WithField("NodeID", stg.NodeID).Warnf("agent operation failed, err: %s", err.Error())
+		return
+	}
+
+	var chkObjIDs []int
+	for _, entry := range checkResp.Body.Entries {
+		switch entry.Operation {
+		case agtmsg.CHECK_STORAGE_RESP_OP_DELETE:
+			err := mysql.StorageObject.Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
+			if err != nil {
+				log.WithField("StorageID", t.StorageID).
+					WithField("ObjectID", entry.ObjectID).
+					Warnf("delete storage object failed, err: %s", err.Error())
+			}
+			chkObjIDs = append(chkObjIDs, entry.ObjectID)
+
+			log.WithField("StorageID", t.StorageID).
+				WithField("ObjectID", entry.ObjectID).
+				WithField("UserID", entry.UserID).
+				Debugf("delete storage object")
+
+		case agtmsg.CHECK_STORAGE_RESP_OP_SET_NORMAL:
+			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
+			if err != nil {
+				log.WithField("StorageID", t.StorageID).
+					WithField("ObjectID", entry.ObjectID).
+					Warnf("change storage object state failed, err: %s", err.Error())
+			}
+
+			log.WithField("StorageID", t.StorageID).
+				WithField("ObjectID", entry.ObjectID).
+				WithField("UserID", entry.UserID).
+				Debugf("set storage object normal")
+		}
+	}
+
+	if len(chkObjIDs) > 0 {
+		execCtx.Executor.Post(NewCheckObject(chkObjIDs))
 	}
 }
 

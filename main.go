@@ -38,7 +38,7 @@ func main() {
 	eventExecutor := event.NewExecutor(db)
 	go serveEventExecutor(&eventExecutor, &wg)
 
-	agtSvr, err := scsvr.NewScannerServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
+	agtSvr, err := scsvr.NewServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -70,7 +70,7 @@ func serveEventExecutor(executor *event.Executor, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func serveScannerServer(server *scsvr.ScannerServer, wg *sync.WaitGroup) {
+func serveScannerServer(server *scsvr.Server, wg *sync.WaitGroup) {
 	log.Info("start serving scanner server")
 
 	err := server.Serve()

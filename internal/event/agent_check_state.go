@@ -10,7 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/db/model"
 	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtevt "gitlink.org.cn/cloudream/rabbitmq/message/agent/event"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 )
@@ -72,7 +72,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	agentClient, err := agtcli.NewAgentClient(t.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtcli.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
@@ -80,9 +80,29 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	defer agentClient.Close()
 
 	// 紧急任务
-	err = agentClient.PostEvent(agtevt.NewCheckState(), true, true)
+	getResp, err := agentClient.GetState(agtmsg.NewGetStateBody())
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
+	}
+	if getResp.IsFailed() {
+		log.WithField("NodeID", t.NodeID).Warnf("agent operation failed, err: %s", err.Error())
+		return
+	}
+
+	if getResp.Body.IPFSState != consts.IPFS_STATE_OK {
+		log.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", getResp.Body.IPFSState)
+
+		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
+		if err != nil {
+			log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
+		}
+		return
+	}
+
+	// TODO 如果以后还有其他的状态，要判断哪些状态下能设置Normal
+	err = mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 	}
 }
 
