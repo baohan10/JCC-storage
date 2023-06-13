@@ -28,7 +28,7 @@ func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storage
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := agtcli.NewAgentClient(preMoveResp.Body.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtcli.NewClient(preMoveResp.Body.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		return fmt.Errorf("create agent client to %d failed, err: %w", preMoveResp.Body.NodeID, err)
 	}

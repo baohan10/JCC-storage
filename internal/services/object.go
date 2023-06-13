@@ -253,7 +253,7 @@ func (svc *ObjectService) uploadToLocalIPFS(file io.ReadCloser, nodeID int) (str
 	}
 
 	// 然后让最近节点pin本地上传的文件
-	agentClient, err := agtcli.NewAgentClient(nodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtcli.NewClient(nodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		return "", fmt.Errorf("create agent client to %d failed, err: %w", nodeID, err)
 	}

@@ -28,13 +28,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	coorClient, err := coorcli.NewCoordinatorClient(&config.Cfg().RabbitMQ)
+	coorClient, err := coorcli.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Warnf("new coordinator client failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 
-	scanner, err := sccli.NewScannerClient(&config.Cfg().RabbitMQ)
+	scanner, err := sccli.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Warnf("new scanner client failed, err: %s", err.Error())
 		os.Exit(1)

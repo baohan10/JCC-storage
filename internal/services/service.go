@@ -7,12 +7,12 @@ import (
 )
 
 type Service struct {
-	coordinator *racli.CoordinatorClient
+	coordinator *racli.Client
 	ipfs        *ipfs.IPFS
-	scanner     *sccli.ScannerClient
+	scanner     *sccli.Client
 }
 
-func NewService(coorClient *racli.CoordinatorClient, ipfsClient *ipfs.IPFS, scanner *sccli.ScannerClient) (*Service, error) {
+func NewService(coorClient *racli.Client, ipfsClient *ipfs.IPFS, scanner *sccli.Client) (*Service, error) {
 	return &Service{
 		coordinator: coorClient,
 		ipfs:        ipfsClient,
