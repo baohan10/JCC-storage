@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
-	"gitlink.org.cn/cloudream/agent/internal/event"
 	"gitlink.org.cn/cloudream/agent/internal/task"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
@@ -19,7 +18,6 @@ import (
 
 	cmdsvc "gitlink.org.cn/cloudream/agent/internal/services/cmd"
 	grpcsvc "gitlink.org.cn/cloudream/agent/internal/services/grpc"
-	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
 )
 
 // TODO 此数据是否在运行时会发生变化？
@@ -41,11 +39,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	scanner, err := sccli.NewScannerClient(&config.Cfg().RabbitMQ)
-	if err != nil {
-		log.Fatalf("new scanner client failed, err: %s", err.Error())
-	}
-
 	ipfs, err := ipfs.NewIPFS(&config.Cfg().IPFS)
 	if err != nil {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
@@ -57,12 +50,9 @@ func main() {
 
 	taskMgr := task.NewManager(ipfs)
 
-	eventExecutor := event.NewExecutor(scanner, ipfs, &taskMgr)
-	go serveEventExecutor(&eventExecutor, &wg)
-
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := rasvr.NewAgentServer(cmdsvc.NewService(ipfs, &eventExecutor, &taskMgr), config.Cfg().ID, &config.Cfg().RabbitMQ)
+	agtSvr, err := rasvr.NewServer(cmdsvc.NewService(ipfs, &taskMgr), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -87,7 +77,7 @@ func main() {
 	wg.Wait()
 }
 
-func serveAgentServer(server *rasvr.AgentServer, wg *sync.WaitGroup) {
+func serveAgentServer(server *rasvr.Server, wg *sync.WaitGroup) {
 	log.Info("start serving command server")
 
 	err := server.Serve()
@@ -97,20 +87,6 @@ func serveAgentServer(server *rasvr.AgentServer, wg *sync.WaitGroup) {
 	}
 
 	log.Info("command server stopped")
-
-	wg.Done()
-}
-
-func serveEventExecutor(executor *event.Executor, wg *sync.WaitGroup) {
-	log.Info("start serving event executor")
-
-	err := executor.Execute()
-
-	if err != nil {
-		log.Errorf("event executor stopped with error: %s", err.Error())
-	}
-
-	log.Info("event executor stopped")
 
 	wg.Done()
 }

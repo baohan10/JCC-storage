@@ -2,14 +2,17 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/ec"
@@ -26,7 +29,7 @@ func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *ag
 	if msg.Body.Redundancy == consts.REDUNDANCY_REP {
 		err := service.moveRepObject(msg, outFilePath)
 		if err != nil {
-			log.Warnf("move rep object failed, err: %s", outFilePath, err.Error())
+			logger.Warnf("move rep object as %s failed, err: %s", outFilePath, err.Error())
 			return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "move rep object failed")
 		}
 
@@ -53,6 +56,82 @@ func (svc *Service) moveRepObject(msg *agtmsg.MoveObjectToStorage, outFilePath s
 	}
 
 	return nil
+}
+
+func (svc *Service) CheckStorage(msg *agtmsg.CheckStorage) *agtmsg.CheckStorageResp {
+	dirFullPath := filepath.Join(config.Cfg().StorageBaseDir, msg.Body.Directory)
+
+	infos, err := ioutil.ReadDir(dirFullPath)
+	if err != nil {
+		logger.Warnf("list storage directory failed, err: %s", err.Error())
+		return ramsg.ReplyOK(agtmsg.NewCheckStorageRespBody(
+			err.Error(),
+			nil,
+		))
+	}
+
+	fileInfos := lo.Filter(infos, func(info fs.FileInfo, index int) bool { return !info.IsDir() })
+
+	if msg.Body.IsComplete {
+		return svc.checkStorageComplete(msg, fileInfos)
+	} else {
+		return svc.checkStorageIncrement(msg, fileInfos)
+	}
+}
+
+func (svc *Service) checkStorageIncrement(msg *agtmsg.CheckStorage, fileInfos []fs.FileInfo) *agtmsg.CheckStorageResp {
+	infosMap := make(map[string]fs.FileInfo)
+	for _, info := range fileInfos {
+		infosMap[info.Name()] = info
+	}
+
+	var entries []agtmsg.CheckStorageRespEntry
+	for _, obj := range msg.Body.Objects {
+		fileName := utils.MakeMoveOperationFileName(obj.ObjectID, obj.UserID)
+		_, ok := infosMap[fileName]
+
+		if ok {
+			// 不需要做处理
+			// 删除map中的记录，表示此记录已被检查过
+			delete(infosMap, fileName)
+
+		} else {
+			// 只要文件不存在，就删除StorageObject表中的记录
+			entries = append(entries, agtmsg.NewCheckStorageRespEntry(obj.ObjectID, obj.UserID, agtmsg.CHECK_STORAGE_RESP_OP_DELETE))
+		}
+	}
+
+	// 增量情况下，不需要对infosMap中没检查的记录进行处理
+
+	return ramsg.ReplyOK(agtmsg.NewCheckStorageRespBody(consts.STORAGE_DIRECTORY_STATE_OK, entries))
+}
+
+func (svc *Service) checkStorageComplete(msg *agtmsg.CheckStorage, fileInfos []fs.FileInfo) *agtmsg.CheckStorageResp {
+
+	infosMap := make(map[string]fs.FileInfo)
+	for _, info := range fileInfos {
+		infosMap[info.Name()] = info
+	}
+
+	var entries []agtmsg.CheckStorageRespEntry
+	for _, obj := range msg.Body.Objects {
+		fileName := utils.MakeMoveOperationFileName(obj.ObjectID, obj.UserID)
+		_, ok := infosMap[fileName]
+
+		if ok {
+			// 不需要做处理
+			// 删除map中的记录，表示此记录已被检查过
+			delete(infosMap, fileName)
+
+		} else {
+			// 只要文件不存在，就删除StorageObject表中的记录
+			entries = append(entries, agtmsg.NewCheckStorageRespEntry(obj.ObjectID, obj.UserID, agtmsg.CHECK_STORAGE_RESP_OP_DELETE))
+		}
+	}
+
+	// Storage中多出来的文件不做处理
+
+	return ramsg.ReplyOK(agtmsg.NewCheckStorageRespBody(consts.STORAGE_DIRECTORY_STATE_OK, entries))
 }
 
 /*
