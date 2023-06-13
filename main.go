@@ -31,12 +31,12 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	scanner, err := sccli.NewScannerClient(&config.Cfg().RabbitMQ)
+	scanner, err := sccli.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new scanner client failed, err: %s", err.Error())
 	}
 
-	coorSvr, err := rasvr.NewCoordinatorServer(services.NewService(db, scanner), &config.Cfg().RabbitMQ)
+	coorSvr, err := rasvr.NewServer(services.NewService(db, scanner), &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
@@ -52,7 +52,7 @@ func main() {
 	<-forever
 }
 
-func serveCoorServer(server *rasvr.CoordinatorServer) {
+func serveCoorServer(server *rasvr.Server) {
 	log.Info("start serving command server")
 
 	err := server.Serve()

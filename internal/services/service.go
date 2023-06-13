@@ -7,10 +7,10 @@ import (
 
 type Service struct {
 	db      *mydb.DB
-	scanner *sccli.ScannerClient
+	scanner *sccli.Client
 }
 
-func NewService(db *mydb.DB, scanner *sccli.ScannerClient) *Service {
+func NewService(db *mydb.DB, scanner *sccli.Client) *Service {
 	return &Service{
 		db:      db,
 		scanner: scanner,
