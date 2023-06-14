@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -173,7 +174,10 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 }
 
 func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.CreateObjectResp {
-	_, err := svc.db.Object().CreateRepObject(svc.db.SQLCtx(), msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSize, msg.Body.RepCount, msg.Body.NodeIDs, msg.Body.FileHash)
+	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		_, err := svc.db.Object().CreateRepObject(tx, msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSize, msg.Body.RepCount, msg.Body.NodeIDs, msg.Body.FileHash)
+		return err
+	})
 	if err != nil {
 		logger.WithField("BucketName", msg.Body.BucketID).
 			WithField("ObjectName", msg.Body.ObjectName).
@@ -253,7 +257,9 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 }
 
 func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.UpdateRepObjectResp {
-	err := svc.db.Object().UpdateRepObject(svc.db.SQLCtx(), msg.Body.ObjectID, msg.Body.FileSize, msg.Body.NodeIDs, msg.Body.FileHash)
+	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		return svc.db.Object().UpdateRepObject(tx, msg.Body.ObjectID, msg.Body.FileSize, msg.Body.NodeIDs, msg.Body.FileHash)
+	})
 	if err != nil {
 		logger.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("update rep object failed, err: %s", err.Error())
@@ -284,7 +290,9 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjec
 		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "object is not available to the user")
 	}
 
-	err = svc.db.Object().SoftDelete(svc.db.SQLCtx(), msg.Body.ObjectID)
+	err = svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		return svc.db.Object().SoftDelete(tx, msg.Body.ObjectID)
+	})
 	if err != nil {
 		logger.WithField("UserID", msg.Body.UserID).
 			WithField("ObjectID", msg.Body.ObjectID).

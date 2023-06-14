@@ -1,6 +1,9 @@
 package services
 
 import (
+	"database/sql"
+
+	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
@@ -39,8 +42,13 @@ func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.Get
 }
 
 func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucketResp {
-	bucketID, err := svc.db.Bucket().Create(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.BucketName)
-
+	var bucketID int
+	var err error
+	svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		// 这里用的是外部的err
+		bucketID, err = svc.db.Bucket().Create(tx, msg.Body.UserID, msg.Body.BucketName)
+		return err
+	})
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			WithField("BucketName", msg.Body.BucketName).
@@ -52,8 +60,9 @@ func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucke
 }
 
 func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucket) *coormsg.DeleteBucketResp {
-	err := svc.db.Bucket().Delete(svc.db.SQLCtx(), msg.Body.BucketID)
-
+	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		return svc.db.Bucket().Delete(tx, msg.Body.BucketID)
+	})
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			WithField("BucketID", msg.Body.BucketID).

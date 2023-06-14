@@ -1,6 +1,9 @@
 package services
 
 import (
+	"database/sql"
+
+	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
@@ -98,7 +101,9 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 }
 
 func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
-	err := svc.db.StorageObject().MoveObjectTo(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
+	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		return svc.db.StorageObject().MoveObjectTo(tx, msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
+	})
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			WithField("ObjectID", msg.Body.ObjectID).
