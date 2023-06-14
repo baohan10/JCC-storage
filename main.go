@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/coordinator/internal/config"
@@ -37,13 +36,7 @@ func main() {
 		log.Fatalf("new scanner client failed, err: %s", err.Error())
 	}
 
-	distlockSvc, err := distlocksvc.NewService(&config.Cfg().DistLock)
-	if err != nil {
-		log.Warnf("new distlock service failed, err: %s", err.Error())
-		os.Exit(1)
-	}
-
-	coorSvr, err := rasvr.NewServer(services.NewService(db, scanner, distlockSvc), &config.Cfg().RabbitMQ)
+	coorSvr, err := rasvr.NewServer(services.NewService(db, scanner), &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
