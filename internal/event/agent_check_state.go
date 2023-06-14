@@ -8,7 +8,6 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
@@ -38,7 +37,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckState]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 
-	node, err := mysql.Node.GetByID(execCtx.Args.DB.SQLCtx(), t.NodeID)
+	node, err := execCtx.Args.DB.Node().GetByID(execCtx.Args.DB.SQLCtx(), t.NodeID)
 	if err == sql.ErrNoRows {
 		return
 	}
@@ -55,7 +54,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	// 检查上次上报时间，超时的设置为不可用
 	// TODO 没有上报过是否要特殊处理？
 	if node.LastReportTime == nil && time.Since(*node.LastReportTime) > time.Duration(config.Cfg().NodeUnavailableSeconds)*time.Second {
-		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
+		err := execCtx.Args.DB.Node().ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
 			log.WithField("NodeID", t.NodeID).Warnf("set node state failed, err: %s", err.Error())
 			return
@@ -79,7 +78,6 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 	defer agentClient.Close()
 
-	// 紧急任务
 	getResp, err := agentClient.GetState(agtmsg.NewGetStateBody())
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
@@ -89,10 +87,11 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		return
 	}
 
+	// 根据返回结果修改节点状态
 	if getResp.Body.IPFSState != consts.IPFS_STATE_OK {
 		log.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", getResp.Body.IPFSState)
 
-		err := mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
+		err := execCtx.Args.DB.Node().ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
 			log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 		}
@@ -100,7 +99,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 
 	// TODO 如果以后还有其他的状态，要判断哪些状态下能设置Normal
-	err = mysql.Node.ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
+	err = execCtx.Args.DB.Node().ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 	}

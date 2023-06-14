@@ -7,7 +7,6 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
@@ -48,7 +47,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckStorage]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 
-	stg, err := mysql.Storage.GetByID(execCtx.Args.DB.SQLCtx(), t.StorageID)
+	stg, err := execCtx.Args.DB.Storage().GetByID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			log.WithField("StorageID", t.StorageID).Warnf("get storage failed, err: %s", err.Error())
@@ -56,7 +55,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	node, err := mysql.Node.GetByID(execCtx.Args.DB.SQLCtx(), stg.NodeID)
+	node, err := execCtx.Args.DB.Node().GetByID(execCtx.Args.DB.SQLCtx(), stg.NodeID)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			log.WithField("StorageID", t.StorageID).Warnf("get storage node failed, err: %s", err.Error())
@@ -74,7 +73,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	var objects []model.StorageObject
 	if t.ObjectIDs == nil {
 		var err error
-		objects, err = mysql.StorageObject.GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
+		objects, err = execCtx.Args.DB.StorageObject().GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 		if err != nil {
 			log.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
 			return
@@ -82,7 +81,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		isComplete = true
 	} else {
 		for _, objID := range t.ObjectIDs {
-			objs, err := mysql.StorageObject.GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
+			objs, err := execCtx.Args.DB.StorageObject().GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
 			if err != nil {
 				log.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", objID).
@@ -112,11 +111,12 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		return
 	}
 
+	// 根据返回结果修改数据库
 	var chkObjIDs []int
 	for _, entry := range checkResp.Body.Entries {
 		switch entry.Operation {
 		case agtmsg.CHECK_STORAGE_RESP_OP_DELETE:
-			err := mysql.StorageObject.Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
+			err := execCtx.Args.DB.StorageObject().Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
 				log.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
@@ -130,7 +130,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 				Debugf("delete storage object")
 
 		case agtmsg.CHECK_STORAGE_RESP_OP_SET_NORMAL:
-			err := mysql.StorageObject.SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
+			err := execCtx.Args.DB.StorageObject().SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
 			if err != nil {
 				log.WithField("StorageID", t.StorageID).
 					WithField("ObjectID", entry.ObjectID).
