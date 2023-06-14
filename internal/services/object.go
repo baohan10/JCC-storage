@@ -270,8 +270,21 @@ func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.Updat
 }
 
 func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjectResp {
-	err := svc.db.Object().SoftDelete(svc.db.SQLCtx(), msg.Body.ObjectID)
+	isAva, err := svc.db.Object().IsAvailable(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.ObjectID)
+	if err != nil {
+		logger.WithField("UserID", msg.Body.UserID).
+			WithField("ObjectID", msg.Body.ObjectID).
+			Warnf("check object available failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "check object available failed")
+	}
+	if !isAva {
+		logger.WithField("UserID", msg.Body.UserID).
+			WithField("ObjectID", msg.Body.ObjectID).
+			Warnf("object is not available to the user")
+		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "object is not available to the user")
+	}
 
+	err = svc.db.Object().SoftDelete(svc.db.SQLCtx(), msg.Body.ObjectID)
 	if err != nil {
 		logger.WithField("UserID", msg.Body.UserID).
 			WithField("ObjectID", msg.Body.ObjectID).
