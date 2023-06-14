@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/db/model"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
@@ -45,6 +46,16 @@ func (svc *BucketService) GetBucketObjects(userID int, bucketID int) ([]model.Ob
 }
 
 func (svc *BucketService) CreateBucket(userID int, bucketName string) (int, error) {
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().Bucket().CreateOne(userID, bucketName).
+		// TODO 可以考虑二次加锁，加的更精确
+		UserBucket().CreateAny().
+		MutexLock(svc.distlock)
+	if err != nil {
+		return 0, fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
+
 	resp, err := svc.coordinator.CreateBucket(coormsg.NewCreateBucketBody(userID, bucketName))
 	if err != nil {
 		return 0, fmt.Errorf("request to coordinator failed, err: %w", err)
@@ -57,6 +68,22 @@ func (svc *BucketService) CreateBucket(userID int, bucketName string) (int, erro
 }
 
 func (svc *BucketService) DeleteBucket(userID int, bucketID int) error {
+	// TODO 检查用户是否有删除这个Bucket的权限。检查的时候可以只上UserBucket的Read锁
+
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		UserBucket().WriteAny().
+		Bucket().WriteOne(bucketID).
+		Object().WriteAny().
+		ObjectRep().WriteAny().
+		ObjectBlock().WriteAny().
+		StorageObject().WriteAny().
+		MutexLock(svc.distlock)
+	if err != nil {
+		return fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
+
 	resp, err := svc.coordinator.DeleteBucket(coormsg.NewDeleteBucketBody(userID, bucketID))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)

@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/cmdline"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
+	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
@@ -51,7 +52,13 @@ func main() {
 		}
 	}
 
-	svc, err := services.NewService(coorClient, ipfsCli, scanner)
+	distlockSvc, err := distlocksvc.NewService(&config.Cfg().DistLock)
+	if err != nil {
+		log.Warnf("new distlock service failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
+	svc, err := services.NewService(coorClient, ipfsCli, scanner, distlockSvc)
 	if err != nil {
 		log.Warnf("new services failed, err: %s", err.Error())
 		os.Exit(1)
