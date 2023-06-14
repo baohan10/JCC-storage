@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"gitlink.org.cn/cloudream/client/internal/config"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
@@ -18,6 +19,29 @@ func (svc *Service) StorageSvc() *StorageService {
 }
 
 func (svc *StorageService) MoveObjectToStorage(userID int, objectID int, storageID int) error {
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 用于判断用户是否有Storage权限
+		UserStorage().ReadOne(objectID, storageID).
+		// 用于判断用户是否有对象权限
+		UserBucket().ReadAny().
+		// 用于读取对象信息
+		Object().ReadOne(objectID).
+		// 用于查询Rep配置
+		ObjectRep().ReadOne(objectID).
+		// 用于查询Block配置
+		ObjectBlock().ReadAny().
+		// 用于创建Move记录
+		StorageObject().CreateOne(storageID, userID, objectID).
+		Storage().
+		// 用于创建对象文件
+		CreateOneObject(storageID, userID, objectID).
+		MutexLock(svc.distlock)
+	if err != nil {
+		return fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
+
 	// 先向协调端请求文件相关的元数据
 	preMoveResp, err := svc.coordinator.PreMoveObjectToStorage(coormsg.NewPreMoveObjectToStorageBody(objectID, storageID, userID))
 	if err != nil {
