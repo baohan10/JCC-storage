@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db"
 	scsvr "gitlink.org.cn/cloudream/rabbitmq/server/scanner"
@@ -32,10 +33,16 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
+	distlockSvc, err := distlocksvc.NewService(&config.Cfg().DistLock)
+	if err != nil {
+		log.Warnf("new distlock service failed, err: %s", err.Error())
+		os.Exit(1)
+	}
+
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
-	eventExecutor := event.NewExecutor(db)
+	eventExecutor := event.NewExecutor(db, distlockSvc)
 	go serveEventExecutor(&eventExecutor, &wg)
 
 	agtSvr, err := scsvr.NewServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)

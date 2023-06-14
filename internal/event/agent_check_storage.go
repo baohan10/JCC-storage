@@ -5,6 +5,7 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
@@ -47,6 +48,8 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckStorage]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 
+	// 读取数据的地方就不加锁了，因为check任务会反复执行，单次失败问题不大
+
 	stg, err := execCtx.Args.DB.Storage().GetByID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 	if err != nil {
 		if err != sql.ErrNoRows {
@@ -68,31 +71,74 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	// 获取对象信息
-	var isComplete bool
-	var objects []model.StorageObject
 	if t.ObjectIDs == nil {
-		var err error
-		objects, err = execCtx.Args.DB.StorageObject().GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
+		t.checkComplete(execCtx, stg)
+	} else {
+		t.checkIncrement(execCtx, stg)
+	}
+}
+
+func (t *AgentCheckStorage) checkComplete(execCtx ExecuteContext, stg model.Storage) {
+	log := logger.WithType[AgentCheckStorage]("Event")
+
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 全量模式下查询、修改Move记录
+		StorageObject().WriteAny().
+		Storage().
+		// 全量模式下删除对象文件
+		WriteAnyObject(t.StorageID).
+		MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
+
+	objects, err := execCtx.Args.DB.StorageObject().GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
+	if err != nil {
+		log.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
+		return
+	}
+
+	t.startCheck(execCtx, stg, true, objects)
+}
+
+func (t *AgentCheckStorage) checkIncrement(execCtx ExecuteContext, stg model.Storage) {
+	log := logger.WithType[AgentCheckStorage]("Event")
+
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 全量模式下查询、修改Move记录。因为可能有多个User Move相同的文件，所以只能用集合Write锁
+		StorageObject().WriteAny().
+		Storage().
+		// 全量模式下删除对象文件。因为可能有多个User Move相同的文件，所以只能用集合Write锁
+		WriteAnyObject(t.StorageID).
+		MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
+
+	var objects []model.StorageObject
+	for _, objID := range t.ObjectIDs {
+		objs, err := execCtx.Args.DB.StorageObject().GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
 		if err != nil {
-			log.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
+			log.WithField("StorageID", t.StorageID).
+				WithField("ObjectID", objID).
+				Warnf("get storage object failed, err: %s", err.Error())
 			return
 		}
-		isComplete = true
-	} else {
-		for _, objID := range t.ObjectIDs {
-			objs, err := execCtx.Args.DB.StorageObject().GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
-			if err != nil {
-				log.WithField("StorageID", t.StorageID).
-					WithField("ObjectID", objID).
-					Warnf("get storage object failed, err: %s", err.Error())
-				return
-			}
 
-			objects = append(objects, objs...)
-		}
-		isComplete = false
+		objects = append(objects, objs...)
 	}
+
+	t.startCheck(execCtx, stg, false, objects)
+}
+
+func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage, isComplete bool, objects []model.StorageObject) {
+	log := logger.WithType[AgentCheckStorage]("Event")
 
 	// 投递任务
 	agentClient, err := agtcli.NewClient(stg.NodeID, &config.Cfg().RabbitMQ)

@@ -2,11 +2,10 @@ package event
 
 import (
 	"database/sql"
-	"fmt"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
@@ -38,36 +37,45 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckStorage]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 
-	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
-		node, err := execCtx.Args.DB.Node().GetByID(tx, t.NodeID)
-		if err == sql.ErrNoRows {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("get node failed, err: %w", err)
-		}
-
-		if node.State != consts.NODE_STATE_UNAVAILABLE {
-			return nil
-		}
-
-		caches, err := execCtx.Args.DB.Cache().GetNodeCaches(tx, t.NodeID)
-		if err != nil {
-			return fmt.Errorf("get node caches failed, err: %w", err)
-		}
-
-		err = execCtx.Args.DB.Cache().DeleteNodeAll(tx, t.NodeID)
-		if err != nil {
-			return fmt.Errorf("delete node all caches failed, err: %w", err)
-		}
-
-		execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
-		return nil
-	})
-
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 查询节点状态
+		Node().ReadOne(t.NodeID).
+		// 删除节点所有的Cache记录
+		Cache().WriteAny().
+		MutexLock(execCtx.Args.DistLock)
 	if err != nil {
-		log.WithField("NodeID", t.NodeID).Warn(err.Error())
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return
 	}
+	defer mutex.Unlock()
+
+	node, err := execCtx.Args.DB.Node().GetByID(execCtx.Args.DB.SQLCtx(), t.NodeID)
+	if err == sql.ErrNoRows {
+		return
+	}
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("get node failed, err: %s", err.Error())
+		return
+	}
+
+	if node.State != consts.NODE_STATE_UNAVAILABLE {
+		return
+	}
+
+	caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
+		return
+	}
+
+	err = execCtx.Args.DB.Cache().DeleteNodeAll(execCtx.Args.DB.SQLCtx(), t.NodeID)
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("delete node all caches failed, err: %s", err.Error())
+		return
+	}
+
+	execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
 }
 
 func init() {

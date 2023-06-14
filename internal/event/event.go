@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"reflect"
 
+	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	event "gitlink.org.cn/cloudream/common/pkg/event"
 	"gitlink.org.cn/cloudream/common/pkg/typedispatcher"
 	mydb "gitlink.org.cn/cloudream/db"
 )
 
 type ExecuteArgs struct {
-	DB *mydb.DB
+	DB       *mydb.DB
+	DistLock *distlocksvc.Service
 }
 
 type Executor = event.Executor[ExecuteArgs]
@@ -21,9 +23,10 @@ type Event = event.Event[ExecuteArgs]
 
 type ExecuteOption = event.ExecuteOption
 
-func NewExecutor(db *mydb.DB) Executor {
+func NewExecutor(db *mydb.DB, distLock *distlocksvc.Service) Executor {
 	return event.NewExecutor(ExecuteArgs{
-		DB: db,
+		DB:       db,
+		DistLock: distLock,
 	})
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
@@ -41,6 +42,23 @@ func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CheckRepCount]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 读取某个FileHash的备份数设定
+		ObjectRep().ReadAny().
+		// 读取某个FileHash是否被Block引用
+		ObjectBlock().ReadAny().
+		// 获取所有可用的节点
+		Node().ReadAny().
+		// 增加或修改FileHash关联的Cache记录
+		Cache().WriteAny().
+		MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
+
 	updatedNodeAndHashes := make(map[int][]string)
 
 	for _, fileHash := range t.FileHashes {
@@ -66,7 +84,10 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 	log := logger.WithType[CheckRepCount]("Event")
 
 	var updatedNodeIDs []int
-	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+	err := execCtx.Args.DB.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+		// 计算所需的最少备份数：
+		// 1. ObjectRep中期望备份数的最大值
+		// 2. 如果ObjectBlock存在对此文件的引用，则至少为1
 		repMaxCnt, err := execCtx.Args.DB.ObjectRep().GetFileMaxRepCount(tx, fileHash)
 		if err != nil {
 			return fmt.Errorf("get file max rep count failed, err: %w", err)
@@ -77,9 +98,6 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 			return fmt.Errorf("count block with hash failed, err: %w", err)
 		}
 
-		// 计算所需的最少备份数：
-		// ObjectRep中期望备份数的最大值
-		// 如果ObjectBlock存在对此文件的引用，则至少为1
 		needRepCount := mymath.Max(repMaxCnt, mymath.Min(1, blkCnt))
 
 		repNodes, err := execCtx.Args.DB.Cache().GetCachingFileNodes(tx, fileHash)
@@ -114,12 +132,11 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 			return nil
 		}
 
-		minAvaiNodeCnt := int(math.Ceil(float64(config.Cfg().MinAvailableRepProportion) * float64(needRepCount)))
-
 		// 因为总备份数不够，而需要增加的备份数
 		add1 := mymath.Max(0, needRepCount-len(repNodes))
 
 		// 因为Available的备份数占比过少，而需要增加的备份数
+		minAvaiNodeCnt := int(math.Ceil(float64(config.Cfg().MinAvailableRepProportion) * float64(needRepCount)))
 		add2 := mymath.Max(0, minAvaiNodeCnt-len(normalNodes))
 
 		// 最终需要增加的备份数，是以上两种情况的最大值
@@ -144,11 +161,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 		return nil
 	})
 
-	if err != nil {
-		return nil, err
-	}
-
-	return updatedNodeIDs, nil
+	return updatedNodeIDs, err
 }
 
 func chooseNewRepNodes(allNodes []model.Node, curRepNodes []model.Node, newCount int) []model.Node {

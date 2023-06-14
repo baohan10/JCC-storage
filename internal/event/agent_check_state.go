@@ -6,6 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
@@ -36,6 +37,17 @@ func (t *AgentCheckState) TryMerge(other Event) bool {
 func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckState]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
+
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 查询、修改节点状态
+		Node().WriteOne(t.NodeID).
+		MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
 
 	node, err := execCtx.Args.DB.Node().GetByID(execCtx.Args.DB.SQLCtx(), t.NodeID)
 	if err == sql.ErrNoRows {

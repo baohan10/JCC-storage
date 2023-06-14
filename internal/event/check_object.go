@@ -2,6 +2,7 @@ package event
 
 import (
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
@@ -29,6 +30,18 @@ func (t *CheckObject) TryMerge(other Event) bool {
 func (t *CheckObject) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CheckObject]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
+
+	// 检查对象是否没有被引用的时候，需要读取StorageObject表
+	builder := reqbuilder.NewBuilder().Metadata().StorageObject().ReadAny()
+	for _, objID := range t.ObjectIDs {
+		builder.Metadata().Object().WriteOne(objID)
+	}
+	mutex, err := builder.MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
 
 	for _, objID := range t.ObjectIDs {
 		err := execCtx.Args.DB.Object().DeleteUnused(execCtx.Args.DB.SQLCtx(), objID)
