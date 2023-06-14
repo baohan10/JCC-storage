@@ -46,6 +46,9 @@ func (svc *BucketService) GetBucketObjects(userID int, bucketID int) ([]model.Ob
 }
 
 func (svc *BucketService) CreateBucket(userID int, bucketName string) (int, error) {
+	// TODO 只有阅读了系统操作的源码，才能知道要加哪些锁，但用户的命令可能会调用不止一个系统操作。
+	// 因此加锁的操作还是必须在用户命令里完成，但具体加锁的内容，则需要被封装起来与系统操作放到一起，方便管理，避免分散改动。
+
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().Bucket().CreateOne(userID, bucketName).
 		// TODO 可以考虑二次加锁，加的更精确
