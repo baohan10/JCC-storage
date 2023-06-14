@@ -2,6 +2,7 @@ package services
 
 import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
@@ -14,7 +15,7 @@ func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {
 }
 
 func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) *coormsg.GetUserBucketsResp {
-	buckets, err := svc.db.Bucket().GetUserBuckets(msg.Body.UserID)
+	buckets, err := svc.db.Bucket().GetUserBuckets(svc.db.SQLCtx(), msg.Body.UserID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
@@ -26,7 +27,7 @@ func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) *coormsg.GetUser
 }
 
 func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.GetBucketObjectsResp {
-	objects, err := svc.db.Object().GetBucketObjects(msg.Body.UserID, msg.Body.BucketID)
+	objects, err := svc.db.Object().GetBucketObjects(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.BucketID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
@@ -39,7 +40,18 @@ func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) *coormsg.Get
 }
 
 func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucketResp {
-	bucketID, err := svc.db.Bucket().Create(msg.Body.UserID, msg.Body.BucketName)
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().Bucket().CreateOne(msg.Body.UserID, msg.Body.BucketName).
+		// TODO 可以考虑二次加锁，加的更精确
+		UserBucket().CreateAny().
+		MutextLock(svc.distlock)
+	if err != nil {
+		log.Warnf("acquire locks failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.CreateBucketResp](errorcode.OPERATION_FAILED, "acquire locks failed")
+	}
+	defer mutex.Unlock()
+
+	bucketID, err := svc.db.Bucket().Create(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.BucketName)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
@@ -52,7 +64,7 @@ func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) *coormsg.CreateBucke
 }
 
 func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucket) *coormsg.DeleteBucketResp {
-	err := svc.db.Bucket().Delete(msg.Body.UserID, msg.Body.BucketID)
+	err := svc.db.Bucket().Delete(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.BucketID)
 
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).

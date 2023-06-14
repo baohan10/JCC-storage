@@ -9,7 +9,7 @@ import (
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
 
-func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) *coormsg.PreMoveObjectToStorageResp {
+func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) *coormsg.PreMoveObjectToStorageResp {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSize
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -21,7 +21,7 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 
 	// 查询用户关联的存储服务
-	stg, err := service.db.Storage().GetUserStorage(msg.Body.UserID, msg.Body.StorageID)
+	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.StorageID)
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			WithField("StorageID", msg.Body.StorageID).
@@ -30,7 +30,7 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 	}
 
 	// 查询文件对象
-	object, err := service.db.Object().GetUserObject(msg.Body.UserID, msg.Body.ObjectID)
+	object, err := svc.db.Object().GetUserObject(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.ObjectID)
 	if err != nil {
 		log.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("get user Object failed, err: %s", err.Error())
@@ -39,7 +39,7 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 
 	//-若redundancy是rep，查询对象副本表, 获得FileHash
 	if object.Redundancy == consts.REDUNDANCY_REP {
-		objectRep, err := service.db.ObjectRep().GetObjectRep(object.ObjectID)
+		objectRep, err := svc.db.ObjectRep().GetByID(svc.db.SQLCtx(), object.ObjectID)
 		if err != nil {
 			log.Warnf("get ObjectRep failed, err: %s", err.Error())
 			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get ObjectRep failed")
@@ -58,7 +58,7 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 
 		var hashs []string
 		ids := []int{0}
-		blockHashs, err := service.db.QueryObjectBlock(object.ObjectID)
+		blockHashs, err := svc.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			log.Warnf("query ObjectBlock failed, err: %s", err.Error())
 			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectBlock failed")
@@ -97,8 +97,8 @@ func (service *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStora
 	}
 }
 
-func (service *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
-	err := service.db.Storage().UserMoveObjectTo(msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
+func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
+	err := svc.db.Storage().UserMoveObjectTo(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
 			WithField("ObjectID", msg.Body.ObjectID).

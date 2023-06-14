@@ -17,7 +17,7 @@ import (
 func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.PreDownloadObjectResp {
 
 	// 查询文件对象
-	object, err := svc.db.Object().GetUserObject(msg.Body.UserID, msg.Body.ObjectID)
+	object, err := svc.db.Object().GetUserObject(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.ObjectID)
 	if err != nil {
 		logger.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
@@ -25,7 +25,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 	}
 
 	// 查询客户端所属节点
-	belongNode, err := svc.db.Node().GetByExternalIP(msg.Body.ClientExternalIP)
+	belongNode, err := svc.db.Node().GetByExternalIP(svc.db.SQLCtx(), msg.Body.ClientExternalIP)
 	if err != nil {
 		logger.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
@@ -35,7 +35,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 
 	//-若redundancy是rep，查询对象副本表, 获得FileHash
 	if object.Redundancy == consts.REDUNDANCY_REP {
-		objectRep, err := svc.db.ObjectRep().GetObjectRep(object.ObjectID)
+		objectRep, err := svc.db.ObjectRep().GetByID(svc.db.SQLCtx(), object.ObjectID)
 		if err != nil {
 			logger.WithField("ObjectID", object.ObjectID).
 				Warnf("get ObjectRep failed, err: %s", err.Error())
@@ -116,7 +116,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 
 	// 判断同名对象是否存在。等到UploadRepObject时再判断一次。
 	// 此次的判断只作为参考，具体是否成功还是看UploadRepObject的结果
-	isBucketAvai, err := svc.db.Bucket().IsAvailable(msg.Body.BucketID, msg.Body.UserID)
+	isBucketAvai, err := svc.db.Bucket().IsAvailable(svc.db.SQLCtx(), msg.Body.BucketID, msg.Body.UserID)
 	if err != nil {
 		logger.WithField("BucketID", msg.Body.BucketID).
 			Warnf("check bucket available failed, err: %s", err.Error())
@@ -128,7 +128,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "bucket is not available to user")
 	}
 
-	_, err = svc.db.Object().GetByName(msg.Body.BucketID, msg.Body.ObjectName)
+	_, err = svc.db.Object().GetByName(svc.db.SQLCtx(), msg.Body.BucketID, msg.Body.ObjectName)
 	if err == nil {
 		logger.WithField("BucketID", msg.Body.BucketID).
 			WithField("ObjectName", msg.Body.ObjectName).
@@ -143,7 +143,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 	}
 
 	//查询用户可用的节点IP
-	nodes, err := svc.db.Node().GetUserNodes(msg.Body.UserID)
+	nodes, err := svc.db.Node().GetUserNodes(svc.db.SQLCtx(), msg.Body.UserID)
 	if err != nil {
 		logger.WithField("UserID", msg.Body.UserID).
 			Warnf("query user nodes failed, err: %s", err.Error())
@@ -151,7 +151,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 	}
 
 	// 查询客户端所属节点
-	belongNode, err := svc.db.Node().GetByExternalIP(msg.Body.ClientExternalIP)
+	belongNode, err := svc.db.Node().GetByExternalIP(svc.db.SQLCtx(), msg.Body.ClientExternalIP)
 	if err != nil {
 		logger.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
@@ -173,7 +173,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 }
 
 func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.CreateObjectResp {
-	_, err := svc.db.Object().CreateRepObject(msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSize, msg.Body.RepCount, msg.Body.NodeIDs, msg.Body.FileHash)
+	_, err := svc.db.Object().CreateRepObject(svc.db.SQLCtx(), msg.Body.BucketID, msg.Body.ObjectName, msg.Body.FileSize, msg.Body.RepCount, msg.Body.NodeIDs, msg.Body.FileHash)
 	if err != nil {
 		logger.WithField("BucketName", msg.Body.BucketID).
 			WithField("ObjectName", msg.Body.ObjectName).
@@ -193,7 +193,7 @@ func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) *coormsg.Creat
 func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg.PreUpdateRepObjectResp {
 	// TODO 检查用户是否有Object的权限
 	// 获取对象信息
-	obj, err := svc.db.Object().GetByID(msg.Body.ObjectID)
+	obj, err := svc.db.Object().GetByID(svc.db.SQLCtx(), msg.Body.ObjectID)
 	if err != nil {
 		logger.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("get object failed, err: %s", err.Error())
@@ -206,7 +206,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 	}
 
 	// 获取对象Rep信息
-	objRep, err := svc.db.ObjectRep().GetObjectRep(msg.Body.ObjectID)
+	objRep, err := svc.db.ObjectRep().GetByID(svc.db.SQLCtx(), msg.Body.ObjectID)
 	if err != nil {
 		logger.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("get object rep failed, err: %s", err.Error())
@@ -214,7 +214,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 	}
 
 	//查询用户可用的节点IP
-	nodes, err := svc.db.Node().GetUserNodes(msg.Body.UserID)
+	nodes, err := svc.db.Node().GetUserNodes(svc.db.SQLCtx(), msg.Body.UserID)
 	if err != nil {
 		logger.WithField("UserID", msg.Body.UserID).
 			Warnf("query user nodes failed, err: %s", err.Error())
@@ -222,7 +222,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 	}
 
 	// 查询客户端所属节点
-	belongNode, err := svc.db.Node().GetByExternalIP(msg.Body.ClientExternalIP)
+	belongNode, err := svc.db.Node().GetByExternalIP(svc.db.SQLCtx(), msg.Body.ClientExternalIP)
 	if err != nil {
 		logger.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
@@ -253,7 +253,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 }
 
 func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.UpdateRepObjectResp {
-	err := svc.db.Object().UpdateRepObject(msg.Body.ObjectID, msg.Body.FileSize, msg.Body.NodeIDs, msg.Body.FileHash)
+	err := svc.db.Object().UpdateRepObject(svc.db.SQLCtx(), msg.Body.ObjectID, msg.Body.FileSize, msg.Body.NodeIDs, msg.Body.FileHash)
 	if err != nil {
 		logger.WithField("ObjectID", msg.Body.ObjectID).
 			Warnf("update rep object failed, err: %s", err.Error())
@@ -270,7 +270,7 @@ func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) *coormsg.Updat
 }
 
 func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) *coormsg.DeleteObjectResp {
-	err := svc.db.Object().SoftDelete(msg.Body.UserID, msg.Body.ObjectID)
+	err := svc.db.Object().SoftDelete(svc.db.SQLCtx(), msg.Body.ObjectID)
 
 	if err != nil {
 		logger.WithField("UserID", msg.Body.UserID).
