@@ -6,6 +6,7 @@ import (
 
 	"gitlink.org.cn/cloudream/client/internal/services"
 	"gitlink.org.cn/cloudream/common/pkg/cmdtrie"
+	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 )
 
 type CommandContext struct {
@@ -15,12 +16,14 @@ type CommandContext struct {
 var commands cmdtrie.CommandTrie[CommandContext, error] = cmdtrie.NewCommandTrie[CommandContext, error]()
 
 type Commandline struct {
-	Svc *services.Service
+	Svc      *services.Service
+	DistLock *distlocksvc.Service
 }
 
-func NewCommandline(svc *services.Service) (*Commandline, error) {
+func NewCommandline(svc *services.Service, distLock *distlocksvc.Service) (*Commandline, error) {
 	return &Commandline{
-		Svc: svc,
+		Svc:      svc,
+		DistLock: distLock,
 	}, nil
 }
 

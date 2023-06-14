@@ -64,7 +64,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmds, err := cmdline.NewCommandline(svc)
+	cmds, err := cmdline.NewCommandline(svc, distlockSvc)
 	if err != nil {
 		log.Warnf("new command line failed, err: %s", err.Error())
 		os.Exit(1)
