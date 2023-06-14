@@ -14,7 +14,6 @@ import (
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 
 	"gitlink.org.cn/cloudream/db/model"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -68,12 +67,12 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 
 	var updatedNodeIDs []int
 	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
-		repMaxCnt, err := mysql.ObjectRep.GetFileMaxRepCount(tx, fileHash)
+		repMaxCnt, err := execCtx.Args.DB.ObjectRep().GetFileMaxRepCount(tx, fileHash)
 		if err != nil {
 			return fmt.Errorf("get file max rep count failed, err: %w", err)
 		}
 
-		blkCnt, err := mysql.ObjectBlock.CountBlockWithHash(tx, fileHash)
+		blkCnt, err := execCtx.Args.DB.ObjectBlock().CountBlockWithHash(tx, fileHash)
 		if err != nil {
 			return fmt.Errorf("count block with hash failed, err: %w", err)
 		}
@@ -88,7 +87,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 			return fmt.Errorf("get caching file nodes failed, err: %w", err)
 		}
 
-		allNodes, err := mysql.Node.GetAllNodes(tx)
+		allNodes, err := execCtx.Args.DB.Node().GetAllNodes(tx)
 		if err != nil {
 			return fmt.Errorf("get all nodes failed, err: %w", err)
 		}

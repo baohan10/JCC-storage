@@ -4,7 +4,6 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )
 
@@ -23,7 +22,7 @@ func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 	log.Debugf("begin")
 
 	if e.nodeIDs == nil || len(e.nodeIDs) == 0 {
-		nodes, err := mysql.Node.GetAllNodes(ctx.Args.DB.SQLCtx())
+		nodes, err := ctx.Args.DB.Node().GetAllNodes(ctx.Args.DB.SQLCtx())
 		if err != nil {
 			log.Warnf("get all nodes failed, err: %s", err.Error())
 			return

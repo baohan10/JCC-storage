@@ -2,7 +2,6 @@ package tickevent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )
 
@@ -20,7 +19,7 @@ func (e *BatchCheckAllStorage) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchCheckAllStorage]("TickEvent")
 	log.Debugf("begin")
 
-	storageIDs, err := mysql.Storage.BatchGetAllStorageIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_STORAGE_BATCH_SIZE)
+	storageIDs, err := ctx.Args.DB.Storage().BatchGetAllStorageIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_STORAGE_BATCH_SIZE)
 	if err != nil {
 		log.Warnf("batch get storage ids failed, err: %s", err.Error())
 		return

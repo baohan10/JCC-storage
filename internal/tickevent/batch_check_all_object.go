@@ -3,7 +3,6 @@ package tickevent
 import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )
 
@@ -21,7 +20,7 @@ func (e *BatchCheckAllObject) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchCheckAllObject]("TickEvent")
 	log.Debugf("begin")
 
-	objectIDs, err := mysql.Object.BatchGetAllObjectIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_OBJECT_BATCH_SIZE)
+	objectIDs, err := ctx.Args.DB.Object().BatchGetAllObjectIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_OBJECT_BATCH_SIZE)
 	if err != nil {
 		log.Warnf("batch get object ids failed, err: %s", err.Error())
 		return

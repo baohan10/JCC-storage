@@ -9,7 +9,6 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
-	mysql "gitlink.org.cn/cloudream/db/sql"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
@@ -40,7 +39,7 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 
 	err := execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
-		node, err := mysql.Node.GetByID(tx, t.NodeID)
+		node, err := execCtx.Args.DB.Node().GetByID(tx, t.NodeID)
 		if err == sql.ErrNoRows {
 			return nil
 		}
