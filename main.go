@@ -57,6 +57,7 @@ func main() {
 		log.Warnf("new distlock service failed, err: %s", err.Error())
 		os.Exit(1)
 	}
+	go serveDistLock(distlockSvc)
 
 	svc, err := services.NewService(coorClient, ipfsCli, scanner, distlockSvc)
 	if err != nil {
@@ -81,4 +82,16 @@ func main() {
 		6. 改为交互式client，输入用户名及秘钥后进入交互界面
 		7. 支持纯缓存类型的IPFS节点，数据一律存在后端存储服务中
 	*/
+}
+
+func serveDistLock(svc *distlocksvc.Service) {
+	log.Info("start serving distlock")
+
+	err := svc.Serve()
+
+	if err != nil {
+		log.Errorf("distlock stopped with error: %s", err.Error())
+	}
+
+	log.Info("distlock stopped")
 }
