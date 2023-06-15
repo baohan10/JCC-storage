@@ -33,14 +33,15 @@ func main() {
 		log.Fatalf("new db failed, err: %s", err.Error())
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(3)
+
 	distlockSvc, err := distlocksvc.NewService(&config.Cfg().DistLock)
 	if err != nil {
 		log.Warnf("new distlock service failed, err: %s", err.Error())
 		os.Exit(1)
 	}
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	go serveDistLock(distlockSvc, &wg)
 
 	eventExecutor := event.NewExecutor(db, distlockSvc)
 	go serveEventExecutor(&eventExecutor, &wg)
@@ -87,6 +88,20 @@ func serveScannerServer(server *scsvr.Server, wg *sync.WaitGroup) {
 	}
 
 	log.Info("scanner server stopped")
+
+	wg.Done()
+}
+
+func serveDistLock(svc *distlocksvc.Service, wg *sync.WaitGroup) {
+	log.Info("start serving distlock")
+
+	err := svc.Serve()
+
+	if err != nil {
+		log.Errorf("distlock stopped with error: %s", err.Error())
+	}
+
+	log.Info("distlock stopped")
 
 	wg.Done()
 }
