@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/distlock"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/lockprovider"
 )
@@ -49,7 +50,7 @@ func parseOneLock(lockData string) (distlock.Lock, error) {
 	target := lockprovider.NewStringLockTarget()
 	comps := strings.Split(fullPathAndTarget[1], "/")
 	for _, comp := range comps {
-		target.Add(strings.Split(comp, "."))
+		target.Add(lo.Map(strings.Split(comp, "."), func(str string, index int) any { return str })...)
 	}
 
 	lock.Target = *target
