@@ -102,7 +102,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 
 func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		return svc.db.StorageObject().MoveObjectTo(tx, msg.Body.UserID, msg.Body.ObjectID, msg.Body.StorageID)
+		return svc.db.StorageObject().MoveObjectTo(tx, msg.Body.ObjectID, msg.Body.StorageID, msg.Body.UserID)
 	})
 	if err != nil {
 		log.WithField("UserID", msg.Body.UserID).
