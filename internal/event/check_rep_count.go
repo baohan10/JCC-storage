@@ -39,6 +39,7 @@ func (t *CheckRepCount) TryMerge(other Event) bool {
 func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CheckRepCount]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
+	defer log.Debugf("end")
 
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().

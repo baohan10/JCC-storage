@@ -15,6 +15,7 @@ func NewCheckCache() *CheckCache {
 func (e *CheckCache) Execute(ctx ExecuteContext) {
 	log := logger.WithType[CheckCache]("TickEvent")
 	log.Debugf("begin")
+	defer log.Debugf("end")
 
 	nodes, err := ctx.Args.DB.Node().GetAllNodes(ctx.Args.DB.SQLCtx())
 	if err != nil {

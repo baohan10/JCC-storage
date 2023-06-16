@@ -18,6 +18,7 @@ func NewBatchCheckAllRepCount() *BatchCheckAllRepCount {
 func (e *BatchCheckAllRepCount) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchCheckAllRepCount]("TickEvent")
 	log.Debugf("begin")
+	defer log.Debugf("end")
 
 	fileHashes, err := ctx.Args.DB.Cache().BatchGetAllFileHashes(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_CACHE_BATCH_SIZE)
 	if err != nil {

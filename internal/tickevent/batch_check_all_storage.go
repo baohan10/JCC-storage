@@ -18,6 +18,7 @@ func NewBatchCheckAllStorage() *BatchCheckAllStorage {
 func (e *BatchCheckAllStorage) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchCheckAllStorage]("TickEvent")
 	log.Debugf("begin")
+	defer log.Debugf("end")
 
 	storageIDs, err := ctx.Args.DB.Storage().BatchGetAllStorageIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_STORAGE_BATCH_SIZE)
 	if err != nil {

@@ -30,6 +30,7 @@ func (t *CheckObject) TryMerge(other Event) bool {
 func (t *CheckObject) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CheckObject]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
+	defer log.Debugf("end")
 
 	// 检查对象是否没有被引用的时候，需要读取StorageObject表
 	builder := reqbuilder.NewBuilder().Metadata().StorageObject().ReadAny()

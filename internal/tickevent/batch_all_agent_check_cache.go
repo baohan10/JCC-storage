@@ -20,6 +20,7 @@ func NewBatchAllAgentCheckCache() *BatchAllAgentCheckCache {
 func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchAllAgentCheckCache]("TickEvent")
 	log.Debugf("begin")
+	defer log.Debugf("end")
 
 	if e.nodeIDs == nil || len(e.nodeIDs) == 0 {
 		nodes, err := ctx.Args.DB.Node().GetAllNodes(ctx.Args.DB.SQLCtx())

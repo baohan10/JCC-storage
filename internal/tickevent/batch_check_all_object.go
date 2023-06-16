@@ -19,6 +19,7 @@ func NewBatchCheckAllObject() *BatchCheckAllObject {
 func (e *BatchCheckAllObject) Execute(ctx ExecuteContext) {
 	log := logger.WithType[BatchCheckAllObject]("TickEvent")
 	log.Debugf("begin")
+	defer log.Debugf("end")
 
 	objectIDs, err := ctx.Args.DB.Object().BatchGetAllObjectIDs(ctx.Args.DB.SQLCtx(), e.lastCheckStart, CHECK_OBJECT_BATCH_SIZE)
 	if err != nil {
