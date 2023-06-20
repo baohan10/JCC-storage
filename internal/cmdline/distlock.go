@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/distlock"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/lockprovider"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/service"
 )
 
 func DistLockLock(ctx CommandContext, lockData []string) error {
@@ -21,7 +22,9 @@ func DistLockLock(ctx CommandContext, lockData []string) error {
 		req.Locks = append(req.Locks, l)
 	}
 
-	reqID, err := ctx.Cmdline.DistLock.Acquire(req)
+	reqID, err := ctx.Cmdline.DistLock.Acquire(req, service.AcquireOption{
+		RetryTimeMs: 5000,
+	})
 	if err != nil {
 		return fmt.Errorf("acquire locks failed, err: %w", err)
 	}
