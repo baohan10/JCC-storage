@@ -66,8 +66,8 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 
 	// 检查上次上报时间，超时的设置为不可用
 	// TODO 没有上报过是否要特殊处理？
-	if node.LastReportTime == nil && time.Since(*node.LastReportTime) > time.Duration(config.Cfg().NodeUnavailableSeconds)*time.Second {
-		err := execCtx.Args.DB.Node().ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
+	if node.LastReportTime != nil && time.Since(*node.LastReportTime) > time.Duration(config.Cfg().NodeUnavailableSeconds)*time.Second {
+		err := execCtx.Args.DB.Node().UpdateState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
 			log.WithField("NodeID", t.NodeID).Warnf("set node state failed, err: %s", err.Error())
 			return
@@ -104,7 +104,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	if getResp.Body.IPFSState != consts.IPFS_STATE_OK {
 		log.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", getResp.Body.IPFSState)
 
-		err := execCtx.Args.DB.Node().ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
+		err := execCtx.Args.DB.Node().UpdateState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
 			log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 		}
@@ -112,7 +112,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 
 	// TODO 如果以后还有其他的状态，要判断哪些状态下能设置Normal
-	err = execCtx.Args.DB.Node().ChangeState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
+	err = execCtx.Args.DB.Node().UpdateState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_NORMAL)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("change node state failed, err: %s", err.Error())
 	}

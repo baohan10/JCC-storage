@@ -109,15 +109,17 @@ func serveDistLock(svc *distlocksvc.Service, wg *sync.WaitGroup) {
 func startTickEvent(tickExecutor *tickevent.Executor) {
 	// TODO 可以考虑增加配置文件，配置这些任务间隔时间
 
-	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+	interval := 5 * 60 * 1000
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	//tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000, tickevent.StartOption{RandomFirstStartDelayMs: 60 * 1000})
+	tickExecutor.Start(tickevent.NewBatchCheckAllStorage(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewCheckCache(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+	tickExecutor.Start(tickevent.NewCheckAgentState(), 5*60*1000, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+
+	tickExecutor.Start(tickevent.NewCheckCache(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 }
