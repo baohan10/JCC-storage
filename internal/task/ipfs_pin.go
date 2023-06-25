@@ -28,6 +28,7 @@ func (t *IPFSPin) Compare(other TaskBody) bool {
 func (t *IPFSPin) Execute(ctx TaskContext, complete CompleteFn) {
 	log := logger.WithType[IPFSPin]("Task")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
+	defer log.Debugf("end")
 
 	err := ctx.IPFS.Pin(t.FileHash)
 	if err != nil {

@@ -33,6 +33,7 @@ func (t *IPFSRead) Compare(other TaskBody) bool {
 func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 	log := logger.WithType[IPFSRead]("Task")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
+	defer log.Debugf("end")
 
 	outputFileDir := filepath.Dir(t.LocalPath)
 

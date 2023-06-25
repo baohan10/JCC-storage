@@ -91,8 +91,12 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 		}
 	}
 
-	// map中剩下的数据是没有被遍历过，即Cache中没有记录的
+	// map中剩下的数据是没有被遍历过，即Cache中没有记录的，那么就Unpin文件，并产生一条Temp记录
 	for hash := range filesMap {
+		err := svc.ipfs.Unpin(hash)
+		if err != nil {
+			logger.WithField("FileHash", hash).Warnf("unpin file failed, err: %s", err.Error())
+		}
 		entries = append(entries, agtmsg.NewCheckIPFSRespEntry(hash, agtmsg.CHECK_IPFS_RESP_OP_CREATE_TEMP))
 	}
 
