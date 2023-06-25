@@ -26,8 +26,11 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 	}
 
 	// 查询客户端所属节点
+	foundBelongNode := true
 	belongNode, err := svc.db.Node().GetByExternalIP(svc.db.SQLCtx(), msg.Body.ClientExternalIP)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		foundBelongNode = false
+	} else if err != nil {
 		logger.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
@@ -58,7 +61,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) *coormsg.P
 				node.ExternalIP,
 				node.LocalIP,
 				// LocationID 相同则认为是在同一个地域
-				belongNode.LocationID == node.LocationID,
+				foundBelongNode && belongNode.LocationID == node.LocationID,
 			))
 		}
 
@@ -152,8 +155,11 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 	}
 
 	// 查询客户端所属节点
+	foundBelongNode := true
 	belongNode, err := svc.db.Node().GetByExternalIP(svc.db.SQLCtx(), msg.Body.ClientExternalIP)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		foundBelongNode = false
+	} else if err != nil {
 		logger.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query client belong node failed")
@@ -166,7 +172,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) *coormsg
 			node.ExternalIP,
 			node.LocalIP,
 			// LocationID 相同则认为是在同一个地域
-			belongNode.LocationID == node.LocationID,
+			foundBelongNode && belongNode.LocationID == node.LocationID,
 		))
 	}
 
@@ -226,8 +232,11 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 	}
 
 	// 查询客户端所属节点
+	foundBelongNode := true
 	belongNode, err := svc.db.Node().GetByExternalIP(svc.db.SQLCtx(), msg.Body.ClientExternalIP)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		foundBelongNode = false
+	} else if err != nil {
 		logger.WithField("ClientExternalIP", msg.Body.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
@@ -247,7 +256,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) *coormsg
 			node.ExternalIP,
 			node.LocalIP,
 			// LocationID 相同则认为是在同一个地域
-			belongNode.LocationID == node.LocationID,
+			foundBelongNode && belongNode.LocationID == node.LocationID,
 			// 此节点存储了对象旧文件
 			lo.ContainsBy(cachingNodes, func(n model.Node) bool { return n.NodeID == node.NodeID }),
 		))
