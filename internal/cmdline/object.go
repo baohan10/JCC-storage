@@ -5,8 +5,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/juju/ratelimit"
+	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
 func ObjectListBucketObjects(ctx CommandContext, bucketID int) error {
@@ -58,7 +61,8 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	}
 	defer reader.Close()
 
-	_, err = io.Copy(outputFile, reader)
+	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+	_, err = io.Copy(outputFile, ratelimit.Reader(reader, bkt))
 	if err != nil {
 		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
 		return fmt.Errorf("copy object data to local file failed, err: %w", err)
@@ -80,12 +84,33 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 	}
 	fileSize := fileInfo.Size()
 
-	err = ctx.Cmdline.Svc.ObjectSvc().UploadRepObject(0, bucketID, objectName, file, fileSize, repCount)
+	// TODO 测试用
+	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUploadingRepObject(0, bucketID, objectName,
+		myio.WithCloser(ratelimit.Reader(file, bkt),
+			func(reader io.Reader) error {
+				return file.Close()
+			}),
+		fileSize, repCount)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
 
-	return nil
+	for {
+		complete, fileHash, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObject(taskID, time.Second*5)
+		if complete {
+			if err != nil {
+				return fmt.Errorf("uploading rep object: %w", err)
+			}
+
+			fmt.Print(fileHash)
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("wait uploading: %w", err)
+		}
+	}
 }
 
 func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int, objectName string, ecName string) error {
@@ -108,12 +133,31 @@ func ObjectUpdateRepObject(ctx CommandContext, objectID int, filePath string) er
 	}
 	fileSize := fileInfo.Size()
 
-	err = ctx.Cmdline.Svc.ObjectSvc().UpdateRepObject(userID, objectID, file, fileSize)
+	// TODO 测试用
+	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUpdatingRepObject(userID, objectID,
+		myio.WithCloser(ratelimit.Reader(file, bkt),
+			func(reader io.Reader) error {
+				return file.Close()
+			}), fileSize)
 	if err != nil {
 		return fmt.Errorf("update object %d failed, err: %w", objectID, err)
 	}
 
-	return nil
+	for {
+		complete, err := ctx.Cmdline.Svc.ObjectSvc().WaitUpdatingRepObject(taskID, time.Second*5)
+		if complete {
+			if err != nil {
+				return fmt.Errorf("updating rep object: %w", err)
+			}
+
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("wait updating: %w", err)
+		}
+	}
 }
 
 func ObjectDeleteObject(ctx CommandContext, objectID int) error {

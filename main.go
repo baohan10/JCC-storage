@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/cmdline"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/services"
+	"gitlink.org.cn/cloudream/client/internal/task"
 	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
@@ -59,13 +60,15 @@ func main() {
 	}
 	go serveDistLock(distlockSvc)
 
-	svc, err := services.NewService(coorClient, ipfsCli, scanner, distlockSvc)
+	taskMgr := task.NewManager(ipfsCli, distlockSvc, coorClient)
+
+	svc, err := services.NewService(coorClient, ipfsCli, scanner, distlockSvc, &taskMgr)
 	if err != nil {
 		log.Warnf("new services failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 
-	cmds, err := cmdline.NewCommandline(svc, distlockSvc)
+	cmds, err := cmdline.NewCommandline(svc, distlockSvc, ipfsCli)
 	if err != nil {
 		log.Warnf("new command line failed, err: %s", err.Error())
 		os.Exit(1)

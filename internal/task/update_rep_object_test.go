@@ -1,4 +1,4 @@
-package services
+package task
 
 import (
 	"testing"
@@ -44,10 +44,10 @@ func Test_chooseUpdateRepObjectNode(t *testing.T) {
 		},
 	}
 
-	var svc ObjectService
+	var tsk UpdateRepObject
 	for _, test := range testcases {
 		Convey(test.title, t, func() {
-			chooseNode := svc.chooseUpdateRepObjectNode(test.nodes)
+			chooseNode := tsk.chooseUpdateRepObjectNode(test.nodes)
 			So(chooseNode.ID, ShouldEqual, test.wantNodeID)
 		})
 	}

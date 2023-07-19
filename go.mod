@@ -17,7 +17,7 @@ require (
 require (
 	github.com/antonfisher/nested-logrus-formatter v1.3.1 // indirect
 	github.com/baohan10/reedsolomon v0.0.0-20230406042632-43574cac9fa7 // indirect
-	github.com/beevik/etree v1.1.0 // indirect
+	github.com/beevik/etree v1.2.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/crackcomm/go-gitignore v0.0.0-20170627025303-887ab5e44cc3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
@@ -33,6 +33,7 @@ require (
 	github.com/ipfs/go-cid v0.4.0 // indirect
 	github.com/ipfs/go-ipfs-api v0.6.0 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
+	github.com/juju/ratelimit v1.0.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
@@ -51,13 +52,13 @@ require (
 	github.com/multiformats/go-multistream v0.4.1 // indirect
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/sirupsen/logrus v1.9.0 // indirect
+	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/smartystreets/assertions v1.13.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/streadway/amqp v1.0.0 // indirect
 	github.com/whyrusleeping/tar-utils v0.0.0-20180509141711-8c6c8ba81d5c // indirect
 	golang.org/x/crypto v0.6.0 // indirect
-	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb // indirect
+	golang.org/x/exp v0.0.0-20230519143937-03e91628a987 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
