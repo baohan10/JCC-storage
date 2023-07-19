@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/ec"
@@ -22,40 +24,68 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )
 
-func (service *Service) MoveObjectToStorage(msg *agtmsg.MoveObjectToStorage) *agtmsg.MoveObjectToStorageResp {
+func (service *Service) StartMovingObjectToStorage(msg *agtmsg.StartMovingObjectToStorage) *agtmsg.StartMovingObjectToStorageResp {
 	outFileName := utils.MakeMoveOperationFileName(msg.Body.ObjectID, msg.Body.UserID)
 	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Body.Directory, outFileName)
 
 	if msg.Body.Redundancy == consts.REDUNDANCY_REP {
-		err := service.moveRepObject(msg, outFilePath)
+		taskID, err := service.moveRepObject(msg, outFilePath)
 		if err != nil {
 			logger.Warnf("move rep object as %s failed, err: %s", outFilePath, err.Error())
-			return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "move rep object failed")
+			return ramsg.ReplyFailed[agtmsg.StartMovingObjectToStorageResp](errorcode.OPERATION_FAILED, "move rep object failed")
 		}
 
-	} else {
-		return ramsg.ReplyFailed[agtmsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
-	}
+		return ramsg.ReplyOK(agtmsg.NewStartMovingObjectToStorageRespBody(taskID))
 
-	return ramsg.ReplyOK(agtmsg.NewMoveObjectToStorageRespBody())
+	} else {
+		// TODO 处理其他备份类型
+
+		return ramsg.ReplyFailed[agtmsg.StartMovingObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
+	}
 }
 
-func (svc *Service) moveRepObject(msg *agtmsg.MoveObjectToStorage, outFilePath string) error {
+func (svc *Service) moveRepObject(msg *agtmsg.StartMovingObjectToStorage, outFilePath string) (string, error) {
 	var repInfo ramsg.ObjectRepInfo
 	err := serder.MapToObject(msg.Body.RedundancyData.(map[string]any), &repInfo)
 	if err != nil {
-		return fmt.Errorf("redundancy data to rep info failed, err: %w", err)
+		return "", fmt.Errorf("redundancy data to rep info failed, err: %w", err)
 	}
 
-	// TODO 可以考虑把整个API都做成异步的
-	tsk := svc.taskManager.StartCmp(task.NewIPFSRead(repInfo.FileHash, outFilePath))
-	tsk.Wait()
+	tsk := svc.taskManager.StartComparable(task.NewIPFSRead(repInfo.FileHash, outFilePath))
+	return tsk.ID(), nil
+}
 
-	if tsk.Error() != nil {
-		return tsk.Error()
+func (svc *Service) WaitMovingObject(msg *agtmsg.WaitMovingObject) *agtmsg.WaitMovingObjectResp {
+	log.WithField("TaskID", msg.Body.TaskID).Debugf("wait moving object")
+
+	tsk := svc.taskManager.FindByID(msg.Body.TaskID)
+	if tsk == nil {
+		return ramsg.ReplyFailed[agtmsg.WaitMovingObjectResp](errorcode.TASK_NOT_FOUND, "task not found")
 	}
 
-	return nil
+	if msg.Body.WaitTimeoutMs == 0 {
+		tsk.Wait()
+
+		errMsg := ""
+		if tsk.Error() != nil {
+			errMsg = tsk.Error().Error()
+		}
+
+		return ramsg.ReplyOK(agtmsg.NewWaitMovingObjectRespBody(true, errMsg))
+
+	} else {
+		if tsk.WaitTimeout(time.Duration(msg.Body.WaitTimeoutMs)) {
+
+			errMsg := ""
+			if tsk.Error() != nil {
+				errMsg = tsk.Error().Error()
+			}
+
+			return ramsg.ReplyOK(agtmsg.NewWaitMovingObjectRespBody(true, errMsg))
+		}
+
+		return ramsg.ReplyOK(agtmsg.NewWaitMovingObjectRespBody(false, ""))
+	}
 }
 
 func (svc *Service) CheckStorage(msg *agtmsg.CheckStorage) *agtmsg.CheckStorageResp {
@@ -135,7 +165,7 @@ func (svc *Service) checkStorageComplete(msg *agtmsg.CheckStorage, fileInfos []f
 }
 
 /*
-func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.MoveObjectToStorageResp {
+func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.StartMovingObjectToStorageResp {
 	panic("not implement yet!")
 		wg := sync.WaitGroup{}
 		fmt.Println("EcMove")

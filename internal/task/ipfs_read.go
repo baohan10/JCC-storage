@@ -5,7 +5,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/juju/ratelimit"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 )
 
@@ -21,8 +23,8 @@ func NewIPFSRead(fileHash string, localPath string) *IPFSRead {
 	}
 }
 
-func (t *IPFSRead) Compare(other TaskBody) bool {
-	tsk, ok := other.(*IPFSRead)
+func (t *IPFSRead) Compare(other *Task) bool {
+	tsk, ok := other.Body().(*IPFSRead)
 	if !ok {
 		return false
 	}
@@ -42,7 +44,9 @@ func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 		err := fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
 		log.WithField("LocalPath", t.LocalPath).Warn(err.Error())
 
-		complete(err, func() {})
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
 		return
 	}
 
@@ -51,7 +55,9 @@ func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 		err := fmt.Errorf("create output file %s failed, err: %w", t.LocalPath, err)
 		log.WithField("LocalPath", t.LocalPath).Warn(err.Error())
 
-		complete(err, func() {})
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
 		return
 	}
 	defer outputFile.Close()
@@ -61,18 +67,25 @@ func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 		err := fmt.Errorf("read ipfs file failed, err: %w", err)
 		log.WithField("FileHash", t.FileHash).Warn(err.Error())
 
-		complete(err, func() {})
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
 		return
 	}
 
-	_, err = io.Copy(outputFile, rd)
+	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+	_, err = io.Copy(outputFile, ratelimit.Reader(rd, bkt))
 	if err != nil {
 		err := fmt.Errorf("copy ipfs file to local file failed, err: %w", err)
 		log.WithField("LocalPath", t.LocalPath).Warn(err.Error())
 
-		complete(err, func() {})
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
 		return
 	}
 
-	complete(nil, func() {})
+	complete(nil, CompleteOption{
+		RemovingDelay: time.Minute,
+	})
 }

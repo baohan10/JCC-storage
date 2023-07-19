@@ -19,6 +19,8 @@ type TaskBody = task.TaskBody[TaskContext]
 
 type Task = task.Task[TaskContext]
 
+type CompleteOption = task.CompleteOption
+
 func NewManager(ipfs *ipfs.IPFS) Manager {
 	return task.NewManager(TaskContext{
 		IPFS: ipfs,

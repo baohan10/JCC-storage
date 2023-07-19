@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"time"
 
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 )
@@ -16,8 +17,8 @@ func NewIPFSPin(fileHash string) *IPFSPin {
 	}
 }
 
-func (t *IPFSPin) Compare(other TaskBody) bool {
-	tsk, ok := other.(*IPFSPin)
+func (t *IPFSPin) Compare(other *Task) bool {
+	tsk, ok := other.Body().(*IPFSPin)
 	if !ok {
 		return false
 	}
@@ -35,9 +36,13 @@ func (t *IPFSPin) Execute(ctx TaskContext, complete CompleteFn) {
 		err := fmt.Errorf("pin file failed, err: %w", err)
 		log.WithField("FileHash", t.FileHash).Warn(err.Error())
 
-		complete(err, func() {})
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
 		return
 	}
 
-	complete(nil, func() {})
+	complete(nil, CompleteOption{
+		RemovingDelay: time.Minute,
+	})
 }

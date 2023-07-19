@@ -15,7 +15,7 @@ var Default = Build
 func Build() error {
 	return utils.Build(magefiles.BuildArgs{
 		OutputBinName: "agent",
-		OutputDirName: "agent",
+		OutputDirPath: "agent",
 		AssetsDir:     "assets",
 		PubArgs:       targets.PubGoBuildArgs,
 	})

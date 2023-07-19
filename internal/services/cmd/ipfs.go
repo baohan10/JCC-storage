@@ -47,7 +47,7 @@ func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]sh
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
-				svc.taskManager.StartCmp(task.NewIPFSPin(cache.FileHash))
+				svc.taskManager.StartComparable(task.NewIPFSPin(cache.FileHash))
 
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
@@ -81,7 +81,7 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 
 		} else {
 			if cache.State == consts.CACHE_STATE_PINNED {
-				svc.taskManager.StartCmp(task.NewIPFSPin(cache.FileHash))
+				svc.taskManager.StartComparable(task.NewIPFSPin(cache.FileHash))
 
 			} else if cache.State == consts.CACHE_STATE_TEMP {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
