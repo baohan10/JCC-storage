@@ -12,7 +12,7 @@ import (
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
 
-func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) *coormsg.PreMoveObjectToStorageResp {
+func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) (*coormsg.PreMoveObjectToStorageResp, *ramsg.CodeMessage) {
 	//查询数据库，获取冗余类型，冗余参数
 	//jh:使用command中的bucketname和objectname查询对象表,获得redundancy，EcName,fileSize
 	//-若redundancy是rep，查询对象副本表, 获得repHash
@@ -24,18 +24,18 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 	//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 
 	// 查询用户关联的存储服务
-	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.StorageID)
+	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.UserID, msg.StorageID)
 	if err != nil {
-		log.WithField("UserID", msg.Body.UserID).
-			WithField("StorageID", msg.Body.StorageID).
+		log.WithField("UserID", msg.UserID).
+			WithField("StorageID", msg.StorageID).
 			Warnf("get user Storage failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Storage failed")
 	}
 
 	// 查询文件对象
-	object, err := svc.db.Object().GetUserObject(svc.db.SQLCtx(), msg.Body.UserID, msg.Body.ObjectID)
+	object, err := svc.db.Object().GetUserObject(svc.db.SQLCtx(), msg.UserID, msg.ObjectID)
 	if err != nil {
-		log.WithField("ObjectID", msg.Body.ObjectID).
+		log.WithField("ObjectID", msg.ObjectID).
 			Warnf("get user Object failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Object failed")
 	}
@@ -100,17 +100,17 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 	}
 }
 
-func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) *coormsg.MoveObjectToStorageResp {
+func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) (*coormsg.MoveObjectToStorageResp, *ramsg.CodeMessage) {
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		return svc.db.StorageObject().MoveObjectTo(tx, msg.Body.ObjectID, msg.Body.StorageID, msg.Body.UserID)
+		return svc.db.StorageObject().MoveObjectTo(tx, msg.ObjectID, msg.StorageID, msg.UserID)
 	})
 	if err != nil {
-		log.WithField("UserID", msg.Body.UserID).
-			WithField("ObjectID", msg.Body.ObjectID).
-			WithField("StorageID", msg.Body.StorageID).
+		log.WithField("UserID", msg.UserID).
+			WithField("ObjectID", msg.ObjectID).
+			WithField("StorageID", msg.StorageID).
 			Warnf("user move object to storage failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "user move object to storage failed")
 	}
 
-	return ramsg.ReplyOK(coormsg.NewMoveObjectToStorageRespBody())
+	return ramsg.ReplyOK(coormsg.NewMoveObjectToStorageResp())
 }

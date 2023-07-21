@@ -1,10 +1,11 @@
 package services
 
 import (
+	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
 
-func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.PreUploadResp {
+func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) (*coormsg.PreUploadResp, *ramsg.CodeMessage) {
 	panic("not implement yet!")
 
 	/*
@@ -56,7 +57,7 @@ func (service *Service) ECWrite(msg *coormsg.ECWriteCommand) *coormsg.PreUploadR
 	*/
 }
 
-func (service *Service) WriteECHash(msg *coormsg.WriteECHashCommand) *coormsg.CreateObjectResp {
+func (service *Service) WriteECHash(msg *coormsg.WriteECHashCommand) (*coormsg.CreateObjectResp, *ramsg.CodeMessage) {
 	panic("not implement yet!")
 
 	/*

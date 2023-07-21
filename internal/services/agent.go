@@ -5,7 +5,7 @@ import (
 )
 
 func (service *Service) TempCacheReport(msg *coormsg.TempCacheReport) {
-	service.db.BatchInsertOrUpdateCache(msg.Body.Hashes, msg.Body.NodeID)
+	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
 }
 
 func (service *Service) AgentStatusReport(msg *coormsg.AgentStatusReport) {
