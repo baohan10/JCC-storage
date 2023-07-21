@@ -6,7 +6,7 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )
 
-func (svc *Service) GetState(msg *agtmsg.GetState) *agtmsg.GetStateResp {
+func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *ramsg.CodeMessage) {
 	var ipfsState string
 
 	if svc.ipfs.IsUp() {

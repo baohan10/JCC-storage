@@ -13,7 +13,7 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )
 
-func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) *agtmsg.CheckIPFSResp {
+func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {
 	filesMap, err := svc.ipfs.GetPinnedFiles()
 	if err != nil {
 		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
@@ -21,16 +21,16 @@ func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) *agtmsg.CheckIPFSResp {
 	}
 
 	// TODO 根据锁定清单过滤被锁定的文件的记录
-	if msg.Body.IsComplete {
+	if msg.IsComplete {
 		return svc.checkComplete(msg, filesMap)
 	} else {
 		return svc.checkIncrement(msg, filesMap)
 	}
 }
 
-func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) *agtmsg.CheckIPFSResp {
+func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {
 	var entries []agtmsg.CheckIPFSRespEntry
-	for _, cache := range msg.Body.Caches {
+	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
 		if ok {
 			if cache.State == consts.CACHE_STATE_PINNED {
@@ -59,12 +59,12 @@ func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]sh
 
 	// 增量情况下，不需要对filesMap中没检查的记录进行处理
 
-	return ramsg.ReplyOK(agtmsg.NewCheckIPFSRespBody(entries))
+	return ramsg.ReplyOK(agtmsg.NewCheckIPFSResp(entries))
 }
 
-func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) *agtmsg.CheckIPFSResp {
+func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {
 	var entries []agtmsg.CheckIPFSRespEntry
-	for _, cache := range msg.Body.Caches {
+	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
 		if ok {
 			if cache.State == consts.CACHE_STATE_PINNED {
@@ -100,5 +100,5 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 		entries = append(entries, agtmsg.NewCheckIPFSRespEntry(hash, agtmsg.CHECK_IPFS_RESP_OP_CREATE_TEMP))
 	}
 
-	return ramsg.ReplyOK(agtmsg.NewCheckIPFSRespBody(entries))
+	return ramsg.ReplyOK(agtmsg.NewCheckIPFSResp(entries))
 }
