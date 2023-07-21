@@ -24,8 +24,8 @@ import (
 )
 
 type UploadRepObject struct {
-	userID     int
-	bucketID   int
+	userID     int64
+	bucketID   int64
 	objectName string
 	file       io.ReadCloser
 	fileSize   int64
@@ -34,7 +34,7 @@ type UploadRepObject struct {
 	ResultFileHash string
 }
 
-func NewUploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repCount int) *UploadRepObject {
+func NewUploadRepObject(userID int64, bucketID int64, objectName string, file io.ReadCloser, fileSize int64, repCount int) *UploadRepObject {
 	return &UploadRepObject{
 		userID:     userID,
 		bucketID:   bucketID,
@@ -84,7 +84,7 @@ func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
 	uploadNode := t.chooseUploadNode(repWriteResp.Nodes)
 
 	var fileHash string
-	uploadedNodeIDs := []int{}
+	uploadedNodeIDs := []int64{}
 	willUploadToNode := true
 	// 本地有IPFS，则直接从本地IPFS上传
 	if ctx.IPFS != nil {
@@ -178,7 +178,7 @@ func uploadToNode(file io.ReadCloser, nodeIP string) (string, error) {
 	return fileHash, nil
 }
 
-func uploadToLocalIPFS(ipfs *ipfs.IPFS, file io.ReadCloser, nodeID int) (string, error) {
+func uploadToLocalIPFS(ipfs *ipfs.IPFS, file io.ReadCloser, nodeID int64) (string, error) {
 	// 从本地IPFS上传文件
 	writer, err := ipfs.CreateFile()
 	if err != nil {

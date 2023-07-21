@@ -32,12 +32,12 @@ func (svc *Service) ObjectSvc() *ObjectService {
 	return &ObjectService{Service: svc}
 }
 
-func (svc *ObjectService) GetObject(userID int, objectID int) (model.Object, error) {
+func (svc *ObjectService) GetObject(userID int64, objectID int64) (model.Object, error) {
 	// TODO
 	panic("not implement yet")
 }
 
-func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadCloser, error) {
+func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadCloser, error) {
 	mutex, err := reqbuilder.NewBuilder().
 		// 用于判断用户是否有对象权限
 		Metadata().UserBucket().ReadAny().
@@ -119,7 +119,7 @@ func (svc *ObjectService) chooseDownloadNode(entries []ramsg.RespNode) ramsg.Res
 	return entries[rand.Intn(len(entries))]
 }
 
-func (svc *ObjectService) downloadRepObject(nodeID int, nodeIP string, fileHash string) (io.ReadCloser, error) {
+func (svc *ObjectService) downloadRepObject(nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
 	if svc.ipfs != nil {
 		log.Infof("try to use local IPFS to download file")
 
@@ -134,7 +134,7 @@ func (svc *ObjectService) downloadRepObject(nodeID int, nodeIP string, fileHash 
 	return svc.downloadFromNode(nodeID, nodeIP, fileHash)
 }
 
-func (svc *ObjectService) downloadFromNode(nodeID int, nodeIP string, fileHash string) (io.ReadCloser, error) {
+func (svc *ObjectService) downloadFromNode(nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
 	// 二次获取锁
 	mutex, err := reqbuilder.NewBuilder().
 		// 用于从IPFS下载文件
@@ -167,7 +167,6 @@ func (svc *ObjectService) downloadFromNode(nodeID int, nodeIP string, fileHash s
 }
 
 func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
-	// TODO 这里也可以改成Task
 	reader, err := svc.ipfs.OpenRead(fileHash)
 	if err != nil {
 		return nil, fmt.Errorf("read ipfs file failed, err: %w", err)
@@ -176,7 +175,7 @@ func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser,
 	return reader, nil
 }
 
-func (svc *ObjectService) StartUploadingRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repCount int) (string, error) {
+func (svc *ObjectService) StartUploadingRepObject(userID int64, bucketID int64, objectName string, file io.ReadCloser, fileSize int64, repCount int) (string, error) {
 	tsk := svc.taskMgr.StartNew(task.NewUploadRepObject(userID, bucketID, objectName, file, fileSize, repCount))
 	return tsk.ID(), nil
 }
@@ -190,12 +189,12 @@ func (svc *ObjectService) WaitUploadingRepObject(taskID string, waitTimeout time
 	return false, "", nil
 }
 
-func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
+func (svc *ObjectService) UploadECObject(userID int64, file io.ReadCloser, fileSize int64, ecName string) error {
 	// TODO
 	panic("not implement yet")
 }
 
-func (svc *ObjectService) StartUpdatingRepObject(userID int, objectID int, file io.ReadCloser, fileSize int64) (string, error) {
+func (svc *ObjectService) StartUpdatingRepObject(userID int64, objectID int64, file io.ReadCloser, fileSize int64) (string, error) {
 	tsk := svc.taskMgr.StartNew(task.NewUpdateRepObject(userID, objectID, file, fileSize))
 	return tsk.ID(), nil
 }
@@ -209,7 +208,7 @@ func (svc *ObjectService) WaitUpdatingRepObject(taskID string, waitTimeout time.
 	return false, nil
 }
 
-func (svc *ObjectService) DeleteObject(userID int, objectID int) error {
+func (svc *ObjectService) DeleteObject(userID int64, objectID int64) error {
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().
 		// 用于判断用户是否有对象的权限

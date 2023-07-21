@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func StorageMoveObjectToStorage(ctx CommandContext, objectID int, storageID int) error {
+func StorageMoveObjectToStorage(ctx CommandContext, objectID int64, storageID int64) error {
 	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartMovingObjectToStorage(0, objectID, storageID)
 	if err != nil {
 		return fmt.Errorf("start moving object to storage: %w", err)

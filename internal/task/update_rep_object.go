@@ -14,13 +14,13 @@ import (
 )
 
 type UpdateRepObject struct {
-	userID   int
-	objectID int
+	userID   int64
+	objectID int64
 	file     io.ReadCloser
 	fileSize int64
 }
 
-func NewUpdateRepObject(userID int, objectID int, file io.ReadCloser, fileSize int64) *UpdateRepObject {
+func NewUpdateRepObject(userID int64, objectID int64, file io.ReadCloser, fileSize int64) *UpdateRepObject {
 	return &UpdateRepObject{
 		userID:   userID,
 		objectID: objectID,
@@ -80,7 +80,7 @@ func (t *UpdateRepObject) do(ctx TaskContext) error {
 	uploadNode := t.chooseUpdateRepObjectNode(preResp.Nodes)
 
 	var fileHash string
-	uploadedNodeIDs := []int{}
+	uploadedNodeIDs := []int64{}
 	willUploadToNode := true
 	// 本地有IPFS，则直接从本地IPFS上传
 	if ctx.IPFS != nil {
