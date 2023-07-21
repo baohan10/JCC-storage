@@ -56,20 +56,16 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 
-	preDownloadResp, err := svc.coordinator.PreDownloadObject(coormsg.NewPreDownloadObjectBody(objectID, userID, config.Cfg().ExternalIP))
+	preDownloadResp, err := svc.coordinator.PreDownloadObject(coormsg.NewPreDownloadObject(objectID, userID, config.Cfg().ExternalIP))
 	if err != nil {
 		mutex.Unlock()
-		return nil, fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if preDownloadResp.IsFailed() {
-		mutex.Unlock()
-		return nil, fmt.Errorf("coordinator operation failed, code: %s, message: %s", preDownloadResp.ErrorCode, preDownloadResp.ErrorMessage)
+		return nil, fmt.Errorf("pre download object: %w", err)
 	}
 
-	switch preDownloadResp.Body.Redundancy {
+	switch preDownloadResp.Redundancy {
 	case consts.REDUNDANCY_REP:
 		var repInfo ramsg.RespObjectRepInfo
-		err := serder.MapToObject(preDownloadResp.Body.RedundancyData.(map[string]any), &repInfo)
+		err := serder.MapToObject(preDownloadResp.RedundancyData.(map[string]any), &repInfo)
 		if err != nil {
 			mutex.Unlock()
 			return nil, fmt.Errorf("redundancy data to rep info failed, err: %w", err)
@@ -108,7 +104,7 @@ func (svc *ObjectService) DownloadObject(userID int, objectID int) (io.ReadClose
 	}
 
 	mutex.Unlock()
-	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Body.Redundancy)
+	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Redundancy)
 }
 
 // chooseDownloadNode 选择一个下载节点
@@ -232,12 +228,9 @@ func (svc *ObjectService) DeleteObject(userID int, objectID int) error {
 	}
 	defer mutex.Unlock()
 
-	resp, err := svc.coordinator.DeleteObject(coormsg.NewDeleteObjectBody(userID, objectID))
+	_, err = svc.coordinator.DeleteObject(coormsg.NewDeleteObject(userID, objectID))
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if resp.IsFailed() {
-		return fmt.Errorf("create bucket objects failed, code: %s, message: %s", resp.ErrorCode, resp.ErrorMessage)
+		return fmt.Errorf("deleting object: %w", err)
 	}
 
 	return nil

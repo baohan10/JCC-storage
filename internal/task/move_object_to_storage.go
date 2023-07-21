@@ -58,61 +58,48 @@ func (t *MoveObjectToStorage) do(ctx TaskContext) error {
 	defer mutex.Unlock()
 
 	// 先向协调端请求文件相关的元数据
-	preMoveResp, err := ctx.Coordinator.PreMoveObjectToStorage(coormsg.NewPreMoveObjectToStorageBody(t.objectID, t.storageID, t.userID))
+	preMoveResp, err := ctx.Coordinator.PreMoveObjectToStorage(coormsg.NewPreMoveObjectToStorage(t.objectID, t.storageID, t.userID))
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if preMoveResp.IsFailed() {
-		return fmt.Errorf("coordinator PreMoveObjectToStorage failed, code: %s, message: %s", preMoveResp.ErrorCode, preMoveResp.ErrorMessage)
+		return fmt.Errorf("pre move object to storage: %w", err)
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := agtcli.NewClient(preMoveResp.Body.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtcli.NewClient(preMoveResp.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
-		return fmt.Errorf("create agent client to %d failed, err: %w", preMoveResp.Body.NodeID, err)
+		return fmt.Errorf("create agent client to %d failed, err: %w", preMoveResp.NodeID, err)
 	}
 	defer agentClient.Close()
 
 	agentMoveResp, err := agentClient.StartMovingObjectToStorage(
-		agtmsg.NewStartMovingObjectToStorageBody(preMoveResp.Body.Directory,
+		agtmsg.NewStartMovingObjectToStorage(preMoveResp.Directory,
 			t.objectID,
 			t.userID,
-			preMoveResp.Body.FileSize,
-			preMoveResp.Body.Redundancy,
-			preMoveResp.Body.RedundancyData,
+			preMoveResp.FileSize,
+			preMoveResp.Redundancy,
+			preMoveResp.RedundancyData,
 		))
 	if err != nil {
-		return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
-	}
-	if agentMoveResp.IsFailed() {
-		return fmt.Errorf("agent %d operation failed, code: %s, messsage: %s", preMoveResp.Body.NodeID, agentMoveResp.ErrorCode, agentMoveResp.ErrorMessage)
+		return fmt.Errorf("start moving object to storage: %w", err)
 	}
 
 	for {
-		waitResp, err := agentClient.WaitMovingObject(agtmsg.NewWaitMovingObjectBody(agentMoveResp.Body.TaskID, int64(time.Second)*5))
+		waitResp, err := agentClient.WaitMovingObject(agtmsg.NewWaitMovingObject(agentMoveResp.TaskID, int64(time.Second)*5))
 		if err != nil {
-			return fmt.Errorf("request to agent %d failed, err: %w", preMoveResp.Body.NodeID, err)
-		}
-		if preMoveResp.IsFailed() {
-			return fmt.Errorf("coordinator WaitMovingObject failed, code: %s, message: %s", waitResp.ErrorCode, waitResp.ErrorMessage)
+			return fmt.Errorf("wait moving object: %w", err)
 		}
 
-		if waitResp.Body.IsComplete {
-			if waitResp.Body.Error != "" {
-				return fmt.Errorf("agent moving object: %s", waitResp.Body.Error)
+		if waitResp.IsComplete {
+			if waitResp.Error != "" {
+				return fmt.Errorf("agent moving object: %s", waitResp.Error)
 			}
 
 			break
 		}
 	}
 
-	moveResp, err := ctx.Coordinator.MoveObjectToStorage(coormsg.NewMoveObjectToStorageBody(t.objectID, t.storageID, t.userID))
+	_, err = ctx.Coordinator.MoveObjectToStorage(coormsg.NewMoveObjectToStorage(t.objectID, t.storageID, t.userID))
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
+		return fmt.Errorf("moving object to storage: %w", err)
 	}
-	if preMoveResp.IsFailed() {
-		return fmt.Errorf("coordinator MoveObjectToStorage failed, code: %s, message: %s", moveResp.ErrorCode, moveResp.ErrorMessage)
-	}
-
 	return nil
 }

@@ -75,17 +75,13 @@ func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
 	//发送写请求，请求Coor分配写入节点Ip
 	repWriteResp, err := ctx.Coordinator.PreUploadRepObject(coormsg.NewPreUploadRepObjectBody(t.bucketID, t.objectName, t.fileSize, t.userID, config.Cfg().ExternalIP))
 	if err != nil {
-		return "", fmt.Errorf("request to coordinator failed, err: %w", err)
+		return "", fmt.Errorf("pre upload rep object: %w", err)
 	}
-	if repWriteResp.IsFailed() {
-		return "", fmt.Errorf("coordinator RepWrite failed, code: %s, message: %s", repWriteResp.ErrorCode, repWriteResp.ErrorMessage)
-	}
-
-	if len(repWriteResp.Body.Nodes) == 0 {
+	if len(repWriteResp.Nodes) == 0 {
 		return "", fmt.Errorf("no node to upload file")
 	}
 
-	uploadNode := t.chooseUploadNode(repWriteResp.Body.Nodes)
+	uploadNode := t.chooseUploadNode(repWriteResp.Nodes)
 
 	var fileHash string
 	uploadedNodeIDs := []int{}
@@ -129,12 +125,9 @@ func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
 	}
 
 	// 记录写入的文件的Hash
-	createObjectResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObjectBody(t.bucketID, t.objectName, t.fileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash))
+	_, err = ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, t.objectName, t.fileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash))
 	if err != nil {
-		return "", fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if createObjectResp.IsFailed() {
-		return "", fmt.Errorf("coordinator CreateRepObject failed, code: %s, message: %s", createObjectResp.ErrorCode, createObjectResp.ErrorMessage)
+		return "", fmt.Errorf("creating rep object: %w", err)
 	}
 
 	return fileHash, nil
@@ -209,26 +202,20 @@ func uploadToLocalIPFS(ipfs *ipfs.IPFS, file io.ReadCloser, nodeID int) (string,
 	}
 	defer agentClient.Close()
 
-	pinObjResp, err := agentClient.StartPinningObject(agtmsg.NewStartPinningObjectBody(fileHash))
+	pinObjResp, err := agentClient.StartPinningObject(agtmsg.NewStartPinningObject(fileHash))
 	if err != nil {
-		return "", fmt.Errorf("request to agent %d failed, err: %w", nodeID, err)
-	}
-	if pinObjResp.IsFailed() {
-		return "", fmt.Errorf("agent %d PinObject failed, code: %s, message: %s", nodeID, pinObjResp.ErrorCode, pinObjResp.ErrorMessage)
+		return "", fmt.Errorf("start pinning object: %w", err)
 	}
 
 	for {
-		waitResp, err := agentClient.WaitPinningObject(agtmsg.NewWaitPinningObjectBody(pinObjResp.Body.TaskID, int64(time.Second)*5))
+		waitResp, err := agentClient.WaitPinningObject(agtmsg.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
 		if err != nil {
-			return "", fmt.Errorf("request to agent %d failed, err: %w", nodeID, err)
-		}
-		if waitResp.IsFailed() {
-			return "", fmt.Errorf("agent %d WaitPinningObject failed, code: %s, message: %s", nodeID, waitResp.ErrorCode, waitResp.ErrorMessage)
+			return "", fmt.Errorf("waitting pinning object: %w", err)
 		}
 
-		if waitResp.Body.IsComplete {
-			if waitResp.Body.Error != "" {
-				return "", fmt.Errorf("agent pinning object: %s", waitResp.Body.Error)
+		if waitResp.IsComplete {
+			if waitResp.Error != "" {
+				return "", fmt.Errorf("agent pinning object: %s", waitResp.Error)
 			}
 
 			break

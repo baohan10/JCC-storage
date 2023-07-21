@@ -57,20 +57,17 @@ func (t *UpdateRepObject) do(ctx TaskContext) error {
 	}
 	defer mutex.Unlock()
 
-	preResp, err := ctx.Coordinator.PreUpdateRepObject(coormsg.NewPreUpdateRepObjectBody(
+	preResp, err := ctx.Coordinator.PreUpdateRepObject(coormsg.NewPreUpdateRepObject(
 		t.objectID,
 		t.fileSize,
 		t.userID,
 		config.Cfg().ExternalIP,
 	))
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if preResp.IsFailed() {
-		return fmt.Errorf("coordinator PreUpdateRepObject failed, code: %s, message: %s", preResp.ErrorCode, preResp.ErrorMessage)
+		return fmt.Errorf("pre update rep object: %w", err)
 	}
 
-	if len(preResp.Body.Nodes) == 0 {
+	if len(preResp.Nodes) == 0 {
 		return fmt.Errorf("no node to upload file")
 	}
 
@@ -80,7 +77,7 @@ func (t *UpdateRepObject) do(ctx TaskContext) error {
 	// 3. 不在同地域，但包含了旧文件的节点
 	// 4. 同地域节点
 
-	uploadNode := t.chooseUpdateRepObjectNode(preResp.Body.Nodes)
+	uploadNode := t.chooseUpdateRepObjectNode(preResp.Nodes)
 
 	var fileHash string
 	uploadedNodeIDs := []int{}
@@ -125,12 +122,9 @@ func (t *UpdateRepObject) do(ctx TaskContext) error {
 	}
 
 	// 更新Object
-	updateResp, err := ctx.Coordinator.UpdateRepObject(coormsg.NewUpdateRepObjectBody(t.objectID, fileHash, t.fileSize, uploadedNodeIDs, t.userID))
+	_, err = ctx.Coordinator.UpdateRepObject(coormsg.NewUpdateRepObject(t.objectID, fileHash, t.fileSize, uploadedNodeIDs, t.userID))
 	if err != nil {
-		return fmt.Errorf("request to coordinator failed, err: %w", err)
-	}
-	if updateResp.IsFailed() {
-		return fmt.Errorf("coordinator UpdateRepObject failed, code: %s, message: %s", updateResp.ErrorCode, updateResp.ErrorMessage)
+		return fmt.Errorf("updating rep object: %w", err)
 	}
 
 	return nil
