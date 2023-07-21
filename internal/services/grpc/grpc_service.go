@@ -39,7 +39,6 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 		// 即使err是io.EOF，只要没有收到客户端包含EOF数据包就被断开了连接，就认为接收失败
 		if err != nil {
 			// 关闭文件写入，不需要返回的hash和error
-			// TODO 需要研究一下通过错误中断写入后，已发送的文件数据能不能自动删除
 			writer.Abort(io.ErrClosedPipe)
 			log.WithField("ReceiveSize", recvSize).
 				Warnf("recv message failed, err: %s", err.Error())
@@ -70,7 +69,6 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 				FileHash: hash,
 			})
 			if err != nil {
-				// TODO 文件已经完整写入，需要考虑是否删除此文件
 				log.Warnf("send response failed, err: %s", err.Error())
 				return fmt.Errorf("send response failed, err: %w", err)
 			}

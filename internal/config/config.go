@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	ID                int          `json:"id"`
+	ID                int64        `json:"id"`
 	GRPCListenAddress string       `json:"grpcListenAddress"`
 	LocalIP           string       `json:"localIP"`
 	StorageBaseDir    string       `json:"storageBaseDir"`
