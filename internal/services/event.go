@@ -9,7 +9,7 @@ import (
 
 func (svc *Service) PostEvent(msg *scmsg.PostEvent) {
 
-	evtMsg, err := scevt.MapToMessage(msg.Body.Event)
+	evtMsg, err := scevt.MapToMessage(msg.Event)
 	if err != nil {
 		logger.Warnf("convert map to event message failed, err: %s", err.Error())
 		return
@@ -22,7 +22,7 @@ func (svc *Service) PostEvent(msg *scmsg.PostEvent) {
 	}
 
 	svc.eventExecutor.Post(evt, event.ExecuteOption{
-		IsEmergency: msg.Body.IsEmergency,
-		DontMerge:   msg.Body.DontMerge,
+		IsEmergency: msg.IsEmergency,
+		DontMerge:   msg.DontMerge,
 	})
 }

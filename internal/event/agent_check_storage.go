@@ -2,12 +2,14 @@ package event
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
+	"gitlink.org.cn/cloudream/rabbitmq"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
@@ -149,18 +151,14 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.CheckStorage(agtmsg.NewCheckStorageBody(stg.StorageID, stg.Directory, isComplete, objects))
+	checkResp, err := agentClient.CheckStorage(agtmsg.NewCheckStorage(stg.StorageID, stg.Directory, isComplete, objects), rabbitmq.RequestOption{Timeout: time.Minute})
 	if err != nil {
-		log.WithField("NodeID", stg.NodeID).Warnf("request to agent failed, err: %s", err.Error())
-	}
-	if checkResp.IsFailed() {
-		log.WithField("NodeID", stg.NodeID).Warnf("agent operation failed, err: %s", err.Error())
-		return
+		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
 	}
 
 	// 根据返回结果修改数据库
 	var chkObjIDs []int
-	for _, entry := range checkResp.Body.Entries {
+	for _, entry := range checkResp.Entries {
 		switch entry.Operation {
 		case agtmsg.CHECK_STORAGE_RESP_OP_DELETE:
 			err := execCtx.Args.DB.StorageObject().Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)

@@ -2,11 +2,13 @@ package event
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
+	"gitlink.org.cn/cloudream/rabbitmq"
 	"gitlink.org.cn/cloudream/scanner/internal/config"
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
@@ -132,18 +134,14 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.CheckIPFS(agtmsg.NewCheckIPFSBody(isComplete, caches))
+	checkResp, err := agentClient.CheckIPFS(agtmsg.NewCheckIPFS(isComplete, caches), rabbitmq.RequestOption{Timeout: time.Minute})
 	if err != nil {
-		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
-		return
-	}
-	if checkResp.IsFailed() {
-		log.WithField("NodeID", t.NodeID).Warnf("agent operation failed, err: %s", err.Error())
+		log.WithField("NodeID", t.NodeID).Warnf("checking ipfs: %s", err.Error())
 		return
 	}
 
 	// 根据返回结果修改数据库
-	for _, entry := range checkResp.Body.Entries {
+	for _, entry := range checkResp.Entries {
 		switch entry.Operation {
 		case agtmsg.CHECK_IPFS_RESP_OP_DELETE_TEMP:
 			err := execCtx.Args.DB.Cache().DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)

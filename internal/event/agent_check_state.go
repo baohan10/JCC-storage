@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
+	"gitlink.org.cn/cloudream/rabbitmq"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
@@ -91,18 +92,14 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 	defer agentClient.Close()
 
-	getResp, err := agentClient.GetState(agtmsg.NewGetStateBody())
+	getResp, err := agentClient.GetState(agtmsg.NewGetState(), rabbitmq.RequestOption{Timeout: time.Minute})
 	if err != nil {
-		log.WithField("NodeID", t.NodeID).Warnf("request to agent failed, err: %s", err.Error())
-	}
-	if getResp.IsFailed() {
-		log.WithField("NodeID", t.NodeID).Warnf("agent operation failed, err: %s", err.Error())
-		return
+		log.WithField("NodeID", t.NodeID).Warnf("getting state: %s", err.Error())
 	}
 
 	// 根据返回结果修改节点状态
-	if getResp.Body.IPFSState != consts.IPFS_STATE_OK {
-		log.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", getResp.Body.IPFSState)
+	if getResp.IPFSState != consts.IPFS_STATE_OK {
+		log.WithField("NodeID", t.NodeID).Warnf("IPFS status is %s, set node state unavailable", getResp.IPFSState)
 
 		err := execCtx.Args.DB.Node().UpdateState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NODE_STATE_UNAVAILABLE)
 		if err != nil {
