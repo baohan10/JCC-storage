@@ -20,7 +20,7 @@ type AgentCheckStorage struct {
 	scevt.AgentCheckStorage
 }
 
-func NewAgentCheckStorage(storageID int, objectIDs []int) *AgentCheckStorage {
+func NewAgentCheckStorage(storageID int64, objectIDs []int64) *AgentCheckStorage {
 	return &AgentCheckStorage{
 		AgentCheckStorage: scevt.NewAgentCheckStorage(storageID, objectIDs),
 	}
@@ -157,7 +157,7 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	}
 
 	// 根据返回结果修改数据库
-	var chkObjIDs []int
+	var chkObjIDs []int64
 	for _, entry := range checkResp.Entries {
 		switch entry.Operation {
 		case agtmsg.CHECK_STORAGE_RESP_OP_DELETE:

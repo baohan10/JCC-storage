@@ -1,7 +1,6 @@
 package tickevent
 
 import (
-	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/scanner/internal/event"
 )
@@ -27,8 +26,7 @@ func (e *BatchCheckAllObject) Execute(ctx ExecuteContext) {
 		return
 	}
 
-	// TODO 将ID字段换成int64类型
-	ctx.Args.EventExecutor.Post(event.NewCheckObject(lo.Map(objectIDs, func(id int64, index int) int { return int(id) })))
+	ctx.Args.EventExecutor.Post(event.NewCheckObject(objectIDs))
 
 	// 如果结果的长度小于预期的长度，则认为已经查询了所有，下次从头再来
 	if len(objectIDs) < CHECK_OBJECT_BATCH_SIZE {

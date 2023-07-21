@@ -11,7 +11,7 @@ type CheckObject struct {
 	scevt.CheckObject
 }
 
-func NewCheckObject(objIDs []int) *CheckObject {
+func NewCheckObject(objIDs []int64) *CheckObject {
 	return &CheckObject{
 		CheckObject: scevt.NewCheckObject(objIDs),
 	}

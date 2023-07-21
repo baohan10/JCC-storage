@@ -102,9 +102,9 @@ func Test_chooseNewRepNodes(t *testing.T) {
 	for _, test := range testcases {
 		Convey(test.title, t, func() {
 			chooseNodes := chooseNewRepNodes(test.allNodes, test.curRepNodes, test.newCount)
-			chooseNodeIDs := lo.Map(chooseNodes, func(node model.Node, index int) int { return node.NodeID })
+			chooseNodeIDs := lo.Map(chooseNodes, func(node model.Node, index int) int64 { return node.NodeID })
 
-			sort.Sort(chooseNodeIDs, sort.Cmp[int])
+			sort.Sort(chooseNodeIDs, sort.Cmp[int64])
 
 			So(chooseNodeIDs, ShouldResemble, test.wantNodeIDs)
 		})
@@ -145,9 +145,9 @@ func Test_chooseDeleteAvaiRepNodes(t *testing.T) {
 	for _, test := range testcases {
 		Convey(test.title, t, func() {
 			chooseNodes := chooseDeleteAvaiRepNodes(test.allNodes, test.curRepNodes, test.delCount)
-			chooseNodeLocationIDs := lo.Map(chooseNodes, func(node model.Node, index int) int { return node.LocationID })
+			chooseNodeLocationIDs := lo.Map(chooseNodes, func(node model.Node, index int) int64 { return node.LocationID })
 
-			sort.Sort(chooseNodeLocationIDs, sort.Cmp[int])
+			sort.Sort(chooseNodeLocationIDs, sort.Cmp[int64])
 
 			So(chooseNodeLocationIDs, ShouldResemble, test.wantNodeLocationIDs)
 		})

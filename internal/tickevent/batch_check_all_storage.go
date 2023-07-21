@@ -28,8 +28,7 @@ func (e *BatchCheckAllStorage) Execute(ctx ExecuteContext) {
 
 	for _, stgID := range storageIDs {
 		// 设置nil代表进行全量检查
-		// TODO 将ID字段换成int64类型
-		ctx.Args.EventExecutor.Post(event.NewAgentCheckStorage(int(stgID), nil))
+		ctx.Args.EventExecutor.Post(event.NewAgentCheckStorage(stgID, nil))
 	}
 
 	// 如果结果的长度小于预期的长度，则认为已经查询了所有，下次从头再来

@@ -15,7 +15,7 @@ type CheckCache struct {
 	scevt.CheckCache
 }
 
-func NewCheckCache(nodeID int) *CheckCache {
+func NewCheckCache(nodeID int64) *CheckCache {
 	return &CheckCache{
 		CheckCache: scevt.NewCheckCache(nodeID),
 	}

@@ -58,7 +58,7 @@ func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
 	}
 	defer mutex.Unlock()
 
-	updatedNodeAndHashes := make(map[int][]string)
+	updatedNodeAndHashes := make(map[int64][]string)
 
 	for _, fileHash := range t.FileHashes {
 		updatedNodeIDs, err := t.checkOneRepCount(fileHash, execCtx)
@@ -79,11 +79,11 @@ func (t *CheckRepCount) Execute(execCtx ExecuteContext) {
 	}
 }
 
-func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext) ([]int, error) {
+func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext) ([]int64, error) {
 	log := logger.WithType[CheckRepCount]("Event")
 	sqlCtx := execCtx.Args.DB.SQLCtx()
 
-	var updatedNodeIDs []int
+	var updatedNodeIDs []int64
 	// 计算所需的最少备份数：
 	// 1. ObjectRep中期望备份数的最大值
 	// 2. 如果ObjectBlock存在对此文件的引用，则至少为1
@@ -166,7 +166,7 @@ func chooseNewRepNodes(allNodes []model.Node, curRepNodes []model.Node, newCount
 			node.State != consts.NODE_STATE_NORMAL
 	})
 
-	repNodeLocationIDs := make(map[int]bool)
+	repNodeLocationIDs := make(map[int64]bool)
 	for _, node := range curRepNodes {
 		repNodeLocationIDs[node.LocationID] = true
 	}
@@ -181,7 +181,7 @@ func chooseNewRepNodes(allNodes []model.Node, curRepNodes []model.Node, newCount
 
 func chooseDeleteAvaiRepNodes(allNodes []model.Node, curAvaiRepNodes []model.Node, delCount int) []model.Node {
 	// 按照地域ID分组
-	locationGroupedNodes := make(map[int][]model.Node)
+	locationGroupedNodes := make(map[int64][]model.Node)
 	for _, node := range curAvaiRepNodes {
 		nodes := locationGroupedNodes[node.LocationID]
 		nodes = append(nodes, node)

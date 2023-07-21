@@ -10,7 +10,7 @@ import (
 const AGENT_CHECK_CACHE_BATCH_SIZE = 2
 
 type BatchAllAgentCheckCache struct {
-	nodeIDs []int
+	nodeIDs []int64
 }
 
 func NewBatchAllAgentCheckCache() *BatchAllAgentCheckCache {
@@ -29,7 +29,7 @@ func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 			return
 		}
 
-		e.nodeIDs = lo.Map(nodes, func(node model.Node, index int) int { return node.NodeID })
+		e.nodeIDs = lo.Map(nodes, func(node model.Node, index int) int64 { return node.NodeID })
 
 		log.Debugf("new check start, get all nodes")
 	}

@@ -20,7 +20,7 @@ type AgentCheckState struct {
 	scevt.AgentCheckState
 }
 
-func NewAgentCheckState(nodeID int) *AgentCheckState {
+func NewAgentCheckState(nodeID int64) *AgentCheckState {
 	return &AgentCheckState{
 		AgentCheckState: scevt.NewAgentCheckState(nodeID),
 	}

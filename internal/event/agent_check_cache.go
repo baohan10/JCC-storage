@@ -20,7 +20,7 @@ type AgentCheckCache struct {
 	scevt.AgentCheckCache
 }
 
-func NewAgentCheckCache(nodeID int, fileHashes []string) *AgentCheckCache {
+func NewAgentCheckCache(nodeID int64, fileHashes []string) *AgentCheckCache {
 	return &AgentCheckCache{
 		AgentCheckCache: scevt.NewAgentCheckCache(nodeID, fileHashes),
 	}
