@@ -46,7 +46,7 @@ func (service *Service) StartMovingObjectToStorage(msg *agtmsg.StartMovingObject
 
 func (svc *Service) moveRepObject(msg *agtmsg.StartMovingObjectToStorage, outFilePath string) (string, error) {
 	var repInfo ramsg.ObjectRepInfo
-	err := serder.MapToObject(msg.RedundancyData.(map[string]any), &repInfo)
+	err := serder.AnyToAny(msg.RedundancyData, &repInfo)
 	if err != nil {
 		return "", fmt.Errorf("redundancy data to rep info failed, err: %w", err)
 	}
