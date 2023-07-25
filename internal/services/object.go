@@ -180,8 +180,10 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) (*coorms
 }
 
 func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) (*coormsg.CreateObjectResp, *ramsg.CodeMessage) {
+	var objID int64
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		_, err := svc.db.Object().CreateRepObject(tx, msg.BucketID, msg.ObjectName, msg.FileSize, msg.RepCount, msg.NodeIDs, msg.FileHash)
+		var err error
+		objID, err = svc.db.Object().CreateRepObject(tx, msg.BucketID, msg.ObjectName, msg.FileSize, msg.RepCount, msg.NodeIDs, msg.FileHash)
 		return err
 	})
 	if err != nil {
@@ -197,7 +199,7 @@ func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) (*coormsg.Crea
 		logger.Warnf("post event to scanner failed, but this will not affect creating, err: %s", err.Error())
 	}
 
-	return ramsg.ReplyOK(coormsg.NewCreateObjectResp())
+	return ramsg.ReplyOK(coormsg.NewCreateObjectResp(objID))
 }
 
 func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) (*coormsg.PreUpdateRepObjectResp, *ramsg.CodeMessage) {
