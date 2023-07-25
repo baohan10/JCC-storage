@@ -65,7 +65,7 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	switch preDownloadResp.Redundancy {
 	case consts.REDUNDANCY_REP:
 		var repInfo ramsg.RespObjectRepInfo
-		err := serder.MapToObject(preDownloadResp.RedundancyData.(map[string]any), &repInfo)
+		err := serder.AnyToAny(preDownloadResp.RedundancyData, &repInfo)
 		if err != nil {
 			mutex.Unlock()
 			return nil, fmt.Errorf("redundancy data to rep info failed, err: %w", err)
