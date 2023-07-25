@@ -5,10 +5,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/juju/ratelimit"
+	"gitlink.org.cn/cloudream/client/internal/task"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
@@ -86,24 +88,29 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 
 	// TODO 测试用
 	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUploadingRepObject(0, bucketID, objectName,
-		myio.WithCloser(ratelimit.Reader(file, bkt),
+	uploadObject := task.UploadObject{
+		ObjectName: objectName,
+		File: myio.WithCloser(ratelimit.Reader(file, bkt),
 			func(reader io.Reader) error {
 				return file.Close()
 			}),
-		fileSize, repCount)
+		FileSize: fileSize,
+	}
+	uploadObjects := []task.UploadObject{uploadObject}
+
+	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUploadingRepObjects(0, bucketID, uploadObjects, repCount)
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
 
 	for {
-		complete, fileHash, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObject(taskID, time.Second*5)
+		complete, UploadRepResults, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("uploading rep object: %w", err)
 			}
 
-			fmt.Print(fileHash)
+			fmt.Print(UploadRepResults[0].ResultFileHash)
 			return nil
 		}
 
@@ -111,6 +118,71 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 			return fmt.Errorf("wait uploading: %w", err)
 		}
 	}
+}
+
+func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID int, repCount int) error {
+
+	var uploadFiles []task.UploadObject
+	var uploadFile task.UploadObject
+	err := filepath.Walk(localDirPath, func(fname string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() {
+			file, err := os.Open(fname)
+			if err != nil {
+				return fmt.Errorf("open file %s failed, err: %w", fname, err)
+			}
+			// TODO 测试用
+			bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+			uploadFile = task.UploadObject{
+				ObjectName: strings.Replace(fname, "\\", "/", -1),
+				File: myio.WithCloser(ratelimit.Reader(file, bkt),
+					func(reader io.Reader) error {
+						return file.Close()
+					}),
+				FileSize: fi.Size(),
+			}
+			uploadFiles = append(uploadFiles, uploadFile)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("open directory %s failed, err: %w", localDirPath, err)
+	}
+
+	// 遍历 关闭文件流
+	for _, uploadFile := range uploadFiles {
+		defer uploadFile.File.Close()
+	}
+
+	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUploadingRepObjects(0, bucketID, uploadFiles, repCount)
+	if err != nil {
+		return fmt.Errorf("upload file data failed, err: %w", err)
+	}
+
+	for {
+		complete, UploadRepResults, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
+		if complete {
+
+			tb := table.NewWriter()
+			tb.AppendHeader(table.Row{"ObjectID", "FileHash"})
+
+			for _, uploadRepResult := range UploadRepResults {
+				tb.AppendRow(table.Row{uploadRepResult.ObjectID, uploadRepResult.ResultFileHash})
+			}
+
+			fmt.Print(tb.Render())
+
+			if err != nil {
+				return fmt.Errorf("uploading rep object: %w", err)
+			}
+
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("wait uploading: %w", err)
+		}
+	}
+
 }
 
 func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int, objectName string, ecName string) error {
@@ -173,6 +245,8 @@ func init() {
 	commands.MustAdd(ObjectListBucketObjects, "object", "ls")
 
 	commands.MustAdd(ObjectUploadRepObject, "object", "new", "rep")
+
+	commands.MustAdd(ObjectUploadRepObjectDir, "object", "new", "dir")
 
 	commands.MustAdd(ObjectDownloadObject, "object", "get")
 

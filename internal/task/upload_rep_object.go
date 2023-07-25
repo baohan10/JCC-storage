@@ -23,43 +23,57 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// UploadObjects和UploadRepResults一一对应
 type UploadRepObject struct {
-	userID     int
-	bucketID   int
-	objectName string
-	file       io.ReadCloser
-	fileSize   int64
-	repCount   int
-
-	ResultFileHash string
+	userID           int
+	bucketID         int
+	repCount         int
+	UploadObjects    []UploadObject
+	UploadRepResults []UploadRepResult
 }
 
-func NewUploadRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repCount int) *UploadRepObject {
+type UploadObject struct {
+	ObjectName string
+	File       io.ReadCloser
+	FileSize   int64
+}
+
+type UploadRepResult struct {
+	Error          error
+	ResultFileHash string
+	ObjectID       int64
+}
+
+func NewUploadRepObject(userID int, bucketID int, UploadObjects []UploadObject, repCount int) *UploadRepObject {
 	return &UploadRepObject{
-		userID:     userID,
-		bucketID:   bucketID,
-		objectName: objectName,
-		file:       file,
-		fileSize:   fileSize,
-		repCount:   repCount,
+		userID:        userID,
+		bucketID:      bucketID,
+		UploadObjects: UploadObjects,
+		repCount:      repCount,
 	}
 }
 
 func (t *UploadRepObject) Execute(ctx TaskContext, complete CompleteFn) {
-	fileHash, err := t.do(ctx)
-	t.ResultFileHash = fileHash
+
+	UploadRepResults, err := t.do(ctx)
+	t.UploadRepResults = UploadRepResults
 	complete(err, CompleteOption{
 		RemovingDelay: time.Minute,
 	})
 }
 
-func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
-	mutex, err := reqbuilder.NewBuilder().
+func (t *UploadRepObject) do(ctx TaskContext) ([]UploadRepResult, error) {
+
+	reqBlder := reqbuilder.NewBuilder()
+	for _, uploadObject := range t.UploadObjects {
+		reqBlder.Metadata().
+			// 用于防止创建了多个同名对象
+			Object().CreateOne(t.bucketID, uploadObject.ObjectName)
+	}
+	mutex, err := reqBlder.
 		Metadata().
 		// 用于判断用户是否有桶的权限
 		UserBucket().ReadOne(t.userID, t.bucketID).
-		// 用于防止创建了多个同名对象
-		Object().CreateOne(t.bucketID, t.objectName).
 		// 用于查询可用的上传节点
 		Node().ReadAny().
 		// 用于设置Rep配置
@@ -68,20 +82,86 @@ func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
 		Cache().CreateAny().
 		MutexLock(ctx.DistLock)
 	if err != nil {
-		return "", fmt.Errorf("acquire locks failed, err: %w", err)
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer mutex.Unlock()
 
-	//发送写请求，请求Coor分配写入节点Ip
-	repWriteResp, err := ctx.Coordinator.PreUploadRepObject(coormsg.NewPreUploadRepObjectBody(t.bucketID, t.objectName, t.fileSize, t.userID, config.Cfg().ExternalIP))
-	if err != nil {
-		return "", fmt.Errorf("pre upload rep object: %w", err)
-	}
-	if len(repWriteResp.Nodes) == 0 {
-		return "", fmt.Errorf("no node to upload file")
+	uploadObjs := []struct {
+		UploadObject UploadObject
+		nodes        []ramsg.RespNode
+	}{}
+
+	for _, uploadObject := range t.UploadObjects {
+		nodes, err := t.preUploadSingleObject(ctx, uploadObject)
+		if err != nil {
+			// 不满足上传条件，直接记录结果
+			result := UploadRepResult{
+				Error:          err,
+				ResultFileHash: "",
+				ObjectID:       0,
+			}
+			t.UploadRepResults = append(t.UploadRepResults, result)
+			continue
+		}
+
+		obj := struct {
+			UploadObject UploadObject
+			nodes        []ramsg.RespNode
+		}{
+			UploadObject: uploadObject,
+			nodes:        nodes,
+		}
+		uploadObjs = append(uploadObjs, obj)
 	}
 
-	uploadNode := t.chooseUploadNode(repWriteResp.Nodes)
+	// 不满足上传条件，返回结果
+	if len(uploadObjs) != len(t.UploadObjects) {
+		return t.UploadRepResults, fmt.Errorf("Folder does not meet the upload requirements.")
+	}
+
+	//上传文件夹
+	for _, uploadObj := range uploadObjs {
+		objectID, fileHash, err := t.uploadSingleObject(ctx, uploadObj.UploadObject, uploadObj.nodes)
+		if err != nil {
+			// 上传文件时出现错误，记录结果
+			result := UploadRepResult{
+				Error:          err,
+				ResultFileHash: "",
+				ObjectID:       0,
+			}
+			t.UploadRepResults = append(t.UploadRepResults, result)
+			continue
+		}
+
+		// 文件上传成功，记录结果
+		result := UploadRepResult{
+			Error:          err,
+			ResultFileHash: fileHash,
+			ObjectID:       objectID,
+		}
+		t.UploadRepResults = append(t.UploadRepResults, result)
+	}
+	return t.UploadRepResults, nil
+}
+
+// 检查单个文件是否能够上传
+func (t *UploadRepObject) preUploadSingleObject(ctx TaskContext, uploadObject UploadObject) ([]ramsg.RespNode, error) {
+	//发送写请求，请求Coor分配写入节点Ip
+	// fmt.Printf("uploadObject: %v\n", uploadObject)
+	repWriteResp, err := ctx.Coordinator.PreUploadRepObject(coormsg.NewPreUploadRepObjectBody(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.userID, config.Cfg().ExternalIP))
+	if err != nil {
+		return nil, fmt.Errorf("pre upload rep object: %w", err)
+	}
+	if len(repWriteResp.Nodes) == 0 {
+		return nil, fmt.Errorf("no node to upload file")
+	}
+	return repWriteResp.Nodes, nil
+}
+
+// 上传文件
+func (t *UploadRepObject) uploadSingleObject(ctx TaskContext, uploadObject UploadObject, nodes []ramsg.RespNode) (int64, string, error) {
+
+	uploadNode := t.chooseUploadNode(nodes)
 
 	var fileHash string
 	uploadedNodeIDs := []int{}
@@ -90,7 +170,8 @@ func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
 	if ctx.IPFS != nil {
 		logger.Infof("try to use local IPFS to upload file")
 
-		fileHash, err = uploadToLocalIPFS(ctx.IPFS, t.file, uploadNode.ID)
+		var err error
+		fileHash, err = uploadToLocalIPFS(ctx.IPFS, uploadObject.File, uploadNode.ID)
 		if err != nil {
 			logger.Warnf("upload to local IPFS failed, so try to upload to node %d, err: %s", uploadNode.ID, err.Error())
 		} else {
@@ -113,24 +194,24 @@ func (t *UploadRepObject) do(ctx TaskContext) (string, error) {
 			IPFS().CreateAnyRep(uploadNode.ID).
 			MutexLock(ctx.DistLock)
 		if err != nil {
-			return "", fmt.Errorf("acquire locks failed, err: %w", err)
+			return 0, "", fmt.Errorf("acquire locks failed, err: %w", err)
 		}
 		defer mutex.Unlock()
 
-		fileHash, err = uploadToNode(t.file, nodeIP)
+		fileHash, err = uploadToNode(uploadObject.File, nodeIP)
 		if err != nil {
-			return "", fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
+			return 0, "", fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
 		}
 		uploadedNodeIDs = append(uploadedNodeIDs, uploadNode.ID)
 	}
 
 	// 记录写入的文件的Hash
-	_, err = ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, t.objectName, t.fileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash))
+	createResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash))
 	if err != nil {
-		return "", fmt.Errorf("creating rep object: %w", err)
+		return 0, "", fmt.Errorf("creating rep object: %w", err)
 	}
 
-	return fileHash, nil
+	return createResp.ObjectID, fileHash, nil
 }
 
 // chooseUploadNode 选择一个上传文件的节点

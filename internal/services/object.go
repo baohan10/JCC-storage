@@ -176,18 +176,17 @@ func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser,
 	return reader, nil
 }
 
-func (svc *ObjectService) StartUploadingRepObject(userID int, bucketID int, objectName string, file io.ReadCloser, fileSize int64, repCount int) (string, error) {
-	tsk := svc.taskMgr.StartNew(task.NewUploadRepObject(userID, bucketID, objectName, file, fileSize, repCount))
+func (svc *ObjectService) StartUploadingRepObjects(userID int, bucketID int, uploadObjects []task.UploadObject, repCount int) (string, error) {
+	tsk := svc.taskMgr.StartNew(task.NewUploadRepObject(userID, bucketID, uploadObjects, repCount))
 	return tsk.ID(), nil
 }
 
-func (svc *ObjectService) WaitUploadingRepObject(taskID string, waitTimeout time.Duration) (bool, string, error) {
+func (svc *ObjectService) WaitUploadingRepObjects(taskID string, waitTimeout time.Duration) (bool, []task.UploadRepResult, error) {
 	tsk := svc.taskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		return true, tsk.Body().(*task.UploadRepObject).ResultFileHash, tsk.Error()
+		return true, tsk.Body().(*task.UploadRepObject).UploadRepResults, tsk.Error()
 	}
-
-	return false, "", nil
+	return false, nil, nil
 }
 
 func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
