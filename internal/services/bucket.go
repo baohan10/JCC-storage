@@ -42,7 +42,7 @@ func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) (*coormsg.Ge
 }
 
 func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) (*coormsg.CreateBucketResp, *ramsg.CodeMessage) {
-	var bucketID int
+	var bucketID int64
 	var err error
 	svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
 		// 这里用的是外部的err

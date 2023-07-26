@@ -320,7 +320,7 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) (*coormsg.DeleteObje
 	// 不追求及时、准确
 	if len(stgs) == 0 {
 		// 如果没有被引用，直接投递CheckObject的任务
-		err := svc.scanner.PostEvent(scevt.NewCheckObject([]int{msg.ObjectID}), false, false)
+		err := svc.scanner.PostEvent(scevt.NewCheckObject([]int64{msg.ObjectID}), false, false)
 		if err != nil {
 			logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
 		}
@@ -329,7 +329,7 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) (*coormsg.DeleteObje
 	} else {
 		// 有引用则让Agent去检查StorageObject
 		for _, stg := range stgs {
-			err := svc.scanner.PostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []int{msg.ObjectID}), false, false)
+			err := svc.scanner.PostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []int64{msg.ObjectID}), false, false)
 			if err != nil {
 				logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
 			}
