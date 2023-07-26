@@ -14,8 +14,8 @@ import (
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
-func ObjectListBucketObjects(ctx CommandContext, bucketID int) error {
-	userID := 0
+func ObjectListBucketObjects(ctx CommandContext, bucketID int64) error {
+	userID := int64(0)
 
 	objects, err := ctx.Cmdline.Svc.BucketSvc().GetBucketObjects(userID, bucketID)
 	if err != nil {
@@ -28,14 +28,14 @@ func ObjectListBucketObjects(ctx CommandContext, bucketID int) error {
 	tb.AppendHeader(table.Row{"ID", "Name", "Size", "BucketID", "State", "Redundancy"})
 
 	for _, obj := range objects {
-		tb.AppendRow(table.Row{obj.ObjectID, obj.Name, obj.BucketID, obj.State, obj.FileSize, obj.Redundancy})
+		tb.AppendRow(table.Row{obj.ObjectID, obj.Name, obj.FileSize, obj.BucketID, obj.State, obj.Redundancy})
 	}
 
 	fmt.Print(tb.Render())
 	return nil
 }
 
-func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int) error {
+func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int64) error {
 	// 创建本地文件
 	curExecPath, err := os.Executable()
 	if err != nil {
@@ -66,7 +66,6 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
 	_, err = io.Copy(outputFile, ratelimit.Reader(reader, bkt))
 	if err != nil {
-		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
 		return fmt.Errorf("copy object data to local file failed, err: %w", err)
 	}
 
@@ -111,7 +110,7 @@ func ObjectDownloadObjectDir(ctx CommandContext, localFilePath string, dirName s
 	return nil
 }
 
-func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID int, objectName string, repCount int) error {
+func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID int64, objectName string, repCount int) error {
 	file, err := os.Open(localFilePath)
 	if err != nil {
 		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)
@@ -158,7 +157,7 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 	}
 }
 
-func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID int, repCount int) error {
+func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID int64, repCount int) error {
 
 	var uploadFiles []task.UploadObject
 	var uploadFile task.UploadObject
@@ -236,13 +235,13 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 
 }
 
-func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int, objectName string, ecName string) error {
+func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int64, objectName string, ecName string) error {
 	// TODO
 	panic("not implement yet")
 }
 
-func ObjectUpdateRepObject(ctx CommandContext, objectID int, filePath string) error {
-	userID := 0
+func ObjectUpdateRepObject(ctx CommandContext, objectID int64, filePath string) error {
+	userID := int64(0)
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -283,8 +282,8 @@ func ObjectUpdateRepObject(ctx CommandContext, objectID int, filePath string) er
 	}
 }
 
-func ObjectDeleteObject(ctx CommandContext, objectID int) error {
-	userID := 0
+func ObjectDeleteObject(ctx CommandContext, objectID int64) error {
+	userID := int64(0)
 	err := ctx.Cmdline.Svc.ObjectSvc().DeleteObject(userID, objectID)
 	if err != nil {
 		return fmt.Errorf("delete object %d failed, err: %w", objectID, err)

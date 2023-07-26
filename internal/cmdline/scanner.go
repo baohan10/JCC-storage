@@ -16,7 +16,6 @@ func ScannerPostEvent(ctx CommandContext, args []string) error {
 		return fmt.Errorf("execute parsing event command failed, err: %w", err)
 	}
 
-	// TODO 支持设置标志
 	err = ctx.Cmdline.Svc.ScannerSvc().PostEvent(ret, false, false)
 	if err != nil {
 		return fmt.Errorf("post event to scanner failed, err: %w", err)

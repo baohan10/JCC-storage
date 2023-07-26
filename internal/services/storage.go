@@ -14,7 +14,7 @@ func (svc *Service) StorageSvc() *StorageService {
 	return &StorageService{Service: svc}
 }
 
-func (svc *StorageService) StartMovingObjectToStorage(userID int, objectID int, storageID int) (string, error) {
+func (svc *StorageService) StartMovingObjectToStorage(userID int64, objectID int64, storageID int64) (string, error) {
 	tsk := svc.taskMgr.StartNew(task.NewMoveObjectToStorage(userID, objectID, storageID))
 	return tsk.ID(), nil
 }
@@ -28,7 +28,7 @@ func (svc *StorageService) WaitMovingObjectToStorage(taskID string, waitTimeout 
 	return false, nil
 }
 
-func (svc *StorageService) DeleteStorageObject(userID int, objectID int, storageID int) error {
+func (svc *StorageService) DeleteStorageObject(userID int64, objectID int64, storageID int64) error {
 	// TODO
 	panic("not implement yet")
 }

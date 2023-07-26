@@ -13,12 +13,12 @@ import (
 )
 
 type MoveObjectToStorage struct {
-	userID    int
-	objectID  int
-	storageID int
+	userID    int64
+	objectID  int64
+	storageID int64
 }
 
-func NewMoveObjectToStorage(userID int, objectID int, storageID int) *MoveObjectToStorage {
+func NewMoveObjectToStorage(userID int64, objectID int64, storageID int64) *MoveObjectToStorage {
 	return &MoveObjectToStorage{
 		userID:    userID,
 		objectID:  objectID,
