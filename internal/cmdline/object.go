@@ -73,6 +73,44 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	return nil
 }
 
+func ObjectDownloadObjectDir(ctx CommandContext, localFilePath string, dirName string) error {
+	/* // 创建本地文件夹
+	curExecPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("get executable directory failed, err: %w", err)
+	}
+
+	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
+	outputFileDir := filepath.Dir(outputFilePath)
+
+	err = os.MkdirAll(outputFileDir, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
+	}
+
+	outputFile, err := os.Create(outputFilePath)
+	if err != nil {
+		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
+	}
+	defer outputFile.Close()
+
+	// 下载文件
+	reader, err := ctx.Cmdline.Svc.ObjectSvc().DownloadObject(0, objectID)
+	if err != nil {
+		return fmt.Errorf("download object failed, err: %w", err)
+	}
+	defer reader.Close()
+
+	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+	_, err = io.Copy(outputFile, ratelimit.Reader(reader, bkt))
+	if err != nil {
+		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
+		return fmt.Errorf("copy object data to local file failed, err: %w", err)
+	} */
+
+	return nil
+}
+
 func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID int, objectName string, repCount int) error {
 	file, err := os.Open(localFilePath)
 	if err != nil {
@@ -104,13 +142,13 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 	}
 
 	for {
-		complete, UploadRepResults, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
+		complete, UploadObjectResult, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("uploading rep object: %w", err)
 			}
 
-			fmt.Print(UploadRepResults[0].ResultFileHash)
+			fmt.Print(UploadObjectResult.UploadRepResults[0].ResultFileHash)
 			return nil
 		}
 
@@ -149,32 +187,45 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 	}
 
 	// 遍历 关闭文件流
-	for _, uploadFile := range uploadFiles {
-		defer uploadFile.File.Close()
-	}
+	defer func() {
+		for _, uploadFile := range uploadFiles {
+			uploadFile.File.Close()
+		}
+	}()
 
 	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUploadingRepObjects(0, bucketID, uploadFiles, repCount)
+
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
 
 	for {
-		complete, UploadRepResults, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
+		complete, UploadObjectResult, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
 		if complete {
-
-			tb := table.NewWriter()
-			tb.AppendHeader(table.Row{"ObjectID", "FileHash"})
-
-			for _, uploadRepResult := range UploadRepResults {
-				tb.AppendRow(table.Row{uploadRepResult.ObjectID, uploadRepResult.ResultFileHash})
-			}
-
-			fmt.Print(tb.Render())
-
 			if err != nil {
 				return fmt.Errorf("uploading rep object: %w", err)
 			}
 
+			tb := table.NewWriter()
+			if UploadObjectResult.IsUploading {
+
+				tb.AppendHeader(table.Row{"ObjectID", "ObjectName", "FileHash"})
+				for i := 0; i < len(UploadObjectResult.UploadObjects); i++ {
+					tb.AppendRow(table.Row{UploadObjectResult.UploadRepResults[i].ObjectID, UploadObjectResult.UploadObjects[i].ObjectName, UploadObjectResult.UploadRepResults[i].ResultFileHash})
+				}
+				fmt.Print(tb.Render())
+
+			} else {
+				fmt.Println("The folder upload failed. Some files do not meet the upload requirements.")
+
+				tb.AppendHeader(table.Row{"ObjectName", "Error"})
+				for i := 0; i < len(UploadObjectResult.UploadObjects); i++ {
+					if UploadObjectResult.UploadRepResults[i].Error != nil {
+						tb.AppendRow(table.Row{UploadObjectResult.UploadObjects[i].ObjectName, UploadObjectResult.UploadRepResults[i].Error})
+					}
+				}
+				fmt.Print(tb.Render())
+			}
 			return nil
 		}
 
@@ -249,6 +300,8 @@ func init() {
 	commands.MustAdd(ObjectUploadRepObjectDir, "object", "new", "dir")
 
 	commands.MustAdd(ObjectDownloadObject, "object", "get")
+
+	commands.MustAdd(ObjectDownloadObjectDir, "object", "get", "dir")
 
 	commands.MustAdd(ObjectUpdateRepObject, "object", "update", "rep")
 

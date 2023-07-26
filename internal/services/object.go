@@ -181,12 +181,18 @@ func (svc *ObjectService) StartUploadingRepObjects(userID int, bucketID int, upl
 	return tsk.ID(), nil
 }
 
-func (svc *ObjectService) WaitUploadingRepObjects(taskID string, waitTimeout time.Duration) (bool, []task.UploadRepResult, error) {
+func (svc *ObjectService) WaitUploadingRepObjects(taskID string, waitTimeout time.Duration) (bool, task.UploadObjectResult, error) {
 	tsk := svc.taskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		return true, tsk.Body().(*task.UploadRepObject).UploadRepResults, tsk.Error()
+		uploadObjectResult := task.UploadObjectResult{
+			UploadObjects:    tsk.Body().(*task.UploadRepObject).UploadObjects,
+			UploadRepResults: tsk.Body().(*task.UploadRepObject).UploadRepResults,
+			IsUploading:      tsk.Body().(*task.UploadRepObject).IsUploading,
+		}
+
+		return true, uploadObjectResult, tsk.Error()
 	}
-	return false, nil, nil
+	return false, task.UploadObjectResult{}, nil
 }
 
 func (svc *ObjectService) UploadECObject(userID int, file io.ReadCloser, fileSize int64, ecName string) error {
