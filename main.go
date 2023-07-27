@@ -8,12 +8,14 @@ import (
 
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/agent/internal/task"
+	distsvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	agentserver "gitlink.org.cn/cloudream/proto"
 
 	"google.golang.org/grpc"
 
+	"gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/agent"
 
 	cmdsvc "gitlink.org.cn/cloudream/agent/internal/services/cmd"
@@ -44,11 +46,21 @@ func main() {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
 
+	coor, err := coordinator.NewClient(&config.Cfg().RabbitMQ)
+	if err != nil {
+		log.Fatalf("new ipfs failed, err: %s", err.Error())
+	}
+
+	distlock, err := distsvc.NewService(&config.Cfg().DistLock)
+	if err != nil {
+		log.Fatalf("new ipfs failed, err: %s", err.Error())
+	}
+
 	//处置协调端、客户端命令（可多建几个）
 	wg := sync.WaitGroup{}
-	wg.Add(4)
+	wg.Add(5)
 
-	taskMgr := task.NewManager(ipfs)
+	taskMgr := task.NewManager(ipfs, coor, distlock)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
@@ -73,6 +85,8 @@ func main() {
 	s := grpc.NewServer()
 	agentserver.RegisterFileTransportServer(s, grpcsvc.NewService(ipfs))
 	go serveGRPC(s, lis, &wg)
+
+	go serveDistLock(distlock)
 
 	wg.Wait()
 }
@@ -103,4 +117,16 @@ func serveGRPC(s *grpc.Server, lis net.Listener, wg *sync.WaitGroup) {
 	log.Info("grpc stopped")
 
 	wg.Done()
+}
+
+func serveDistLock(svc *distsvc.Service) {
+	log.Info("start serving distlock")
+
+	err := svc.Serve()
+
+	if err != nil {
+		log.Errorf("distlock stopped with error: %s", err.Error())
+	}
+
+	log.Info("distlock stopped")
 }

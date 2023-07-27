@@ -1,6 +1,7 @@
 package config
 
 import (
+	"gitlink.org.cn/cloudream/common/pkg/distlock"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	c "gitlink.org.cn/cloudream/common/utils/config"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
@@ -8,14 +9,17 @@ import (
 )
 
 type Config struct {
-	ID                int64        `json:"id"`
-	GRPCListenAddress string       `json:"grpcListenAddress"`
-	LocalIP           string       `json:"localIP"`
-	StorageBaseDir    string       `json:"storageBaseDir"`
-	TempFileLifetime  int          `json:"tempFileLifetime"` // temp状态的副本最多能保持多久时间，单位：秒
-	Logger            log.Config   `json:"logger"`
-	RabbitMQ          racfg.Config `json:"rabbitMQ"`
-	IPFS              ipfs.Config  `json:"ipfs"`
+	ID                int64           `json:"id"`
+	GRPCListenAddress string          `json:"grpcListenAddress"`
+	GRPCPort          int             `json:"grpcPort"`
+	LocalIP           string          `json:"localIP"`
+	ExternalIP        string          `json:"externalIP"`
+	StorageBaseDir    string          `json:"storageBaseDir"`
+	TempFileLifetime  int             `json:"tempFileLifetime"` // temp状态的副本最多能保持多久时间，单位：秒
+	Logger            log.Config      `json:"logger"`
+	RabbitMQ          racfg.Config    `json:"rabbitMQ"`
+	IPFS              ipfs.Config     `json:"ipfs"`
+	DistLock          distlock.Config `json:"distlock"`
 }
 
 var cfg Config

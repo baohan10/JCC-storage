@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/juju/ratelimit"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 )
 
@@ -73,8 +72,7 @@ func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 		return
 	}
 
-	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-	_, err = io.Copy(outputFile, ratelimit.Reader(rd, bkt))
+	_, err = io.Copy(outputFile, rd)
 	if err != nil {
 		err := fmt.Errorf("copy ipfs file to local file failed, err: %w", err)
 		log.WithField("LocalPath", t.LocalPath).Warn(err.Error())

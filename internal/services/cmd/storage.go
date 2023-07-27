@@ -14,9 +14,7 @@ import (
 	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
-	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/ec"
 
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -24,43 +22,37 @@ import (
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 )
 
-func (service *Service) StartMovingObjectToStorage(msg *agtmsg.StartMovingObjectToStorage) (*agtmsg.StartMovingObjectToStorageResp, *ramsg.CodeMessage) {
+func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObject) (*agtmsg.StartStorageMoveObjectResp, *ramsg.CodeMessage) {
 	outFileName := utils.MakeMoveOperationFileName(msg.ObjectID, msg.UserID)
 	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory, outFileName)
 
-	if msg.Redundancy == consts.REDUNDANCY_REP {
-		taskID, err := service.moveRepObject(msg, outFilePath)
+	if repRed, ok := msg.Redundancy.(ramsg.RepRedundancyData); ok {
+		taskID, err := service.moveRepObject(repRed, outFilePath)
 		if err != nil {
 			logger.Warnf("move rep object as %s failed, err: %s", outFilePath, err.Error())
-			return ramsg.ReplyFailed[agtmsg.StartMovingObjectToStorageResp](errorcode.OPERATION_FAILED, "move rep object failed")
+			return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OPERATION_FAILED, "move rep object failed")
 		}
 
-		return ramsg.ReplyOK(agtmsg.NewStartMovingObjectToStorageResp(taskID))
+		return ramsg.ReplyOK(agtmsg.NewStartStorageMoveObjectResp(taskID))
 
 	} else {
 		// TODO 处理其他备份类型
 
-		return ramsg.ReplyFailed[agtmsg.StartMovingObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
+		return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OPERATION_FAILED, "not implement yet!")
 	}
 }
 
-func (svc *Service) moveRepObject(msg *agtmsg.StartMovingObjectToStorage, outFilePath string) (string, error) {
-	var repInfo ramsg.ObjectRepInfo
-	err := serder.AnyToAny(msg.RedundancyData, &repInfo)
-	if err != nil {
-		return "", fmt.Errorf("redundancy data to rep info failed, err: %w", err)
-	}
-
-	tsk := svc.taskManager.StartComparable(task.NewIPFSRead(repInfo.FileHash, outFilePath))
+func (svc *Service) moveRepObject(repData ramsg.RepRedundancyData, outFilePath string) (string, error) {
+	tsk := svc.taskManager.StartComparable(task.NewIPFSRead(repData.FileHash, outFilePath))
 	return tsk.ID(), nil
 }
 
-func (svc *Service) WaitMovingObject(msg *agtmsg.WaitMovingObject) (*agtmsg.WaitMovingObjectResp, *ramsg.CodeMessage) {
-	log.WithField("TaskID", msg.TaskID).Debugf("wait moving object")
+func (svc *Service) WaitStorageMoveObject(msg *agtmsg.WaitStorageMoveObject) (*agtmsg.WaitStorageMoveObjectResp, *ramsg.CodeMessage) {
+	logger.WithField("TaskID", msg.TaskID).Debugf("wait moving object")
 
 	tsk := svc.taskManager.FindByID(msg.TaskID)
 	if tsk == nil {
-		return ramsg.ReplyFailed[agtmsg.WaitMovingObjectResp](errorcode.TASK_NOT_FOUND, "task not found")
+		return ramsg.ReplyFailed[agtmsg.WaitStorageMoveObjectResp](errorcode.TASK_NOT_FOUND, "task not found")
 	}
 
 	if msg.WaitTimeoutMs == 0 {
@@ -71,7 +63,7 @@ func (svc *Service) WaitMovingObject(msg *agtmsg.WaitMovingObject) (*agtmsg.Wait
 			errMsg = tsk.Error().Error()
 		}
 
-		return ramsg.ReplyOK(agtmsg.NewWaitMovingObjectResp(true, errMsg))
+		return ramsg.ReplyOK(agtmsg.NewWaitStorageMoveObjectResp(true, errMsg))
 
 	} else {
 		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
@@ -81,20 +73,20 @@ func (svc *Service) WaitMovingObject(msg *agtmsg.WaitMovingObject) (*agtmsg.Wait
 				errMsg = tsk.Error().Error()
 			}
 
-			return ramsg.ReplyOK(agtmsg.NewWaitMovingObjectResp(true, errMsg))
+			return ramsg.ReplyOK(agtmsg.NewWaitStorageMoveObjectResp(true, errMsg))
 		}
 
-		return ramsg.ReplyOK(agtmsg.NewWaitMovingObjectResp(false, ""))
+		return ramsg.ReplyOK(agtmsg.NewWaitStorageMoveObjectResp(false, ""))
 	}
 }
 
-func (svc *Service) CheckStorage(msg *agtmsg.CheckStorage) (*agtmsg.CheckStorageResp, *ramsg.CodeMessage) {
+func (svc *Service) StorageCheck(msg *agtmsg.StorageCheck) (*agtmsg.StorageCheckResp, *ramsg.CodeMessage) {
 	dirFullPath := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory)
 
 	infos, err := ioutil.ReadDir(dirFullPath)
 	if err != nil {
 		logger.Warnf("list storage directory failed, err: %s", err.Error())
-		return ramsg.ReplyOK(agtmsg.NewCheckStorageResp(
+		return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(
 			err.Error(),
 			nil,
 		))
@@ -109,13 +101,13 @@ func (svc *Service) CheckStorage(msg *agtmsg.CheckStorage) (*agtmsg.CheckStorage
 	}
 }
 
-func (svc *Service) checkStorageIncrement(msg *agtmsg.CheckStorage, fileInfos []fs.FileInfo) (*agtmsg.CheckStorageResp, *ramsg.CodeMessage) {
+func (svc *Service) checkStorageIncrement(msg *agtmsg.StorageCheck, fileInfos []fs.FileInfo) (*agtmsg.StorageCheckResp, *ramsg.CodeMessage) {
 	infosMap := make(map[string]fs.FileInfo)
 	for _, info := range fileInfos {
 		infosMap[info.Name()] = info
 	}
 
-	var entries []agtmsg.CheckStorageRespEntry
+	var entries []agtmsg.StorageCheckRespEntry
 	for _, obj := range msg.Objects {
 		fileName := utils.MakeMoveOperationFileName(obj.ObjectID, obj.UserID)
 		_, ok := infosMap[fileName]
@@ -127,23 +119,23 @@ func (svc *Service) checkStorageIncrement(msg *agtmsg.CheckStorage, fileInfos []
 
 		} else {
 			// 只要文件不存在，就删除StorageObject表中的记录
-			entries = append(entries, agtmsg.NewCheckStorageRespEntry(obj.ObjectID, obj.UserID, agtmsg.CHECK_STORAGE_RESP_OP_DELETE))
+			entries = append(entries, agtmsg.NewStorageCheckRespEntry(obj.ObjectID, obj.UserID, agtmsg.CHECK_STORAGE_RESP_OP_DELETE))
 		}
 	}
 
 	// 增量情况下，不需要对infosMap中没检查的记录进行处理
 
-	return ramsg.ReplyOK(agtmsg.NewCheckStorageResp(consts.STORAGE_DIRECTORY_STATE_OK, entries))
+	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.STORAGE_DIRECTORY_STATE_OK, entries))
 }
 
-func (svc *Service) checkStorageComplete(msg *agtmsg.CheckStorage, fileInfos []fs.FileInfo) (*agtmsg.CheckStorageResp, *ramsg.CodeMessage) {
+func (svc *Service) checkStorageComplete(msg *agtmsg.StorageCheck, fileInfos []fs.FileInfo) (*agtmsg.StorageCheckResp, *ramsg.CodeMessage) {
 
 	infosMap := make(map[string]fs.FileInfo)
 	for _, info := range fileInfos {
 		infosMap[info.Name()] = info
 	}
 
-	var entries []agtmsg.CheckStorageRespEntry
+	var entries []agtmsg.StorageCheckRespEntry
 	for _, obj := range msg.Objects {
 		fileName := utils.MakeMoveOperationFileName(obj.ObjectID, obj.UserID)
 		_, ok := infosMap[fileName]
@@ -155,17 +147,17 @@ func (svc *Service) checkStorageComplete(msg *agtmsg.CheckStorage, fileInfos []f
 
 		} else {
 			// 只要文件不存在，就删除StorageObject表中的记录
-			entries = append(entries, agtmsg.NewCheckStorageRespEntry(obj.ObjectID, obj.UserID, agtmsg.CHECK_STORAGE_RESP_OP_DELETE))
+			entries = append(entries, agtmsg.NewStorageCheckRespEntry(obj.ObjectID, obj.UserID, agtmsg.CHECK_STORAGE_RESP_OP_DELETE))
 		}
 	}
 
 	// Storage中多出来的文件不做处理
 
-	return ramsg.ReplyOK(agtmsg.NewCheckStorageResp(consts.STORAGE_DIRECTORY_STATE_OK, entries))
+	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.STORAGE_DIRECTORY_STATE_OK, entries))
 }
 
 /*
-func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.StartMovingObjectToStorageResp {
+func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.StartStorageMoveObjectResp {
 	panic("not implement yet!")
 		wg := sync.WaitGroup{}
 		fmt.Println("EcMove")
@@ -296,4 +288,60 @@ func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *syn
 	}
 	file.Close()
 	wg.Done()
+}
+
+func (svc *Service) StartStorageUploadRepObject(msg *agtmsg.StartStorageUploadRepObject) (*agtmsg.StartStorageUploadRepObjectResp, *ramsg.CodeMessage) {
+	fullPath := filepath.Join(config.Cfg().StorageBaseDir, msg.StorageDirectory, msg.FilePath)
+
+	file, err := os.Open(fullPath)
+	if err != nil {
+		logger.Warnf("opening file %s: %s", fullPath, err.Error())
+		return nil, ramsg.Failed(errorcode.OPERATION_FAILED, "open file failed")
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		file.Close()
+		logger.Warnf("getting file %s state: %s", fullPath, err.Error())
+		return nil, ramsg.Failed(errorcode.OPERATION_FAILED, "get file info failed")
+	}
+	fileSize := fileInfo.Size()
+
+	uploadObject := task.UploadObject{
+		ObjectName: msg.ObjectName,
+		File:       file,
+		FileSize:   fileSize,
+	}
+	uploadObjects := []task.UploadObject{uploadObject}
+
+	// Task会关闭文件流
+	tsk := svc.taskManager.StartNew(task.NewUploadRepObjects(msg.UserID, msg.BucketID, uploadObjects, msg.RepCount))
+	return ramsg.ReplyOK(agtmsg.NewStartStorageUploadRepObjectResp(tsk.ID()))
+}
+
+func (svc *Service) WaitStorageUploadRepObject(msg *agtmsg.WaitStorageUploadRepObject) (*agtmsg.WaitStorageUploadRepObjectResp, *ramsg.CodeMessage) {
+	tsk := svc.taskManager.FindByID(msg.TaskID)
+	if tsk == nil {
+		return nil, ramsg.Failed(errorcode.TASK_NOT_FOUND, "task not found")
+	}
+
+	if msg.WaitTimeoutMs == 0 {
+		tsk.Wait()
+	} else if !tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
+		return ramsg.ReplyOK(agtmsg.NewWaitStorageUploadRepObjectResp(false, "", 0, ""))
+	}
+
+	uploadTask := tsk.Body().(*task.UploadRepObjects)
+	uploadRet := uploadTask.Results[0]
+
+	errMsg := ""
+	if tsk.Error() != nil {
+		errMsg = tsk.Error().Error()
+	}
+
+	if uploadRet.Error != nil {
+		errMsg = uploadRet.Error.Error()
+	}
+
+	return ramsg.ReplyOK(agtmsg.NewWaitStorageUploadRepObjectResp(true, errMsg, uploadRet.ObjectID, uploadRet.FileHash))
 }
