@@ -24,19 +24,19 @@ import (
 )
 
 // UploadObjects和UploadRepResults为一一对应关系
-type UploadRepObject struct {
-	userID           int64
-	bucketID         int64
-	repCount         int
-	UploadObjects    []UploadObject
-	UploadRepResults []UploadRepResult
-	IsUploading      bool
+type UploadRepObjects struct {
+	userID      int64
+	bucketID    int64
+	repCount    int
+	Objects     []UploadObject
+	Results     []UploadSingleRepObjectResult
+	IsUploading bool
 }
 
-type UploadObjectResult struct {
-	UploadObjects    []UploadObject
-	UploadRepResults []UploadRepResult
-	IsUploading      bool
+type UploadRepObjectsResult struct {
+	Objects     []UploadObject
+	Results     []UploadSingleRepObjectResult
+	IsUploading bool
 }
 
 type UploadObject struct {
@@ -45,32 +45,32 @@ type UploadObject struct {
 	FileSize   int64
 }
 
-type UploadRepResult struct {
-	Error          error
-	ResultFileHash string
-	ObjectID       int64
+type UploadSingleRepObjectResult struct {
+	Error    error
+	FileHash string
+	ObjectID int64
 }
 
-func NewUploadRepObject(userID int64, bucketID int64, UploadObjects []UploadObject, repCount int) *UploadRepObject {
-	return &UploadRepObject{
-		userID:        userID,
-		bucketID:      bucketID,
-		UploadObjects: UploadObjects,
-		repCount:      repCount,
+func NewUploadRepObjects(userID int64, bucketID int64, uploadObjects []UploadObject, repCount int) *UploadRepObjects {
+	return &UploadRepObjects{
+		userID:   userID,
+		bucketID: bucketID,
+		Objects:  uploadObjects,
+		repCount: repCount,
 	}
 }
 
-func (t *UploadRepObject) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *UploadRepObjects) Execute(ctx TaskContext, complete CompleteFn) {
 	err := t.do(ctx)
 	complete(err, CompleteOption{
 		RemovingDelay: time.Minute,
 	})
 }
 
-func (t *UploadRepObject) do(ctx TaskContext) error {
+func (t *UploadRepObjects) do(ctx TaskContext) error {
 
 	reqBlder := reqbuilder.NewBuilder()
-	for _, uploadObject := range t.UploadObjects {
+	for _, uploadObject := range t.Objects {
 		reqBlder.Metadata().
 			// 用于防止创建了多个同名对象
 			Object().CreateOne(t.bucketID, uploadObject.ObjectName)
@@ -94,44 +94,44 @@ func (t *UploadRepObject) do(ctx TaskContext) error {
 	var repWriteResps []*coormsg.PreUploadResp
 
 	//判断是否所有文件都符合上传条件
-	flag := true
-	for i := 0; i < len(t.UploadObjects); i++ {
-		repWriteResp, err := t.preUploadSingleObject(ctx, t.UploadObjects[i])
+	hasFailure := true
+	for i := 0; i < len(t.Objects); i++ {
+		repWriteResp, err := t.preUploadSingleObject(ctx, t.Objects[i])
 		if err != nil {
-			flag = false
-			t.UploadRepResults = append(t.UploadRepResults,
-				UploadRepResult{
-					Error:          err,
-					ResultFileHash: "",
-					ObjectID:       0,
+			hasFailure = false
+			t.Results = append(t.Results,
+				UploadSingleRepObjectResult{
+					Error:    err,
+					FileHash: "",
+					ObjectID: 0,
 				})
 			continue
 		}
-		t.UploadRepResults = append(t.UploadRepResults, UploadRepResult{})
+		t.Results = append(t.Results, UploadSingleRepObjectResult{})
 		repWriteResps = append(repWriteResps, repWriteResp)
 	}
 
 	// 不满足上传条件，返回各文件检查结果
-	if !flag {
+	if !hasFailure {
 		return nil
 	}
 
 	//上传文件夹
 	t.IsUploading = true
 	for i := 0; i < len(repWriteResps); i++ {
-		objectID, fileHash, err := t.uploadSingleObject(ctx, t.UploadObjects[i], repWriteResps[i].Nodes)
+		objectID, fileHash, err := t.uploadSingleObject(ctx, t.Objects[i], repWriteResps[i])
 		// 记录文件上传结果
-		t.UploadRepResults[i] = UploadRepResult{
-			Error:          err,
-			ResultFileHash: fileHash,
-			ObjectID:       objectID,
+		t.Results[i] = UploadSingleRepObjectResult{
+			Error:    err,
+			FileHash: fileHash,
+			ObjectID: objectID,
 		}
 	}
 	return nil
 }
 
 // 检查单个文件是否能够上传
-func (t *UploadRepObject) preUploadSingleObject(ctx TaskContext, uploadObject UploadObject) (*coormsg.PreUploadResp, error) {
+func (t *UploadRepObjects) preUploadSingleObject(ctx TaskContext, uploadObject UploadObject) (*coormsg.PreUploadResp, error) {
 	//发送写请求，请求Coor分配写入节点Ip
 	repWriteResp, err := ctx.Coordinator.PreUploadRepObject(coormsg.NewPreUploadRepObjectBody(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.userID, config.Cfg().ExternalIP))
 	if err != nil {
@@ -144,9 +144,8 @@ func (t *UploadRepObject) preUploadSingleObject(ctx TaskContext, uploadObject Up
 }
 
 // 上传文件
-func (t *UploadRepObject) uploadSingleObject(ctx TaskContext, uploadObject UploadObject, nodes []ramsg.RespNode) (int64, string, error) {
-
-	uploadNode := t.chooseUploadNode(nodes)
+func (t *UploadRepObjects) uploadSingleObject(ctx TaskContext, uploadObject UploadObject, preResp *coormsg.PreUploadResp) (int64, string, error) {
+	uploadNode := t.chooseUploadNode(preResp.Nodes)
 
 	var fileHash string
 	uploadedNodeIDs := []int64{}
@@ -202,7 +201,7 @@ func (t *UploadRepObject) uploadSingleObject(ctx TaskContext, uploadObject Uploa
 // chooseUploadNode 选择一个上传文件的节点
 // 1. 从与当前客户端相同地域的节点中随机选一个
 // 2. 没有用的话从所有节点中随机选一个
-func (t *UploadRepObject) chooseUploadNode(nodes []ramsg.RespNode) ramsg.RespNode {
+func (t *UploadRepObjects) chooseUploadNode(nodes []ramsg.RespNode) ramsg.RespNode {
 	sameLocationNodes := lo.Filter(nodes, func(e ramsg.RespNode, i int) bool { return e.IsSameLocation })
 	if len(sameLocationNodes) > 0 {
 		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]

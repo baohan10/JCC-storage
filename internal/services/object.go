@@ -8,12 +8,10 @@ import (
 
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/client/internal/task"
-	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	serder "gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/db/model"
 	agentcaller "gitlink.org.cn/cloudream/proto"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
@@ -62,22 +60,15 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 		return nil, fmt.Errorf("pre download object: %w", err)
 	}
 
-	switch preDownloadResp.Redundancy {
-	case consts.REDUNDANCY_REP:
-		var repInfo ramsg.RespObjectRepInfo
-		err := serder.AnyToAny(preDownloadResp.RedundancyData, &repInfo)
-		if err != nil {
-			mutex.Unlock()
-			return nil, fmt.Errorf("redundancy data to rep info failed, err: %w", err)
-		}
-
-		if len(repInfo.Nodes) == 0 {
+	switch redundancy := preDownloadResp.Redundancy.(type) {
+	case ramsg.RespRepRedundancyData:
+		if len(redundancy.Nodes) == 0 {
 			mutex.Unlock()
 			return nil, fmt.Errorf("no node has this file")
 		}
 
 		// 选择下载节点
-		entry := svc.chooseDownloadNode(repInfo.Nodes)
+		entry := svc.chooseDownloadNode(redundancy.Nodes)
 
 		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
 		nodeIP := entry.ExternalIP
@@ -87,7 +78,7 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 			log.Infof("client and node %d are at the same location, use local ip\n", entry.ID)
 		}
 
-		reader, err := svc.downloadRepObject(entry.ID, nodeIP, repInfo.FileHash)
+		reader, err := svc.downloadRepObject(entry.ID, nodeIP, redundancy.FileHash)
 		if err != nil {
 			mutex.Unlock()
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
@@ -176,22 +167,23 @@ func (svc *ObjectService) downloadFromLocalIPFS(fileHash string) (io.ReadCloser,
 }
 
 func (svc *ObjectService) StartUploadingRepObjects(userID int64, bucketID int64, uploadObjects []task.UploadObject, repCount int) (string, error) {
-	tsk := svc.taskMgr.StartNew(task.NewUploadRepObject(userID, bucketID, uploadObjects, repCount))
+	tsk := svc.taskMgr.StartNew(task.NewUploadRepObjects(userID, bucketID, uploadObjects, repCount))
 	return tsk.ID(), nil
 }
 
-func (svc *ObjectService) WaitUploadingRepObjects(taskID string, waitTimeout time.Duration) (bool, task.UploadObjectResult, error) {
+func (svc *ObjectService) WaitUploadingRepObjects(taskID string, waitTimeout time.Duration) (bool, task.UploadRepObjectsResult, error) {
 	tsk := svc.taskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		uploadObjectResult := task.UploadObjectResult{
-			UploadObjects:    tsk.Body().(*task.UploadRepObject).UploadObjects,
-			UploadRepResults: tsk.Body().(*task.UploadRepObject).UploadRepResults,
-			IsUploading:      tsk.Body().(*task.UploadRepObject).IsUploading,
+		uploadTask := tsk.Body().(*task.UploadRepObjects)
+		uploadObjectResult := task.UploadRepObjectsResult{
+			Objects:     uploadTask.Objects,
+			Results:     uploadTask.Results,
+			IsUploading: uploadTask.IsUploading,
 		}
 
 		return true, uploadObjectResult, tsk.Error()
 	}
-	return false, task.UploadObjectResult{}, nil
+	return false, task.UploadRepObjectsResult{}, nil
 }
 
 func (svc *ObjectService) UploadECObject(userID int64, file io.ReadCloser, fileSize int64, ecName string) error {
