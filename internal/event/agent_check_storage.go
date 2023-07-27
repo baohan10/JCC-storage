@@ -151,7 +151,7 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.CheckStorage(agtmsg.NewCheckStorage(stg.StorageID, stg.Directory, isComplete, objects), rabbitmq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agentClient.StorageCheck(agtmsg.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, objects), rabbitmq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
 	}
