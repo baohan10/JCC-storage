@@ -6,11 +6,21 @@ import (
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
+
+func (svc *Service) GetStorageInfo(msg *coormsg.GetStorageInfo) (*coormsg.GetStorageInfoResp, *ramsg.CodeMessage) {
+	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.UserID, msg.StorageID)
+	if err != nil {
+		logger.Warnf("getting user storage: %s", err.Error())
+		return nil, ramsg.Failed(errorcode.OPERATION_FAILED, "get user storage failed")
+	}
+
+	return ramsg.ReplyOK(coormsg.NewGetStorageInfoResp(stg.StorageID, stg.Name, stg.NodeID, stg.Directory, stg.State))
+}
 
 func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) (*coormsg.PreMoveObjectToStorageResp, *ramsg.CodeMessage) {
 	//查询数据库，获取冗余类型，冗余参数
@@ -26,7 +36,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 	// 查询用户关联的存储服务
 	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.UserID, msg.StorageID)
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
+		logger.WithField("UserID", msg.UserID).
 			WithField("StorageID", msg.StorageID).
 			Warnf("get user Storage failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Storage failed")
@@ -35,7 +45,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 	// 查询文件对象
 	object, err := svc.db.Object().GetUserObject(svc.db.SQLCtx(), msg.UserID, msg.ObjectID)
 	if err != nil {
-		log.WithField("ObjectID", msg.ObjectID).
+		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("get user Object failed, err: %s", err.Error())
 		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Object failed")
 	}
@@ -44,7 +54,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 	if object.Redundancy == consts.REDUNDANCY_REP {
 		objectRep, err := svc.db.ObjectRep().GetByID(svc.db.SQLCtx(), object.ObjectID)
 		if err != nil {
-			log.Warnf("get ObjectRep failed, err: %s", err.Error())
+			logger.Warnf("get ObjectRep failed, err: %s", err.Error())
 			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get ObjectRep failed")
 		}
 
@@ -52,8 +62,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 			stg.NodeID,
 			stg.Directory,
 			object.FileSize,
-			object.Redundancy,
-			ramsg.NewObjectRepInfo(objectRep.FileHash),
+			ramsg.NewRedundancyRepData(objectRep.FileHash),
 		))
 
 	} else {
@@ -63,7 +72,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 		ids := []int{0}
 		blockHashs, err := svc.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
-			log.Warnf("query ObjectBlock failed, err: %s", err.Error())
+			logger.Warnf("query ObjectBlock failed, err: %s", err.Error())
 			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectBlock failed")
 		}
 
@@ -105,7 +114,7 @@ func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) (*coor
 		return svc.db.StorageObject().MoveObjectTo(tx, msg.ObjectID, msg.StorageID, msg.UserID)
 	})
 	if err != nil {
-		log.WithField("UserID", msg.UserID).
+		logger.WithField("UserID", msg.UserID).
 			WithField("ObjectID", msg.ObjectID).
 			WithField("StorageID", msg.StorageID).
 			Warnf("user move object to storage failed, err: %s", err.Error())

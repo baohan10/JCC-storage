@@ -66,9 +66,8 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 		}
 
 		return ramsg.ReplyOK(coormsg.NewPreDownloadObjectResp(
-			object.Redundancy,
 			object.FileSize,
-			ramsg.NewRespObjectRepInfo(objectRep.FileHash, respNodes),
+			ramsg.NewRespRepRedundancyData(objectRep.FileHash, respNodes),
 		))
 
 	} else {
