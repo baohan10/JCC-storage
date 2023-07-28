@@ -15,6 +15,18 @@ import (
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
+func (svc *Service) GetObjectsByDirName(msg *coormsg.DirMsg) (*coormsg.GetObjectsResp, *ramsg.CodeMessage) {
+	//查询dirName下所有文件
+	objects, err := svc.db.Object().GetByDirName(svc.db.SQLCtx(), msg.DirName)
+	if err != nil {
+		logger.WithField("DirName", msg.DirName).
+			Warnf("query dirname failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.GetObjectsResp](errorcode.OPERATION_FAILED, "get objects failed")
+	}
+
+	return ramsg.ReplyOK(coormsg.NewGetObjectsResp(objects))
+}
+
 func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.PreDownloadObjectResp, *ramsg.CodeMessage) {
 
 	// 查询文件对象
@@ -183,7 +195,7 @@ func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) (*coormsg.Crea
 	var objID int64
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
 		var err error
-		objID, err = svc.db.Object().CreateRepObject(tx, msg.BucketID, msg.ObjectName, msg.FileSize, msg.RepCount, msg.NodeIDs, msg.FileHash)
+		objID, err = svc.db.Object().CreateRepObject(tx, msg.BucketID, msg.ObjectName, msg.FileSize, msg.RepCount, msg.NodeIDs, msg.FileHash, msg.DirName)
 		return err
 	})
 	if err != nil {
