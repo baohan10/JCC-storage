@@ -120,7 +120,7 @@ func (t *AgentCheckCache) checkIncrement(execCtx ExecuteContext) {
 		caches = append(caches, ch)
 	}
 
-	t.startCheck(execCtx, true, caches)
+	t.startCheck(execCtx, false, caches)
 }
 
 func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, caches []model.Cache) {
