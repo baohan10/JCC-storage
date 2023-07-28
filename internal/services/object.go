@@ -28,6 +28,12 @@ type ObjectService struct {
 	*Service
 }
 
+type ResultDownloadObject struct {
+	ObjectName string
+	Reader     io.ReadCloser
+	Error      error
+}
+
 func (svc *Service) ObjectSvc() *ObjectService {
 	return &ObjectService{Service: svc}
 }
@@ -35,6 +41,48 @@ func (svc *Service) ObjectSvc() *ObjectService {
 func (svc *ObjectService) GetObject(userID int64, objectID int64) (model.Object, error) {
 	// TODO
 	panic("not implement yet")
+}
+
+func (svc *ObjectService) DownloadObjectDir(userID int64, dirName string) ([]ResultDownloadObject, error) {
+
+	mutex, err := reqbuilder.NewBuilder().
+		// 用于判断用户是否有对象权限
+		Metadata().UserBucket().ReadAny().
+		// 用于查询可用的下载节点
+		Node().ReadAny().
+		// 用于读取文件信息
+		Object().ReadAny().
+		// 用于查询Rep配置
+		ObjectRep().ReadAny().
+		// 用于查询Block配置
+		ObjectBlock().ReadAny().
+		// 用于查询包含了副本的节点
+		Cache().ReadAny().
+		MutexLock(svc.distlock)
+	if err != nil {
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
+
+	//根据dirName查询相关的所有文件
+	objsResp, err := svc.coordinator.GetObjectsByDirName(coormsg.NewDirMsg(userID, dirName))
+	if err != nil {
+		return nil, fmt.Errorf("get objectID by dirName failed: %w", err)
+	}
+	if len(objsResp.Objects) == 0 {
+		return nil, fmt.Errorf("dirName %v is not exist", dirName)
+	}
+
+	resultDownloadObjects := []ResultDownloadObject{}
+	for i := 0; i < len(objsResp.Objects); i++ {
+		reader, err := svc.preDownloadSingleObject(objsResp.Objects[i].ObjectID, userID)
+		resultDownloadObjects = append(resultDownloadObjects, ResultDownloadObject{
+			ObjectName: objsResp.Objects[i].Name,
+			Reader:     reader,
+			Error:      err,
+		})
+	}
+	return resultDownloadObjects, nil
 }
 
 func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadCloser, error) {
@@ -55,10 +103,15 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	if err != nil {
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
+	defer mutex.Unlock()
 
+	reader, err := svc.preDownloadSingleObject(objectID, userID)
+	return reader, err
+}
+
+func (svc *ObjectService) preDownloadSingleObject(objectID int64, userID int64) (io.ReadCloser, error) {
 	preDownloadResp, err := svc.coordinator.PreDownloadObject(coormsg.NewPreDownloadObject(objectID, userID, config.Cfg().ExternalIP))
 	if err != nil {
-		mutex.Unlock()
 		return nil, fmt.Errorf("pre download object: %w", err)
 	}
 
@@ -67,12 +120,10 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 		var repInfo ramsg.RespObjectRepInfo
 		err := serder.AnyToAny(preDownloadResp.RedundancyData, &repInfo)
 		if err != nil {
-			mutex.Unlock()
 			return nil, fmt.Errorf("redundancy data to rep info failed, err: %w", err)
 		}
 
 		if len(repInfo.Nodes) == 0 {
-			mutex.Unlock()
 			return nil, fmt.Errorf("no node has this file")
 		}
 
@@ -89,21 +140,18 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 
 		reader, err := svc.downloadRepObject(entry.ID, nodeIP, repInfo.FileHash)
 		if err != nil {
-			mutex.Unlock()
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
 
 		return myio.AfterReadClosed(reader, func(closer io.ReadCloser) {
 			// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
-			mutex.Unlock()
 		}), nil
 
 		//case consts.REDUNDANCY_EC:
 		// TODO EC部分的代码要考虑重构
 		//	ecRead(readResp.FileSize, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
-	}
 
-	mutex.Unlock()
+	}
 	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Redundancy)
 }
 

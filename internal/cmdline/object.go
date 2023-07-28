@@ -73,40 +73,59 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 }
 
 func ObjectDownloadObjectDir(ctx CommandContext, localFilePath string, dirName string) error {
-	/* // 创建本地文件夹
+	// 创建本地文件夹
 	curExecPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("get executable directory failed, err: %w", err)
 	}
 
-	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
-	outputFileDir := filepath.Dir(outputFilePath)
-
-	err = os.MkdirAll(outputFileDir, os.ModePerm)
+	outputDirPath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
+	err = os.MkdirAll(outputDirPath, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
+		return fmt.Errorf("create output file directory %s failed, err: %w", outputDirPath, err)
 	}
 
-	outputFile, err := os.Create(outputFilePath)
+	// 下载文件夹
+	resObjs, err := ctx.Cmdline.Svc.ObjectSvc().DownloadObjectDir(0, dirName)
 	if err != nil {
-		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
+		return fmt.Errorf("download folder failed, err: %w", err)
 	}
-	defer outputFile.Close()
 
-	// 下载文件
-	reader, err := ctx.Cmdline.Svc.ObjectSvc().DownloadObject(0, objectID)
-	if err != nil {
-		return fmt.Errorf("download object failed, err: %w", err)
+	// 遍历 关闭文件流
+	defer func() {
+		for _, resObj := range resObjs {
+			resObj.Reader.Close()
+		}
+	}()
+
+	for i := 0; i < len(resObjs); i++ {
+		if resObjs[i].Error != nil {
+			fmt.Printf("download file %s failed, err: %s", resObjs[i].ObjectName, err.Error())
+			continue
+		}
+		outputFilePath := filepath.Join(outputDirPath, resObjs[i].ObjectName)
+		outputFileDir := filepath.Dir(outputFilePath)
+		err = os.MkdirAll(outputFileDir, os.ModePerm)
+		if err != nil {
+			fmt.Printf("create output file directory %s failed, err: %s", outputFileDir, err.Error())
+			continue
+		}
+
+		outputFile, err := os.Create(outputFilePath)
+		if err != nil {
+			fmt.Printf("create output file %s failed, err: %s", outputFilePath, err.Error())
+			continue
+		}
+		defer outputFile.Close()
+
+		bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+		_, err = io.Copy(outputFile, ratelimit.Reader(resObjs[i].Reader, bkt))
+		if err != nil {
+			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
+			fmt.Printf("copy object data to local file failed, err: %s", err.Error())
+			continue
+		}
 	}
-	defer reader.Close()
-
-	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-	_, err = io.Copy(outputFile, ratelimit.Reader(reader, bkt))
-	if err != nil {
-		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
-		return fmt.Errorf("copy object data to local file failed, err: %w", err)
-	} */
-
 	return nil
 }
 
@@ -208,9 +227,13 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 			tb := table.NewWriter()
 			if UploadObjectResult.IsUploading {
 
-				tb.AppendHeader(table.Row{"ObjectID", "ObjectName", "FileHash"})
+				tb.AppendHeader(table.Row{"ObjectName", "ObjectID", "FileHash"})
 				for i := 0; i < len(UploadObjectResult.UploadObjects); i++ {
-					tb.AppendRow(table.Row{UploadObjectResult.UploadRepResults[i].ObjectID, UploadObjectResult.UploadObjects[i].ObjectName, UploadObjectResult.UploadRepResults[i].ResultFileHash})
+					tb.AppendRow(table.Row{
+						UploadObjectResult.UploadObjects[i].ObjectName,
+						UploadObjectResult.UploadRepResults[i].ObjectID,
+						UploadObjectResult.UploadRepResults[i].ResultFileHash,
+					})
 				}
 				fmt.Print(tb.Render())
 
@@ -232,7 +255,6 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 			return fmt.Errorf("wait uploading: %w", err)
 		}
 	}
-
 }
 
 func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int64, objectName string, ecName string) error {
@@ -298,7 +320,7 @@ func init() {
 
 	commands.MustAdd(ObjectUploadRepObjectDir, "object", "new", "dir")
 
-	commands.MustAdd(ObjectDownloadObject, "object", "get")
+	commands.MustAdd(ObjectDownloadObject, "object", "get", "rep")
 
 	commands.MustAdd(ObjectDownloadObjectDir, "object", "get", "dir")
 

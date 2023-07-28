@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -190,8 +191,17 @@ func (t *UploadRepObject) uploadSingleObject(ctx TaskContext, uploadObject Uploa
 		uploadedNodeIDs = append(uploadedNodeIDs, uploadNode.ID)
 	}
 
+	dirName := func() string {
+		parts := strings.Split(uploadObject.ObjectName, "/")
+		//若为文件，dirName设置为空
+		if len(parts) == 1 {
+			return ""
+		}
+		return parts[0]
+	}()
+
 	// 记录写入的文件的Hash
-	createResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash))
+	createResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash, dirName))
 	if err != nil {
 		return 0, "", fmt.Errorf("creating rep object: %w", err)
 	}
