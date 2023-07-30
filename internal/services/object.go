@@ -15,7 +15,7 @@ import (
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
 )
 
-func (svc *Service) GetObjectsByDirName(msg *coormsg.DirMsg) (*coormsg.GetObjectsResp, *ramsg.CodeMessage) {
+func (svc *Service) GetObjectsByDirName(msg *coormsg.GetObjectsByDirName) (*coormsg.GetObjectsResp, *ramsg.CodeMessage) {
 	//查询dirName下所有文件
 	objects, err := svc.db.Object().GetByDirName(svc.db.SQLCtx(), msg.DirName)
 	if err != nil {
