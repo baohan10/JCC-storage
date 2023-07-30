@@ -62,10 +62,13 @@ func (svc *ObjectService) DownloadObjectDir(userID int64, dirName string) ([]Res
 	if err != nil {
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
+
+	// TODO 解锁时机需要优化，在所有文件都写入到本地后再解锁
+	// 当前是所有文件流全部打开，处理完最后全部关闭，可以考虑加一个迭代器，将文件流逐个打开关闭
 	defer mutex.Unlock()
 
 	//根据dirName查询相关的所有文件
-	objsResp, err := svc.coordinator.GetObjectsByDirName(coormsg.NewDirMsg(userID, dirName))
+	objsResp, err := svc.coordinator.GetObjectsByDirName(coormsg.NewGetObjectsByDirName(userID, dirName))
 	if err != nil {
 		return nil, fmt.Errorf("get objectID by dirName failed: %w", err)
 	}
@@ -75,7 +78,7 @@ func (svc *ObjectService) DownloadObjectDir(userID int64, dirName string) ([]Res
 
 	resultDownloadObjects := []ResultDownloadObject{}
 	for i := 0; i < len(objsResp.Objects); i++ {
-		reader, err := svc.preDownloadSingleObject(objsResp.Objects[i].ObjectID, userID)
+		reader, err := svc.downloadSingleObject(objsResp.Objects[i].ObjectID, userID)
 		resultDownloadObjects = append(resultDownloadObjects, ResultDownloadObject{
 			ObjectName: objsResp.Objects[i].Name,
 			Reader:     reader,
@@ -105,11 +108,16 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	}
 	defer mutex.Unlock()
 
-	reader, err := svc.preDownloadSingleObject(objectID, userID)
+	reader, err := svc.downloadSingleObject(objectID, userID)
+
+	// defer myio.AfterReadClosed(reader, func(closer io.ReadCloser) {
+	// 	// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
+	// 	mutex.Unlock()
+	// })
 	return reader, err
 }
 
-func (svc *ObjectService) preDownloadSingleObject(objectID int64, userID int64) (io.ReadCloser, error) {
+func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io.ReadCloser, error) {
 	preDownloadResp, err := svc.coordinator.PreDownloadObject(coormsg.NewPreDownloadObject(objectID, userID, config.Cfg().ExternalIP))
 	if err != nil {
 		return nil, fmt.Errorf("pre download object: %w", err)
@@ -142,15 +150,11 @@ func (svc *ObjectService) preDownloadSingleObject(objectID int64, userID int64) 
 		if err != nil {
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
-
-		return myio.AfterReadClosed(reader, func(closer io.ReadCloser) {
-			// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
-		}), nil
+		return reader, nil
 
 		//case consts.REDUNDANCY_EC:
 		// TODO EC部分的代码要考虑重构
 		//	ecRead(readResp.FileSize, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
-
 	}
 	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Redundancy)
 }

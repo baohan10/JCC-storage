@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/utils"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 
@@ -191,14 +191,7 @@ func (t *UploadRepObject) uploadSingleObject(ctx TaskContext, uploadObject Uploa
 		uploadedNodeIDs = append(uploadedNodeIDs, uploadNode.ID)
 	}
 
-	dirName := func() string {
-		parts := strings.Split(uploadObject.ObjectName, "/")
-		//若为文件，dirName设置为空
-		if len(parts) == 1 {
-			return ""
-		}
-		return parts[0]
-	}()
+	dirName := utils.GetDirectoryName(uploadObject.ObjectName)
 
 	// 记录写入的文件的Hash
 	createResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash, dirName))

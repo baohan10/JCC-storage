@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -37,22 +36,16 @@ func ObjectListBucketObjects(ctx CommandContext, bucketID int64) error {
 
 func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int64) error {
 	// 创建本地文件
-	curExecPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("get executable directory failed, err: %w", err)
-	}
+	outputFileDir := filepath.Dir(localFilePath)
 
-	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
-	outputFileDir := filepath.Dir(outputFilePath)
-
-	err = os.MkdirAll(outputFileDir, os.ModePerm)
+	err := os.MkdirAll(outputFileDir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
 	}
 
-	outputFile, err := os.Create(outputFilePath)
+	outputFile, err := os.Create(localFilePath)
 	if err != nil {
-		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
+		return fmt.Errorf("create output file %s failed, err: %w", localFilePath, err)
 	}
 	defer outputFile.Close()
 
@@ -72,17 +65,11 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	return nil
 }
 
-func ObjectDownloadObjectDir(ctx CommandContext, localFilePath string, dirName string) error {
+func ObjectDownloadObjectDir(ctx CommandContext, outputBaseDir string, dirName string) error {
 	// 创建本地文件夹
-	curExecPath, err := os.Executable()
+	err := os.MkdirAll(outputBaseDir, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("get executable directory failed, err: %w", err)
-	}
-
-	outputDirPath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
-	err = os.MkdirAll(outputDirPath, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("create output file directory %s failed, err: %w", outputDirPath, err)
+		return fmt.Errorf("create output base directory %s failed, err: %w", outputBaseDir, err)
 	}
 
 	// 下载文件夹
@@ -103,7 +90,7 @@ func ObjectDownloadObjectDir(ctx CommandContext, localFilePath string, dirName s
 			fmt.Printf("download file %s failed, err: %s", resObjs[i].ObjectName, err.Error())
 			continue
 		}
-		outputFilePath := filepath.Join(outputDirPath, resObjs[i].ObjectName)
+		outputFilePath := filepath.Join(outputBaseDir, resObjs[i].ObjectName)
 		outputFileDir := filepath.Dir(outputFilePath)
 		err = os.MkdirAll(outputFileDir, os.ModePerm)
 		if err != nil {
@@ -189,7 +176,7 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 			// TODO 测试用
 			bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
 			uploadFile = task.UploadObject{
-				ObjectName: strings.Replace(fname, "\\", "/", -1),
+				ObjectName: filepath.ToSlash(fname),
 				File: myio.WithCloser(ratelimit.Reader(file, bkt),
 					func(reader io.Reader) error {
 						return file.Close()
