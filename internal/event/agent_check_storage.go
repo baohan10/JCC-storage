@@ -70,7 +70,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	}
 
 	// TODO unavailable的节点需不需要发送任务？
-	if node.State != consts.NODE_STATE_NORMAL {
+	if node.State != consts.NodeStateNormal {
 		return
 	}
 

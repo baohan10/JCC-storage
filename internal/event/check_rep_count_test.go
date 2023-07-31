@@ -24,22 +24,22 @@ func Test_chooseNewRepNodes(t *testing.T) {
 				{
 					NodeID:     1,
 					LocationID: 1,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 				{
 					NodeID:     2,
 					LocationID: 1,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 				{
 					NodeID:     3,
 					LocationID: 2,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 				{
 					NodeID:     4,
 					LocationID: 3,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 			},
 			curRepNodes: []model.Node{
@@ -57,12 +57,12 @@ func Test_chooseNewRepNodes(t *testing.T) {
 				{
 					NodeID:     1,
 					LocationID: 1,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 				{
 					NodeID:     2,
 					LocationID: 1,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 			},
 			curRepNodes: []model.Node{
@@ -80,12 +80,12 @@ func Test_chooseNewRepNodes(t *testing.T) {
 				{
 					NodeID:     1,
 					LocationID: 1,
-					State:      consts.NODE_STATE_UNAVAILABLE,
+					State:      consts.NodeStateUnavailable,
 				},
 				{
 					NodeID:     2,
 					LocationID: 1,
-					State:      consts.NODE_STATE_NORMAL,
+					State:      consts.NodeStateNormal,
 				},
 			},
 			curRepNodes: []model.Node{

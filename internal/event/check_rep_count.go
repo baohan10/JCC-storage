@@ -111,9 +111,9 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 
 	var normalNodes, unavaiNodes []model.Node
 	for _, node := range repNodes {
-		if node.State == consts.NODE_STATE_NORMAL {
+		if node.State == consts.NodeStateNormal {
 			normalNodes = append(normalNodes, node)
-		} else if node.State == consts.NODE_STATE_UNAVAILABLE {
+		} else if node.State == consts.NodeStateUnavailable {
 			unavaiNodes = append(unavaiNodes, node)
 		}
 	}
@@ -163,7 +163,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 func chooseNewRepNodes(allNodes []model.Node, curRepNodes []model.Node, newCount int) []model.Node {
 	noRepNodes := lo.Reject(allNodes, func(node model.Node, index int) bool {
 		return lo.ContainsBy(curRepNodes, func(n model.Node) bool { return node.NodeID == n.NodeID }) ||
-			node.State != consts.NODE_STATE_NORMAL
+			node.State != consts.NodeStateNormal
 	})
 
 	repNodeLocationIDs := make(map[int64]bool)

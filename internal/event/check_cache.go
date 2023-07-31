@@ -60,7 +60,7 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	if node.State != consts.NODE_STATE_UNAVAILABLE {
+	if node.State != consts.NodeStateUnavailable {
 		return
 	}
 
