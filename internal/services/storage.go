@@ -4,8 +4,8 @@ import (
 	"database/sql"
 
 	"github.com/jmoiron/sqlx"
-	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
@@ -16,7 +16,7 @@ func (svc *Service) GetStorageInfo(msg *coormsg.GetStorageInfo) (*coormsg.GetSto
 	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.UserID, msg.StorageID)
 	if err != nil {
 		logger.Warnf("getting user storage: %s", err.Error())
-		return nil, ramsg.Failed(errorcode.OPERATION_FAILED, "get user storage failed")
+		return nil, ramsg.Failed(errorcode.OperationFailed, "get user storage failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewGetStorageInfoResp(stg.StorageID, stg.Name, stg.NodeID, stg.Directory, stg.State))
@@ -39,7 +39,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 		logger.WithField("UserID", msg.UserID).
 			WithField("StorageID", msg.StorageID).
 			Warnf("get user Storage failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Storage failed")
+		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "get user Storage failed")
 	}
 
 	// 查询文件对象
@@ -47,22 +47,22 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 	if err != nil {
 		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("get user Object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get user Object failed")
+		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "get user Object failed")
 	}
 
 	//-若redundancy是rep，查询对象副本表, 获得FileHash
-	if object.Redundancy == consts.REDUNDANCY_REP {
+	if object.Redundancy == models.RedundancyRep {
 		objectRep, err := svc.db.ObjectRep().GetByID(svc.db.SQLCtx(), object.ObjectID)
 		if err != nil {
 			logger.Warnf("get ObjectRep failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "get ObjectRep failed")
+			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "get ObjectRep failed")
 		}
 
 		return ramsg.ReplyOK(coormsg.NewPreMoveObjectToStorageRespBody(
 			stg.NodeID,
 			stg.Directory,
 			object.FileSize,
-			ramsg.NewRedundancyRepData(objectRep.FileHash),
+			models.NewRedundancyRepData(objectRep.FileHash),
 		))
 
 	} else {
@@ -73,7 +73,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 		blockHashs, err := svc.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
 			logger.Warnf("query ObjectBlock failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "query ObjectBlock failed")
+			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "query ObjectBlock failed")
 		}
 
 		ecPolicies := *utils.GetEcPolicy()
@@ -105,7 +105,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 			}
 			//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 		}*/
-		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OPERATION_FAILED, "not implement yet!")
+		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "not implement yet!")
 	}
 }
 
@@ -118,7 +118,7 @@ func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) (*coor
 			WithField("ObjectID", msg.ObjectID).
 			WithField("StorageID", msg.StorageID).
 			Warnf("user move object to storage failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OPERATION_FAILED, "user move object to storage failed")
+		return ramsg.ReplyFailed[coormsg.MoveObjectToStorageResp](errorcode.OperationFailed, "user move object to storage failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewMoveObjectToStorageResp())

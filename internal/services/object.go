@@ -6,8 +6,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
@@ -21,7 +21,7 @@ func (svc *Service) GetObjectsByDirName(msg *coormsg.GetObjectsByDirName) (*coor
 	if err != nil {
 		logger.WithField("DirName", msg.DirName).
 			Warnf("query dirname failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.GetObjectsResp](errorcode.OPERATION_FAILED, "get objects failed")
+		return ramsg.ReplyFailed[coormsg.GetObjectsResp](errorcode.OperationFailed, "get objects failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewGetObjectsResp(objects))
@@ -34,7 +34,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 	if err != nil {
 		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("query Object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query Object failed")
+		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query Object failed")
 	}
 
 	// 查询客户端所属节点
@@ -45,17 +45,17 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 	} else if err != nil {
 		logger.WithField("ClientExternalIP", msg.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
+		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query client belong node failed")
 	}
 	logger.Debugf("client address %s is at location %d", msg.ClientExternalIP, belongNode.LocationID)
 
 	//-若redundancy是rep，查询对象副本表, 获得FileHash
-	if object.Redundancy == consts.REDUNDANCY_REP {
+	if object.Redundancy == models.RedundancyRep {
 		objectRep, err := svc.db.ObjectRep().GetByID(svc.db.SQLCtx(), object.ObjectID)
 		if err != nil {
 			logger.WithField("ObjectID", object.ObjectID).
 				Warnf("get ObjectRep failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query ObjectRep failed")
+			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query ObjectRep failed")
 		}
 
 		// 注：由于采用了IPFS存储，因此每个备份文件的FileHash都是一样的
@@ -63,7 +63,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 		if err != nil {
 			logger.WithField("FileHash", objectRep.FileHash).
 				Warnf("query Cache failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "query Cache failed")
+			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query Cache failed")
 		}
 
 		var respNodes []ramsg.RespNode
@@ -123,7 +123,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 			blockIDs = append(blockIDs, i)
 		}*/
 
-		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OPERATION_FAILED, "not implement yet!")
+		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "not implement yet!")
 	}
 }
 
@@ -135,12 +135,12 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) (*coorms
 	if err != nil {
 		logger.WithField("BucketID", msg.BucketID).
 			Warnf("check bucket available failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "check bucket available failed")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OperationFailed, "check bucket available failed")
 	}
 	if !isBucketAvai {
 		logger.WithField("BucketID", msg.BucketID).
 			Warnf("bucket is not available to user")
-		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "bucket is not available to user")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OperationFailed, "bucket is not available to user")
 	}
 
 	_, err = svc.db.Object().GetByName(svc.db.SQLCtx(), msg.BucketID, msg.ObjectName)
@@ -148,13 +148,13 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) (*coorms
 		logger.WithField("BucketID", msg.BucketID).
 			WithField("ObjectName", msg.ObjectName).
 			Warnf("object with given Name and BucketID already exists")
-		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "object with given Name and BucketID already exists")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OperationFailed, "object with given Name and BucketID already exists")
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		logger.WithField("BucketID", msg.BucketID).
 			WithField("ObjectName", msg.ObjectName).
 			Warnf("get object by name failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "get object by name failed")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OperationFailed, "get object by name failed")
 	}
 
 	//查询用户可用的节点IP
@@ -162,7 +162,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) (*coorms
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			Warnf("query user nodes failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query user nodes failed")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OperationFailed, "query user nodes failed")
 	}
 
 	// 查询客户端所属节点
@@ -173,7 +173,7 @@ func (svc *Service) PreUploadRepObject(msg *coormsg.PreUploadRepObject) (*coorms
 	} else if err != nil {
 		logger.WithField("ClientExternalIP", msg.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OPERATION_FAILED, "query client belong node failed")
+		return ramsg.ReplyFailed[coormsg.PreUploadResp](errorcode.OperationFailed, "query client belong node failed")
 	}
 
 	var respNodes []ramsg.RespNode
@@ -201,7 +201,7 @@ func (svc *Service) CreateRepObject(msg *coormsg.CreateRepObject) (*coormsg.Crea
 		logger.WithField("BucketName", msg.BucketID).
 			WithField("ObjectName", msg.ObjectName).
 			Warnf("create rep object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.CreateObjectResp](errorcode.OPERATION_FAILED, "create rep object failed")
+		return ramsg.ReplyFailed[coormsg.CreateObjectResp](errorcode.OperationFailed, "create rep object failed")
 	}
 
 	// 紧急任务
@@ -220,12 +220,12 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) (*coorms
 	if err != nil {
 		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("get object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "get object failed")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OperationFailed, "get object failed")
 	}
-	if obj.Redundancy != consts.REDUNDANCY_REP {
+	if obj.Redundancy != models.RedundancyRep {
 		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("this object is not a rep object")
-		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "this object is not a rep object")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OperationFailed, "this object is not a rep object")
 	}
 
 	// 获取对象Rep信息
@@ -233,7 +233,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) (*coorms
 	if err != nil {
 		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("get object rep failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "get object rep failed")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OperationFailed, "get object rep failed")
 	}
 
 	//查询用户可用的节点IP
@@ -241,7 +241,7 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) (*coorms
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			Warnf("query user nodes failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "query user nodes failed")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OperationFailed, "query user nodes failed")
 	}
 
 	// 查询客户端所属节点
@@ -252,14 +252,14 @@ func (svc *Service) PreUpdateRepObject(msg *coormsg.PreUpdateRepObject) (*coorms
 	} else if err != nil {
 		logger.WithField("ClientExternalIP", msg.ClientExternalIP).
 			Warnf("query client belong node failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "query client belong node failed")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OperationFailed, "query client belong node failed")
 	}
 
 	// 查询保存了旧文件的节点信息
 	cachingNodes, err := svc.db.Cache().FindCachingFileUserNodes(svc.db.SQLCtx(), msg.UserID, objRep.FileHash)
 	if err != nil {
 		logger.Warnf("find caching file user nodes failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OPERATION_FAILED, "find caching file user nodes failed")
+		return ramsg.ReplyFailed[coormsg.PreUpdateRepObjectResp](errorcode.OperationFailed, "find caching file user nodes failed")
 	}
 
 	var retNodes []coormsg.PreUpdateRepObjectRespNode
@@ -285,7 +285,7 @@ func (svc *Service) UpdateRepObject(msg *coormsg.UpdateRepObject) (*coormsg.Upda
 	if err != nil {
 		logger.WithField("ObjectID", msg.ObjectID).
 			Warnf("update rep object failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.UpdateRepObjectResp](errorcode.OPERATION_FAILED, "update rep object failed")
+		return ramsg.ReplyFailed[coormsg.UpdateRepObjectResp](errorcode.OperationFailed, "update rep object failed")
 	}
 
 	// 紧急任务
@@ -303,13 +303,13 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) (*coormsg.DeleteObje
 		logger.WithField("UserID", msg.UserID).
 			WithField("ObjectID", msg.ObjectID).
 			Warnf("check object available failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "check object available failed")
+		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OperationFailed, "check object available failed")
 	}
 	if !isAva {
 		logger.WithField("UserID", msg.UserID).
 			WithField("ObjectID", msg.ObjectID).
 			Warnf("object is not available to the user")
-		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "object is not available to the user")
+		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OperationFailed, "object is not available to the user")
 	}
 
 	err = svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
@@ -319,7 +319,7 @@ func (svc *Service) DeleteObject(msg *coormsg.DeleteObject) (*coormsg.DeleteObje
 		logger.WithField("UserID", msg.UserID).
 			WithField("ObjectID", msg.ObjectID).
 			Warnf("set object deleted failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OPERATION_FAILED, "set object deleted failed")
+		return ramsg.ReplyFailed[coormsg.DeleteObjectResp](errorcode.OperationFailed, "set object deleted failed")
 	}
 
 	stgs, err := svc.db.StorageObject().FindObjectStorages(svc.db.SQLCtx(), msg.ObjectID)

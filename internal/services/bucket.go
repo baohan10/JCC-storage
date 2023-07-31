@@ -22,7 +22,7 @@ func (svc *Service) GetUserBuckets(msg *coormsg.GetUserBuckets) (*coormsg.GetUse
 	if err != nil {
 		log.WithField("UserID", msg.UserID).
 			Warnf("get user buckets failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.GetUserBucketsResp](errorcode.OPERATION_FAILED, "get all buckets failed")
+		return ramsg.ReplyFailed[coormsg.GetUserBucketsResp](errorcode.OperationFailed, "get all buckets failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewGetUserBucketsResp(buckets))
@@ -35,7 +35,7 @@ func (svc *Service) GetBucketObjects(msg *coormsg.GetBucketObjects) (*coormsg.Ge
 		log.WithField("UserID", msg.UserID).
 			WithField("BucketID", msg.BucketID).
 			Warnf("get bucket objects failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.GetBucketObjectsResp](errorcode.OPERATION_FAILED, "get bucket objects failed")
+		return ramsg.ReplyFailed[coormsg.GetBucketObjectsResp](errorcode.OperationFailed, "get bucket objects failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewGetBucketObjectsResp(objects))
@@ -53,7 +53,7 @@ func (svc *Service) CreateBucket(msg *coormsg.CreateBucket) (*coormsg.CreateBuck
 		log.WithField("UserID", msg.UserID).
 			WithField("BucketName", msg.BucketName).
 			Warnf("create bucket failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.CreateBucketResp](errorcode.OPERATION_FAILED, "create bucket failed")
+		return ramsg.ReplyFailed[coormsg.CreateBucketResp](errorcode.OperationFailed, "create bucket failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewCreateBucketResp(bucketID))
@@ -67,7 +67,7 @@ func (svc *Service) DeleteBucket(msg *coormsg.DeleteBucket) (*coormsg.DeleteBuck
 		log.WithField("UserID", msg.UserID).
 			WithField("BucketID", msg.BucketID).
 			Warnf("delete bucket failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[coormsg.DeleteBucketResp](errorcode.OPERATION_FAILED, "delete bucket failed")
+		return ramsg.ReplyFailed[coormsg.DeleteBucketResp](errorcode.OperationFailed, "delete bucket failed")
 	}
 
 	return ramsg.ReplyOK(coormsg.NewDeleteBucketResp())
