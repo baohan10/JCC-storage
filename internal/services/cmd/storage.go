@@ -13,6 +13,7 @@ import (
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/ec"
@@ -26,11 +27,11 @@ func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObjec
 	outFileName := utils.MakeMoveOperationFileName(msg.ObjectID, msg.UserID)
 	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory, outFileName)
 
-	if repRed, ok := msg.Redundancy.(ramsg.RepRedundancyData); ok {
+	if repRed, ok := msg.Redundancy.(models.RepRedundancyData); ok {
 		taskID, err := service.moveRepObject(repRed, outFilePath)
 		if err != nil {
 			logger.Warnf("move rep object as %s failed, err: %s", outFilePath, err.Error())
-			return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OPERATION_FAILED, "move rep object failed")
+			return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "move rep object failed")
 		}
 
 		return ramsg.ReplyOK(agtmsg.NewStartStorageMoveObjectResp(taskID))
@@ -38,11 +39,11 @@ func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObjec
 	} else {
 		// TODO 处理其他备份类型
 
-		return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OPERATION_FAILED, "not implement yet!")
+		return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "not implement yet!")
 	}
 }
 
-func (svc *Service) moveRepObject(repData ramsg.RepRedundancyData, outFilePath string) (string, error) {
+func (svc *Service) moveRepObject(repData models.RepRedundancyData, outFilePath string) (string, error) {
 	tsk := svc.taskManager.StartComparable(task.NewIPFSRead(repData.FileHash, outFilePath))
 	return tsk.ID(), nil
 }
@@ -52,7 +53,7 @@ func (svc *Service) WaitStorageMoveObject(msg *agtmsg.WaitStorageMoveObject) (*a
 
 	tsk := svc.taskManager.FindByID(msg.TaskID)
 	if tsk == nil {
-		return ramsg.ReplyFailed[agtmsg.WaitStorageMoveObjectResp](errorcode.TASK_NOT_FOUND, "task not found")
+		return ramsg.ReplyFailed[agtmsg.WaitStorageMoveObjectResp](errorcode.TaskNotFound, "task not found")
 	}
 
 	if msg.WaitTimeoutMs == 0 {
@@ -125,7 +126,7 @@ func (svc *Service) checkStorageIncrement(msg *agtmsg.StorageCheck, fileInfos []
 
 	// 增量情况下，不需要对infosMap中没检查的记录进行处理
 
-	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.STORAGE_DIRECTORY_STATE_OK, entries))
+	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.StorageDirectoryStateOK, entries))
 }
 
 func (svc *Service) checkStorageComplete(msg *agtmsg.StorageCheck, fileInfos []fs.FileInfo) (*agtmsg.StorageCheckResp, *ramsg.CodeMessage) {
@@ -153,7 +154,7 @@ func (svc *Service) checkStorageComplete(msg *agtmsg.StorageCheck, fileInfos []f
 
 	// Storage中多出来的文件不做处理
 
-	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.STORAGE_DIRECTORY_STATE_OK, entries))
+	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.StorageDirectoryStateOK, entries))
 }
 
 /*
@@ -296,14 +297,14 @@ func (svc *Service) StartStorageUploadRepObject(msg *agtmsg.StartStorageUploadRe
 	file, err := os.Open(fullPath)
 	if err != nil {
 		logger.Warnf("opening file %s: %s", fullPath, err.Error())
-		return nil, ramsg.Failed(errorcode.OPERATION_FAILED, "open file failed")
+		return nil, ramsg.Failed(errorcode.OperationFailed, "open file failed")
 	}
 
 	fileInfo, err := file.Stat()
 	if err != nil {
 		file.Close()
 		logger.Warnf("getting file %s state: %s", fullPath, err.Error())
-		return nil, ramsg.Failed(errorcode.OPERATION_FAILED, "get file info failed")
+		return nil, ramsg.Failed(errorcode.OperationFailed, "get file info failed")
 	}
 	fileSize := fileInfo.Size()
 
@@ -322,7 +323,7 @@ func (svc *Service) StartStorageUploadRepObject(msg *agtmsg.StartStorageUploadRe
 func (svc *Service) WaitStorageUploadRepObject(msg *agtmsg.WaitStorageUploadRepObject) (*agtmsg.WaitStorageUploadRepObjectResp, *ramsg.CodeMessage) {
 	tsk := svc.taskManager.FindByID(msg.TaskID)
 	if tsk == nil {
-		return nil, ramsg.Failed(errorcode.TASK_NOT_FOUND, "task not found")
+		return nil, ramsg.Failed(errorcode.TaskNotFound, "task not found")
 	}
 
 	if msg.WaitTimeoutMs == 0 {

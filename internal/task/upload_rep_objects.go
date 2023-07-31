@@ -10,6 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/agent/internal/config"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/utils"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 
@@ -207,8 +208,10 @@ func (t *UploadRepObjects) uploadSingleObject(ctx TaskContext, uploadObject Uplo
 		uploadedNodeIDs = append(uploadedNodeIDs, uploadNode.ID)
 	}
 
+	dirName := utils.GetDirectoryName(uploadObject.ObjectName)
+
 	// 记录写入的文件的Hash
-	createResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash))
+	createResp, err := ctx.Coordinator.CreateRepObject(coormsg.NewCreateRepObject(t.bucketID, uploadObject.ObjectName, uploadObject.FileSize, t.repCount, t.userID, uploadedNodeIDs, fileHash, dirName))
 	if err != nil {
 		return 0, "", fmt.Errorf("creating rep object: %w", err)
 	}

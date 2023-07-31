@@ -17,7 +17,7 @@ func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) (*agtmsg.CheckIPFSResp, *ra
 	filesMap, err := svc.ipfs.GetPinnedFiles()
 	if err != nil {
 		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[agtmsg.CheckIPFSResp](errorcode.OPERATION_FAILED, "get pinned files from ipfs failed")
+		return ramsg.ReplyFailed[agtmsg.CheckIPFSResp](errorcode.OperationFailed, "get pinned files from ipfs failed")
 	}
 
 	// TODO 根据锁定清单过滤被锁定的文件的记录
@@ -33,9 +33,9 @@ func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]sh
 	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
 		if ok {
-			if cache.State == consts.CACHE_STATE_PINNED {
+			if cache.State == consts.CacheStatePinned {
 				// 不处理
-			} else if cache.State == consts.CACHE_STATE_TEMP {
+			} else if cache.State == consts.CacheStateTemp {
 				logger.WithField("FileHash", cache.FileHash).Debugf("unpin for cache entry state is temp")
 				err := svc.ipfs.Unpin(cache.FileHash)
 				if err != nil {
@@ -47,10 +47,10 @@ func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]sh
 			delete(filesMap, cache.FileHash)
 
 		} else {
-			if cache.State == consts.CACHE_STATE_PINNED {
+			if cache.State == consts.CacheStatePinned {
 				svc.taskManager.StartComparable(task.NewIPFSPin(cache.FileHash))
 
-			} else if cache.State == consts.CACHE_STATE_TEMP {
+			} else if cache.State == consts.CacheStateTemp {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
 					entries = append(entries, agtmsg.NewCheckIPFSRespEntry(cache.FileHash, agtmsg.CHECK_IPFS_RESP_OP_DELETE_TEMP))
 				}
@@ -68,9 +68,9 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
 		if ok {
-			if cache.State == consts.CACHE_STATE_PINNED {
+			if cache.State == consts.CacheStatePinned {
 				// 不处理
-			} else if cache.State == consts.CACHE_STATE_TEMP {
+			} else if cache.State == consts.CacheStateTemp {
 				logger.WithField("FileHash", cache.FileHash).Debugf("unpin for cache entry state is temp")
 				err := svc.ipfs.Unpin(cache.FileHash)
 				if err != nil {
@@ -82,10 +82,10 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 			delete(filesMap, cache.FileHash)
 
 		} else {
-			if cache.State == consts.CACHE_STATE_PINNED {
+			if cache.State == consts.CacheStatePinned {
 				svc.taskManager.StartComparable(task.NewIPFSPin(cache.FileHash))
 
-			} else if cache.State == consts.CACHE_STATE_TEMP {
+			} else if cache.State == consts.CacheStateTemp {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
 					entries = append(entries, agtmsg.NewCheckIPFSRespEntry(cache.FileHash, agtmsg.CHECK_IPFS_RESP_OP_DELETE_TEMP))
 				}

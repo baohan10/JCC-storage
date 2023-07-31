@@ -76,14 +76,14 @@ require (
 go 1.18
 
 // 运行go mod tidy时需要将下面几行取消注释
-replace gitlink.org.cn/cloudream/ec => ../ec
-
-replace gitlink.org.cn/cloudream/proto => ../proto
-
-replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
-
-replace gitlink.org.cn/cloudream/common => ../common
-
-replace gitlink.org.cn/cloudream/db => ../db
-
-replace magefiles => ../magefiles
+// replace gitlink.org.cn/cloudream/ec => ../ec
+// 
+// replace gitlink.org.cn/cloudream/proto => ../proto
+// 
+// replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
+// 
+// replace gitlink.org.cn/cloudream/common => ../common
+// 
+// replace gitlink.org.cn/cloudream/db => ../db
+// 
+// replace magefiles => ../magefiles

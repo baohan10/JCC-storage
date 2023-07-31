@@ -50,9 +50,9 @@ func reportStatus(wg *sync.WaitGroup) {
 		}
 		waitG.Wait()
 		//TODO: 查看本地IPFS daemon是否正常，记录到ipfsStatus
-		ipfsStatus := consts.IPFS_STATE_OK
+		ipfsStatus := consts.IPFSStateOK
 		//TODO：访问自身资源目录（配置文件中获取路径），记录是否正常，记录到localDirStatus
-		localDirStatus := consts.STORAGE_DIRECTORY_STATE_OK
+		localDirStatus := consts.StorageDirectoryStateOK
 
 		//发送心跳
 		// TODO 由于数据结构未定，暂时不发送真实数据

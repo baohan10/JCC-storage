@@ -10,9 +10,9 @@ func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *ramsg
 	var ipfsState string
 
 	if svc.ipfs.IsUp() {
-		ipfsState = consts.IPFS_STATE_OK
+		ipfsState = consts.IPFSStateOK
 	} else {
-		ipfsState = consts.IPFS_STATE_OK
+		ipfsState = consts.IPFSStateOK
 	}
 
 	return ramsg.ReplyOK(agtmsg.NewGetStateRespBody(ipfsState))
