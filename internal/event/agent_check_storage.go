@@ -154,6 +154,7 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	checkResp, err := agentClient.StorageCheck(agtmsg.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, objects), rabbitmq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
+		return
 	}
 
 	// 根据返回结果修改数据库
