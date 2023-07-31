@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/juju/ratelimit"
 	"gitlink.org.cn/cloudream/client/internal/task"
 )
 
@@ -103,8 +102,7 @@ func ObjectDownloadObjectDir(ctx CommandContext, outputBaseDir string, dirName s
 		}
 		defer outputFile.Close()
 
-		bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-		_, err = io.Copy(outputFile, ratelimit.Reader(resObjs[i].Reader, bkt))
+		_, err = io.Copy(outputFile, resObjs[i].Reader)
 		if err != nil {
 			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
 			fmt.Printf("copy object data to local file failed, err: %s", err.Error())
@@ -293,7 +291,7 @@ func init() {
 
 	commands.MustAdd(ObjectUploadRepObjectDir, "object", "new", "dir")
 
-	commands.MustAdd(ObjectDownloadObject, "object", "get", "rep")
+	commands.MustAdd(ObjectDownloadObject, "object", "get")
 
 	commands.MustAdd(ObjectDownloadObjectDir, "object", "get", "dir")
 

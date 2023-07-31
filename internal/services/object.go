@@ -112,6 +112,7 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	// 	// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
 	// 	mutex.Unlock()
 	// })
+	// TODO 需要返回Object信息
 	return reader, err
 }
 
