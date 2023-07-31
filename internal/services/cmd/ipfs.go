@@ -36,6 +36,7 @@ func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]sh
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 不处理
 			} else if cache.State == consts.CACHE_STATE_TEMP {
+				logger.WithField("FileHash", cache.FileHash).Debugf("unpin for cache entry state is temp")
 				err := svc.ipfs.Unpin(cache.FileHash)
 				if err != nil {
 					logger.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
@@ -70,6 +71,7 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 			if cache.State == consts.CACHE_STATE_PINNED {
 				// 不处理
 			} else if cache.State == consts.CACHE_STATE_TEMP {
+				logger.WithField("FileHash", cache.FileHash).Debugf("unpin for cache entry state is temp")
 				err := svc.ipfs.Unpin(cache.FileHash)
 				if err != nil {
 					logger.WithField("FileHash", cache.FileHash).Warnf("unpin file failed, err: %s", err.Error())
@@ -93,6 +95,7 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 
 	// map中剩下的数据是没有被遍历过，即Cache中没有记录的，那么就Unpin文件，并产生一条Temp记录
 	for hash := range filesMap {
+		logger.WithField("FileHash", hash).Debugf("unpin for no cacah entry")
 		err := svc.ipfs.Unpin(hash)
 		if err != nil {
 			logger.WithField("FileHash", hash).Warnf("unpin file failed, err: %s", err.Error())
