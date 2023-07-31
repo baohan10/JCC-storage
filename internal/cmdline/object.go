@@ -5,10 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/juju/ratelimit"
 	"gitlink.org.cn/cloudream/client/internal/task"
 )
 
@@ -35,22 +35,16 @@ func ObjectListBucketObjects(ctx CommandContext, bucketID int64) error {
 
 func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int64) error {
 	// 创建本地文件
-	curExecPath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("get executable directory failed, err: %w", err)
-	}
+	outputFileDir := filepath.Dir(localFilePath)
 
-	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
-	outputFileDir := filepath.Dir(outputFilePath)
-
-	err = os.MkdirAll(outputFileDir, os.ModePerm)
+	err := os.MkdirAll(outputFileDir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
 	}
 
-	outputFile, err := os.Create(outputFilePath)
+	outputFile, err := os.Create(localFilePath)
 	if err != nil {
-		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
+		return fmt.Errorf("create output file %s failed, err: %w", localFilePath, err)
 	}
 	defer outputFile.Close()
 
@@ -69,40 +63,54 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	return nil
 }
 
-func ObjectDownloadObjectDir(ctx CommandContext, localFilePath string, dirName string) error {
-	/* // 创建本地文件夹
-	curExecPath, err := os.Executable()
+func ObjectDownloadObjectDir(ctx CommandContext, outputBaseDir string, dirName string) error {
+	// 创建本地文件夹
+	err := os.MkdirAll(outputBaseDir, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("get executable directory failed, err: %w", err)
+		return fmt.Errorf("create output base directory %s failed, err: %w", outputBaseDir, err)
 	}
 
-	outputFilePath := filepath.Join(filepath.Dir(curExecPath), localFilePath)
-	outputFileDir := filepath.Dir(outputFilePath)
-
-	err = os.MkdirAll(outputFileDir, os.ModePerm)
+	// 下载文件夹
+	resObjs, err := ctx.Cmdline.Svc.ObjectSvc().DownloadObjectDir(0, dirName)
 	if err != nil {
-		return fmt.Errorf("create output file directory %s failed, err: %w", outputFileDir, err)
+		return fmt.Errorf("download folder failed, err: %w", err)
 	}
 
-	outputFile, err := os.Create(outputFilePath)
-	if err != nil {
-		return fmt.Errorf("create output file %s failed, err: %w", outputFilePath, err)
+	// 遍历 关闭文件流
+	defer func() {
+		for _, resObj := range resObjs {
+			resObj.Reader.Close()
+		}
+	}()
+
+	for i := 0; i < len(resObjs); i++ {
+		if resObjs[i].Error != nil {
+			fmt.Printf("download file %s failed, err: %s", resObjs[i].ObjectName, err.Error())
+			continue
+		}
+		outputFilePath := filepath.Join(outputBaseDir, resObjs[i].ObjectName)
+		outputFileDir := filepath.Dir(outputFilePath)
+		err = os.MkdirAll(outputFileDir, os.ModePerm)
+		if err != nil {
+			fmt.Printf("create output file directory %s failed, err: %s", outputFileDir, err.Error())
+			continue
+		}
+
+		outputFile, err := os.Create(outputFilePath)
+		if err != nil {
+			fmt.Printf("create output file %s failed, err: %s", outputFilePath, err.Error())
+			continue
+		}
+		defer outputFile.Close()
+
+		bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
+		_, err = io.Copy(outputFile, ratelimit.Reader(resObjs[i].Reader, bkt))
+		if err != nil {
+			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
+			fmt.Printf("copy object data to local file failed, err: %s", err.Error())
+			continue
+		}
 	}
-	defer outputFile.Close()
-
-	// 下载文件
-	reader, err := ctx.Cmdline.Svc.ObjectSvc().DownloadObject(0, objectID)
-	if err != nil {
-		return fmt.Errorf("download object failed, err: %w", err)
-	}
-	defer reader.Close()
-
-	_, err = io.Copy(outputFile, reader)
-	if err != nil {
-		// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
-		return fmt.Errorf("copy object data to local file failed, err: %w", err)
-	} */
-
 	return nil
 }
 
@@ -163,7 +171,7 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 				return fmt.Errorf("open file %s failed, err: %w", fname, err)
 			}
 			uploadFile = task.UploadObject{
-				ObjectName: strings.Replace(fname, "\\", "/", -1),
+				ObjectName: filepath.ToSlash(fname),
 				File:       file,
 				FileSize:   fi.Size(),
 			}
@@ -198,9 +206,13 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 			tb := table.NewWriter()
 			if uploadObjectResult.IsUploading {
 
-				tb.AppendHeader(table.Row{"ObjectID", "ObjectName", "FileHash"})
+				tb.AppendHeader(table.Row{"ObjectName", "ObjectID", "FileHash"})
 				for i := 0; i < len(uploadObjectResult.Objects); i++ {
-					tb.AppendRow(table.Row{uploadObjectResult.Results[i].ObjectID, uploadObjectResult.Objects[i].ObjectName, uploadObjectResult.Results[i].FileHash})
+					tb.AppendRow(table.Row{
+						uploadObjectResult.Objects[i].ObjectName,
+						uploadObjectResult.Results[i].ObjectID,
+						uploadObjectResult.Results[i].FileHash,
+					})
 				}
 				fmt.Print(tb.Render())
 
@@ -222,7 +234,6 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 			return fmt.Errorf("wait uploading: %w", err)
 		}
 	}
-
 }
 
 func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int64, objectName string, ecName string) error {
@@ -282,7 +293,7 @@ func init() {
 
 	commands.MustAdd(ObjectUploadRepObjectDir, "object", "new", "dir")
 
-	commands.MustAdd(ObjectDownloadObject, "object", "get")
+	commands.MustAdd(ObjectDownloadObject, "object", "get", "rep")
 
 	commands.MustAdd(ObjectDownloadObjectDir, "object", "get", "dir")
 
