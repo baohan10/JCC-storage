@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	GRPCPort       int             `json:"grpcPort"`
-	GRCPPacketSize int64           `json:"grpcPacketSize"`
+	GRPCPacketSize int64           `json:"grpcPacketSize"`
 	MaxRepCount    int             `json:"maxRepCount"`
 	LocalIP        string          `json:"localIP"`
 	ExternalIP     string          `json:"externalIP"`

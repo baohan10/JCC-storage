@@ -159,6 +159,28 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 	}
 }
 
+func ObjectUploadEcObject(ctx CommandContext, localFilePath string, bucketID int64, objectName string, ecName string) error {
+	// TODO
+	//panic("not implement yet")
+	file, err := os.Open(localFilePath)
+	if err != nil {
+		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("get file %s state failed, err: %w", localFilePath, err)
+	}
+	fileSize := fileInfo.Size()
+
+	err = ctx.Cmdline.Svc.ObjectSvc().UploadEcObject(0, bucketID, objectName, file, fileSize, ecName)
+	if err != nil {
+		return fmt.Errorf("upload file data failed, err: %w", err)
+	}
+
+	return nil
+}
+
 func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID int64, repCount int) error {
 	var uploadFiles []task.UploadObject
 	var uploadFile task.UploadObject
@@ -234,11 +256,6 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 	}
 }
 
-func ObjectEcWrite(ctx CommandContext, localFilePath string, bucketID int64, objectName string, ecName string) error {
-	// TODO
-	panic("not implement yet")
-}
-
 func ObjectUpdateRepObject(ctx CommandContext, objectID int64, filePath string) error {
 	userID := int64(0)
 
@@ -286,6 +303,8 @@ func ObjectDeleteObject(ctx CommandContext, objectID int64) error {
 
 func init() {
 	commands.MustAdd(ObjectListBucketObjects, "object", "ls")
+
+	commands.MustAdd(ObjectUploadEcObject, "object", "new", "ec")
 
 	commands.MustAdd(ObjectUploadRepObject, "object", "new", "rep")
 

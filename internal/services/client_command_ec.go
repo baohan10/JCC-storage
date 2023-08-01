@@ -3,8 +3,10 @@ package services
 // TODO 将这里的逻辑拆分到services中实现
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,147 +14,163 @@ import (
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/ec"
+
+	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
+	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
+	agentcaller "gitlink.org.cn/cloudream/proto"
+	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
+	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
+	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
+	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-func EcWrite(localFilePath string, bucketID int, objectName string, ecName string) error {
-	panic("not implement yet!")
-	/*
-		fmt.Println("write " + localFilePath + " as " + bucketName + "/" + objectName)
+func (svc *ObjectService) UploadEcObject(userID int64, bucketID int64, objectName string, file io.ReadCloser, fileSize int64, ecName string) error {
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 用于判断用户是否有桶的权限
+		UserBucket().ReadOne(userID, bucketID).
+		// 用于防止创建了多个同名对象
+		Object().CreateOne(bucketID, objectName).
+		// 用于查询可用的上传节点
+		Node().ReadAny().
+		// 用于设置Block配置
+		ObjectBlock().CreateAny().
+		// 用于创建Cache记录
+		Cache().CreateAny().
+		MutexLock(svc.distlock)
+	if err != nil {
+		return fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
 
-		// TODO 需要参考RepWrite函数的代码逻辑，做好错误处理
+	//发送写请求，请求Coor分配写入节点Ip
+	ecWriteResp, err := svc.coordinator.PreUploadEcObject(coormsg.NewPreUploadEcObject(bucketID, objectName, fileSize, ecName, userID, config.Cfg().ExternalIP))
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
 
-		//获取文件大小
-		fileInfo, err := os.Stat(localFilePath)
-		if err != nil {
-			return fmt.Errorf("get file %s state failed, err: %w", localFilePath, err)
-		}
-		fileSize := fileInfo.Size()
-
-		//调用纠删码库，获取编码参数及生成矩阵
-		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[ecName]
-
-		ipss := utils.GetAgentIps()
-		fmt.Println(ipss)
-		print("@!@!@!@!@!@!")
-
-		//var policy utils.EcConfig
-		//policy = ecPolicy[0]
-		ecK := ecPolicy.GetK()
-		ecN := ecPolicy.GetN()
-		//const ecK int = ecPolicy.GetK()
-		//const ecN int = ecPolicy.GetN()
-		var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
-
-		//计算每个块的packet数
-		numPacket := (fileSize + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
-		fmt.Println(numPacket)
-
-		userId := 0
-		coorClient, err := racli.NewCoordinatorClient()
-		if err != nil {
-			return fmt.Errorf("create coordinator client failed, err: %w", err)
-		}
-		defer coorClient.Close()
-
-		//发送写请求，请求Coor分配写入节点Ip
-		ecWriteResp, err := coorClient.ECWrite(bucketName, objectName, fileSize, ecName, userId)
-		if err != nil {
-			return fmt.Errorf("request to coordinator failed, err: %w", err)
-		}
-		if ecWriteResp.IsFailed() {
-			return fmt.Errorf("coordinator ECWrite failed, err: %w", err)
-		}
-
-		//创建channel
-		loadBufs := make([]chan []byte, ecN)
-		encodeBufs := make([]chan []byte, ecN)
-		for i := 0; i < ecN; i++ {
-			loadBufs[i] = make(chan []byte)
-		}
-		for i := 0; i < ecN; i++ {
-			encodeBufs[i] = make(chan []byte)
-		}
-		hashs := make([]string, ecN)
-		//正式开始写入
-		go load(localFilePath, loadBufs[:ecN], ecK, numPacket*int64(ecK), fileSize) //从本地文件系统加载数据
-		go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
-
-		var wg sync.WaitGroup
-		wg.Add(ecN)
-
-		for i := 0; i < ecN; i++ {
-			go send(ecWriteResp.NodeIPs[i], encodeBufs[i], numPacket, &wg, hashs, i)
-		}
-		wg.Wait()
-
-		//第二轮通讯:插入元数据hashs
-		writeECHashResp, err := coorClient.WriteECHash(bucketName, objectName, hashs, ecWriteResp.NodeIPs, userId)
-		if err != nil {
-			return fmt.Errorf("request to coordinator failed, err: %w", err)
-		}
-		if writeECHashResp.IsFailed() {
-			return fmt.Errorf("coordinator WriteECHash failed, err: %w", err)
-		}
-
-		return nil
-	*/
+	if len(ecWriteResp.Nodes) == 0 {
+		return fmt.Errorf("no node to upload file")
+	}
+	//fmt.Println(ecWriteResp)
+	print(ecWriteResp.Ec.EcK)
+	print(ecWriteResp.Ec.EcN)
+	//fmt.Println(ecWriteResp.Body.Nodes)
+	//生成纠删码的写入节点序列
+	nds := make([]ramsg.RespNode, ecWriteResp.Ec.EcN)
+	ll := len(ecWriteResp.Nodes)
+	start := rand.Intn(ll)
+	for i := 0; i < ecWriteResp.Ec.EcN; i++ {
+		nds[i] = ecWriteResp.Nodes[(start+i)%ll]
+	}
+	hashs, err := svc.EcWrite(file, fileSize, ecWriteResp.Ec.EcK, ecWriteResp.Ec.EcN, nds)
+	if err != nil {
+		return fmt.Errorf("EcWrite failed, err: %w", err)
+	}
+	nodeIDs := make([]int64, len(nds))
+	for i := 0; i < len(nds); i++ {
+		nodeIDs[i] = nds[i].ID
+	}
+	//第二轮通讯:插入元数据hashs
+	_, err = svc.coordinator.CreateEcObject(coormsg.NewCreateEcObject(bucketID, objectName, fileSize, userID, nodeIDs, hashs, ecName))
+	if err != nil {
+		return fmt.Errorf("request to coordinator failed, err: %w", err)
+	}
+	return nil
 }
 
-func load(localFilePath string, loadBufs []chan []byte, ecK int, totalNumPacket int64, fileSize int64) {
-	fmt.Println("load " + localFilePath)
-	file, _ := os.Open(localFilePath)
+func (svc *ObjectService) EcWrite(file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []ramsg.RespNode) ([]string, error) {
+
+	// TODO 需要参考RepWrite函数的代码逻辑，做好错误处理
+	//获取文件大小
+
+	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
+	//计算每个块的packet数
+	numPacket := (fileSize + int64(ecK)*config.Cfg().GRPCPacketSize - 1) / (int64(ecK) * config.Cfg().GRPCPacketSize)
+	//fmt.Println(numPacket)
+	//创建channel
+	loadBufs := make([]chan []byte, ecN)
+	encodeBufs := make([]chan []byte, ecN)
+	for i := 0; i < ecN; i++ {
+		loadBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < ecN; i++ {
+		encodeBufs[i] = make(chan []byte)
+	}
+	hashs := make([]string, ecN)
+	//正式开始写入
+	go load(file, loadBufs[:ecN], ecK, numPacket*int64(ecK)) //从本地文件系统加载数据
+	go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
+
+	var wg sync.WaitGroup
+	wg.Add(ecN)
+	/*mutex, err := reqbuilder.NewBuilder().
+		// 防止上传的副本被清除
+		IPFS().CreateAnyRep(node.ID).
+		MutexLock(svc.distlock)
+	if err != nil {
+		return fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
+	*/
+	for i := 0; i < ecN; i++ {
+		go svc.Send(nodes[i], encodeBufs[i], numPacket, &wg, hashs, i)
+	}
+	wg.Wait()
+
+	return hashs, nil
+
+}
+
+func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket int64) error {
 
 	for i := 0; int64(i) < totalNumPacket; i++ {
-		print(totalNumPacket)
 
-		buf := make([]byte, config.Cfg().GRCPPacketSize)
+		buf := make([]byte, config.Cfg().GRPCPacketSize)
 		idx := i % ecK
-		print(len(loadBufs))
 		_, err := file.Read(buf)
+		if err != nil {
+			return fmt.Errorf("read file falied, err:%w", err)
+		}
 		loadBufs[idx] <- buf
 
 		if idx == ecK-1 {
-			print("***")
+			//print("***")
 			for j := ecK; j < len(loadBufs); j++ {
-				print(j)
-				zeroPkt := make([]byte, config.Cfg().GRCPPacketSize)
-				fmt.Printf("%v", zeroPkt)
+				zeroPkt := make([]byte, config.Cfg().GRPCPacketSize)
 				loadBufs[j] <- zeroPkt
 			}
 		}
 		if err != nil && err != io.EOF {
-			break
+			return fmt.Errorf("load file to buf failed, err:%w", err)
 		}
 	}
-	fmt.Println("load over")
+	//fmt.Println("load over")
 	for i := 0; i < len(loadBufs); i++ {
-		print(i)
+
 		close(loadBufs[i])
 	}
 	file.Close()
+	return nil
 }
 
 func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int64, numPacket int64) {
-	fmt.Println("encode ")
 	var tmpIn [][]byte
 	tmpIn = make([][]byte, len(outBufs))
 	enc := ec.NewRsEnc(ecK, len(outBufs))
 	for i := 0; int64(i) < numPacket; i++ {
 		for j := 0; j < len(outBufs); j++ { //3
 			tmpIn[j] = <-inBufs[j]
-			//print(i)
-			//fmt.Printf("%v",tmpIn[j])
-			//print("@#$")
 		}
 		enc.Encode(tmpIn)
-		fmt.Printf("%v", tmpIn)
-		print("$$$$$$$$$$$$$$$$$$")
 		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
 			outBufs[j] <- tmpIn[j]
 		}
 	}
-	fmt.Println("encode over")
 	for i := 0; i < len(outBufs); i++ {
 		close(outBufs[i])
 	}
@@ -202,9 +220,105 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	}
 }
 
-func send(ip string, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) error {
-	panic("not implement yet!")
+func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) error {
+	uploadToAgent := true
+	if svc.ipfs != nil { //使用IPFS传输
+		//创建IPFS文件
+		print("!!!")
+		log.Infof("try to use local IPFS to upload block")
+		writer, err := svc.ipfs.CreateFile()
+		if err != nil {
+			uploadToAgent = false
+			fmt.Errorf("create IPFS file failed, err: %w", err)
+		}
+		//逐packet写进ipfs
+		for i := 0; int64(i) < numPacket; i++ {
+			buf := <-inBuf
+			reader := bytes.NewReader(buf)
+			_, err = io.Copy(writer, reader)
+			if err != nil {
+				uploadToAgent = false
+				fmt.Errorf("copying block data to IPFS file failed, err: %w", err)
+			}
+		}
+		//finish, 获取哈希
+		fileHash, err := writer.Finish()
+		if err != nil {
+			log.Warnf("upload block to local IPFS failed, so try to upload by agent, err: %s", err.Error())
+			uploadToAgent = false
+			fmt.Errorf("finish writing blcok to IPFS failed, err: %w", err)
+		}
+		hashs[idx] = fileHash
+		if err != nil {
 
+		}
+		nodeID := node.ID
+		// 然后让最近节点pin本地上传的文件
+		agentClient, err := agtcli.NewClient(nodeID, &config.Cfg().RabbitMQ)
+		if err != nil {
+			uploadToAgent = false
+			fmt.Errorf("create agent client to %d failed, err: %w", nodeID, err)
+		}
+		defer agentClient.Close()
+
+		pinObjResp, err := agentClient.PinObject(agtmsg.NewPinObjectBody(fileHash))
+		if err != nil {
+			uploadToAgent = false
+			fmt.Errorf("request to agent %d failed, err: %w", nodeID, err)
+		}
+		if pinObjResp.IsFailed() {
+			uploadToAgent = false
+			fmt.Errorf("agent %d PinObject failed, code: %s, message: %s", nodeID, pinObjResp.ErrorCode, pinObjResp.ErrorMessage)
+		}
+		if uploadToAgent == false {
+			return nil
+		}
+	}
+	//////////////////////////////通过Agent上传
+	if uploadToAgent == true {
+		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+		print("!!!!!!")
+		nodeIP := node.ExternalIP
+		if node.IsSameLocation {
+			nodeIP = node.LocalIP
+
+			log.Infof("client and node %d are at the same location, use local ip\n", node.ID)
+		}
+
+		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
+		grpcCon, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
+		}
+		defer grpcCon.Close()
+
+		client := agentcaller.NewFileTransportClient(grpcCon)
+		upload, err := mygrpc.SendFileAsStream(client)
+		if err != nil {
+			return fmt.Errorf("request to send file failed, err: %w", err)
+		}
+
+		// 发送文件数据
+		for i := 0; int64(i) < numPacket; i++ {
+			buf := <-inBuf
+			reader := bytes.NewReader(buf)
+			_, err = io.Copy(upload, reader)
+			if err != nil {
+				// 发生错误则关闭连接
+				upload.Abort(io.ErrClosedPipe)
+				return fmt.Errorf("copy block date to upload stream failed, err: %w", err)
+			}
+		}
+		// 发送EOF消息，并获得FileHash
+		fileHash, err := upload.Finish()
+		if err != nil {
+			upload.Abort(io.ErrClosedPipe)
+			return fmt.Errorf("send EOF failed, err: %w", err)
+		}
+		hashs[idx] = fileHash
+		wg.Done()
+	}
+	return nil
 	/*
 		//	TO DO ss: 判断本地有没有ipfs daemon、能否与目标agent的ipfs daemon连通、本地ipfs目录空间是否充足
 		//	如果本地有ipfs daemon、能与目标agent的ipfs daemon连通、本地ipfs目录空间充足，将所有内容写入本地ipfs目录，得到对象的cid，发送cid给目标agent让其pin相应的对象
@@ -328,7 +442,7 @@ func ecRead(fileSize int64, nodeIPs []string, blockHashs []string, blockIds []in
 	ecN := ecPolicy.GetN()
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 
-	numPacket := (fileSize + int64(ecK)*config.Cfg().GRCPPacketSize - 1) / (int64(ecK) * config.Cfg().GRCPPacketSize)
+	numPacket := (fileSize + int64(ecK)*config.Cfg().GRPCPacketSize - 1) / (int64(ecK) * config.Cfg().GRPCPacketSize)
 	fmt.Println(numPacket)
 	//创建channel
 	getBufs := make([]chan []byte, ecN)
