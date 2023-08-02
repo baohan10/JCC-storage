@@ -10,13 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/ec"
 
 	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
+	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	agentcaller "gitlink.org.cn/cloudream/proto"
@@ -29,24 +30,30 @@ import (
 )
 
 func (svc *ObjectService) UploadEcObject(userID int64, bucketID int64, objectName string, file io.ReadCloser, fileSize int64, ecName string) error {
-	mutex, err := reqbuilder.NewBuilder().
+	
+	/*reqBlder := reqbuilder.NewBuilder()
+	for _, uploadObject := range t.Objects {
+		reqBlder.Metadata().
+			// 用于防止创建了多个同名对象
+			Object().CreateOne(t.bucketID, uploadObject.ObjectName)
+	}*/
+	/*
+	mutex, err := reqBlder.
 		Metadata().
 		// 用于判断用户是否有桶的权限
 		UserBucket().ReadOne(userID, bucketID).
-		// 用于防止创建了多个同名对象
-		Object().CreateOne(bucketID, objectName).
 		// 用于查询可用的上传节点
 		Node().ReadAny().
-		// 用于设置Block配置
-		ObjectBlock().CreateAny().
+		// 用于设置Rep配置
+		ObjectRep().CreateAny().
 		// 用于创建Cache记录
 		Cache().CreateAny().
-		MutexLock(svc.distlock)
+		MutexLock(ctx.DistLock)
 	if err != nil {
 		return fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer mutex.Unlock()
-
+	*/
 	//发送写请求，请求Coor分配写入节点Ip
 	ecWriteResp, err := svc.coordinator.PreUploadEcObject(coormsg.NewPreUploadEcObject(bucketID, objectName, fileSize, ecName, userID, config.Cfg().ExternalIP))
 	if err != nil {
@@ -261,15 +268,26 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 		}
 		defer agentClient.Close()
 
-		pinObjResp, err := agentClient.PinObject(agtmsg.NewPinObjectBody(fileHash))
+		pinObjResp, err := agentClient.StartPinningObject(agtmsg.NewStartPinningObject(fileHash))
+	if err != nil {
+		uploadToAgent = false
+		fmt.Errorf("start pinning object: %w", err)
+	}
+
+	for {
+		waitResp, err := agentClient.WaitPinningObject(agtmsg.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
 		if err != nil {
 			uploadToAgent = false
-			fmt.Errorf("request to agent %d failed, err: %w", nodeID, err)
+			fmt.Errorf("waitting pinning object: %w", err)
 		}
-		if pinObjResp.IsFailed() {
-			uploadToAgent = false
-			fmt.Errorf("agent %d PinObject failed, code: %s, message: %s", nodeID, pinObjResp.ErrorCode, pinObjResp.ErrorMessage)
+		if waitResp.IsComplete {
+			if waitResp.Error != "" {
+				uploadToAgent = false
+				fmt.Errorf("agent pinning object: %s", waitResp.Error)
+			}
+			break
 		}
+	}
 		if uploadToAgent == false {
 			return nil
 		}
