@@ -149,7 +149,7 @@ func (t *CheckRepCount) checkOneRepCount(fileHash string, execCtx ExecuteContext
 		}
 
 		for _, node := range newNodes {
-			err := execCtx.Args.DB.Cache().CreatePinned(sqlCtx, fileHash, node.NodeID)
+			err := execCtx.Args.DB.Cache().CreatePinned(sqlCtx, fileHash, node.NodeID, 0)
 			if err != nil {
 				return nil, fmt.Errorf("create cache failed, err: %w", err)
 			}
