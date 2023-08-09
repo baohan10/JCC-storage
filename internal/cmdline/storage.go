@@ -5,14 +5,14 @@ import (
 	"time"
 )
 
-func StorageMoveObjectToStorage(ctx CommandContext, objectID int64, storageID int64) error {
-	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartMovingObjectToStorage(0, objectID, storageID)
+func StorageMoveObject(ctx CommandContext, objectID int64, storageID int64) error {
+	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageMoveObject(0, objectID, storageID)
 	if err != nil {
 		return fmt.Errorf("start moving object to storage: %w", err)
 	}
 
 	for {
-		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitMovingObjectToStorage(taskID, time.Second*5)
+		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageMoveObjectToStorage(taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)
@@ -27,8 +27,7 @@ func StorageMoveObjectToStorage(ctx CommandContext, objectID int64, storageID in
 	}
 }
 
-func StorageMoveObjectDirToStorage(ctx CommandContext, dirName string, storageID int64) error {
-
+func StorageMoveDir(ctx CommandContext, dirName string, storageID int64) error {
 	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartMovingObjectDirToStorage(0, dirName, storageID)
 	if err != nil {
 		return fmt.Errorf("start moving object to storage: %w", err)
@@ -54,7 +53,33 @@ func StorageMoveObjectDirToStorage(ctx CommandContext, dirName string, storageID
 	}
 }
 
+func StorageUploadRepObject(ctx CommandContext, storageID int64, filePath string, bucketID int64, objectName string, repCount int) error {
+	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageUploadRepObject(0, storageID, filePath, bucketID, objectName, repCount)
+	if err != nil {
+		return fmt.Errorf("start storage uploading rep object: %w", err)
+	}
+
+	for {
+		complete, objectID, fileHash, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageUploadRepObject(nodeID, taskID, time.Second*10)
+		if complete {
+			if err != nil {
+				return fmt.Errorf("uploading complete with: %w", err)
+			}
+
+			fmt.Printf("%d\n%s\n", objectID, fileHash)
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("wait uploading: %w", err)
+		}
+	}
+}
+
 func init() {
-	commands.MustAdd(StorageMoveObjectToStorage, "storage", "move", "obj")
-	commands.MustAdd(StorageMoveObjectDirToStorage, "storage", "move", "dir")
+	commands.MustAdd(StorageMoveObject, "storage", "move", "obj")
+
+	commands.MustAdd(StorageMoveDir, "storage", "move", "dir")
+
+	commands.MustAdd(StorageUploadRepObject, "storage", "upload", "rep")
 }

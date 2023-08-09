@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/juju/ratelimit"
 	"gitlink.org.cn/cloudream/client/internal/task"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
 func ObjectListBucketObjects(ctx CommandContext, bucketID int64) error {
@@ -56,8 +54,7 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	}
 	defer reader.Close()
 
-	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-	_, err = io.Copy(outputFile, ratelimit.Reader(reader, bkt))
+	_, err = io.Copy(outputFile, reader)
 	if err != nil {
 		return fmt.Errorf("copy object data to local file failed, err: %w", err)
 	}
@@ -105,8 +102,7 @@ func ObjectDownloadObjectDir(ctx CommandContext, outputBaseDir string, dirName s
 		}
 		defer outputFile.Close()
 
-		bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-		_, err = io.Copy(outputFile, ratelimit.Reader(resObjs[i].Reader, bkt))
+		_, err = io.Copy(outputFile, resObjs[i].Reader)
 		if err != nil {
 			// TODO 写入到文件失败，是否要考虑删除这个不完整的文件？
 			fmt.Printf("copy object data to local file failed, err: %s", err.Error())
@@ -129,15 +125,10 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 	}
 	fileSize := fileInfo.Size()
 
-	// TODO 测试用
-	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
 	uploadObject := task.UploadObject{
 		ObjectName: objectName,
-		File: myio.WithCloser(ratelimit.Reader(file, bkt),
-			func(reader io.Reader) error {
-				return file.Close()
-			}),
-		FileSize: fileSize,
+		File:       file,
+		FileSize:   fileSize,
 	}
 	uploadObjects := []task.UploadObject{uploadObject}
 
@@ -147,13 +138,18 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 	}
 
 	for {
-		complete, UploadObjectResult, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
+		complete, uploadObjectResult, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("uploading rep object: %w", err)
 			}
 
-			fmt.Print(UploadObjectResult.UploadRepResults[0].ResultFileHash)
+			uploadRet := uploadObjectResult.Results[0]
+			if uploadRet.Error != nil {
+				return uploadRet.Error
+			}
+
+			fmt.Print(uploadRet.FileHash)
 			return nil
 		}
 
@@ -164,7 +160,6 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 }
 
 func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID int64, repCount int) error {
-
 	var uploadFiles []task.UploadObject
 	var uploadFile task.UploadObject
 	err := filepath.Walk(localDirPath, func(fname string, fi os.FileInfo, err error) error {
@@ -173,15 +168,10 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 			if err != nil {
 				return fmt.Errorf("open file %s failed, err: %w", fname, err)
 			}
-			// TODO 测试用
-			bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
 			uploadFile = task.UploadObject{
 				ObjectName: filepath.ToSlash(fname),
-				File: myio.WithCloser(ratelimit.Reader(file, bkt),
-					func(reader io.Reader) error {
-						return file.Close()
-					}),
-				FileSize: fi.Size(),
+				File:       file,
+				FileSize:   fi.Size(),
 			}
 			uploadFiles = append(uploadFiles, uploadFile)
 		}
@@ -205,21 +195,21 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 	}
 
 	for {
-		complete, UploadObjectResult, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
+		complete, uploadObjectResult, err := ctx.Cmdline.Svc.ObjectSvc().WaitUploadingRepObjects(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("uploading rep object: %w", err)
 			}
 
 			tb := table.NewWriter()
-			if UploadObjectResult.IsUploading {
+			if uploadObjectResult.IsUploading {
 
 				tb.AppendHeader(table.Row{"ObjectName", "ObjectID", "FileHash"})
-				for i := 0; i < len(UploadObjectResult.UploadObjects); i++ {
+				for i := 0; i < len(uploadObjectResult.Objects); i++ {
 					tb.AppendRow(table.Row{
-						UploadObjectResult.UploadObjects[i].ObjectName,
-						UploadObjectResult.UploadRepResults[i].ObjectID,
-						UploadObjectResult.UploadRepResults[i].ResultFileHash,
+						uploadObjectResult.Objects[i].ObjectName,
+						uploadObjectResult.Results[i].ObjectID,
+						uploadObjectResult.Results[i].FileHash,
 					})
 				}
 				fmt.Print(tb.Render())
@@ -228,9 +218,9 @@ func ObjectUploadRepObjectDir(ctx CommandContext, localDirPath string, bucketID 
 				fmt.Println("The folder upload failed. Some files do not meet the upload requirements.")
 
 				tb.AppendHeader(table.Row{"ObjectName", "Error"})
-				for i := 0; i < len(UploadObjectResult.UploadObjects); i++ {
-					if UploadObjectResult.UploadRepResults[i].Error != nil {
-						tb.AppendRow(table.Row{UploadObjectResult.UploadObjects[i].ObjectName, UploadObjectResult.UploadRepResults[i].Error})
+				for i := 0; i < len(uploadObjectResult.Objects); i++ {
+					if uploadObjectResult.Results[i].Error != nil {
+						tb.AppendRow(table.Row{uploadObjectResult.Objects[i].ObjectName, uploadObjectResult.Results[i].Error})
 					}
 				}
 				fmt.Print(tb.Render())
@@ -264,13 +254,7 @@ func ObjectUpdateRepObject(ctx CommandContext, objectID int64, filePath string) 
 	}
 	fileSize := fileInfo.Size()
 
-	// TODO 测试用
-	bkt := ratelimit.NewBucketWithRate(10*1024, 10*1024)
-	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUpdatingRepObject(userID, objectID,
-		myio.WithCloser(ratelimit.Reader(file, bkt),
-			func(reader io.Reader) error {
-				return file.Close()
-			}), fileSize)
+	taskID, err := ctx.Cmdline.Svc.ObjectSvc().StartUpdatingRepObject(userID, objectID, file, fileSize)
 	if err != nil {
 		return fmt.Errorf("update object %d failed, err: %w", objectID, err)
 	}
@@ -307,7 +291,7 @@ func init() {
 
 	commands.MustAdd(ObjectUploadRepObjectDir, "object", "new", "dir")
 
-	commands.MustAdd(ObjectDownloadObject, "object", "get", "rep")
+	commands.MustAdd(ObjectDownloadObject, "object", "get")
 
 	commands.MustAdd(ObjectDownloadObjectDir, "object", "get", "dir")
 

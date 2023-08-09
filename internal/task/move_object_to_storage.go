@@ -150,20 +150,19 @@ func moveSingleObjectToStorage(ctx TaskContext, userID int64, objectID int64, st
 	}
 	defer agentClient.Close()
 
-	agentMoveResp, err := agentClient.StartMovingObjectToStorage(
-		agtmsg.NewStartMovingObjectToStorage(preMoveResp.Directory,
+	agentMoveResp, err := agentClient.StartStorageMoveObject(
+		agtmsg.NewStartStorageMoveObject(preMoveResp.Directory,
 			objectID,
 			userID,
 			preMoveResp.FileSize,
 			preMoveResp.Redundancy,
-			preMoveResp.RedundancyData,
 		))
 	if err != nil {
 		return fmt.Errorf("start moving object to storage: %w", err)
 	}
 
 	for {
-		waitResp, err := agentClient.WaitMovingObject(agtmsg.NewWaitMovingObject(agentMoveResp.TaskID, int64(time.Second)*5))
+		waitResp, err := agentClient.WaitStorageMoveObject(agtmsg.NewWaitStorageMoveObject(agentMoveResp.TaskID, int64(time.Second)*5))
 		if err != nil {
 			return fmt.Errorf("wait moving object: %w", err)
 		}
