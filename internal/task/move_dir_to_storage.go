@@ -2,13 +2,14 @@ package task
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
 
-type MoveObjectDirToStorage struct {
+type MoveDirToStorage struct {
 	userID                 int64
 	dirName                string
 	storageID              int64
@@ -20,22 +21,22 @@ type ResultObjectToStorage struct {
 	Error      error
 }
 
-func NewMoveObjectDirToStorage(userID int64, dirName string, storageID int64) *MoveObjectDirToStorage {
-	return &MoveObjectDirToStorage{
+func NewMoveDirToStorage(userID int64, dirName string, storageID int64) *MoveDirToStorage {
+	return &MoveDirToStorage{
 		userID:    userID,
 		dirName:   dirName,
 		storageID: storageID,
 	}
 }
 
-func (t *MoveObjectDirToStorage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *MoveDirToStorage) Execute(ctx TaskContext, complete CompleteFn) {
 	err := t.do(ctx)
 	complete(err, CompleteOption{
 		RemovingDelay: time.Minute,
 	})
 }
 
-func (t *MoveObjectDirToStorage) do(ctx TaskContext) error {
+func (t *MoveDirToStorage) do(ctx TaskContext) error {
 	//根据dirName查询相关的所有文件
 	objsResp, err := ctx.Coordinator.GetObjectsByDirName(coormsg.NewGetObjectsByDirName(t.userID, t.dirName))
 	if err != nil {
@@ -73,7 +74,7 @@ func (t *MoveObjectDirToStorage) do(ctx TaskContext) error {
 	defer mutex.Unlock()
 
 	for i := 0; i < len(objsResp.Objects); i++ {
-		err := moveSingleObjectToStorage(ctx, t.userID, objsResp.Objects[i].ObjectID, t.storageID)
+		err := moveSingleObjectToStorage(ctx, t.userID, objsResp.Objects[i].ObjectID, filepath.Dir(objsResp.Objects[i].Name), t.storageID)
 		t.ResultObjectToStorages = append(t.ResultObjectToStorages, ResultObjectToStorage{
 			ObjectName: objsResp.Objects[i].Name,
 			Error:      err,

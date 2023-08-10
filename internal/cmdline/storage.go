@@ -12,7 +12,7 @@ func StorageMoveObject(ctx CommandContext, objectID int64, storageID int64) erro
 	}
 
 	for {
-		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageMoveObjectToStorage(taskID, time.Second*10)
+		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageMoveObject(taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)
@@ -28,13 +28,13 @@ func StorageMoveObject(ctx CommandContext, objectID int64, storageID int64) erro
 }
 
 func StorageMoveDir(ctx CommandContext, dirName string, storageID int64) error {
-	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartMovingObjectDirToStorage(0, dirName, storageID)
+	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartMovingDir(0, dirName, storageID)
 	if err != nil {
 		return fmt.Errorf("start moving object to storage: %w", err)
 	}
 
 	for {
-		complete, results, err := ctx.Cmdline.Svc.StorageSvc().WaitMovingObjectDirToStorage(taskID, time.Second*5)
+		complete, results, err := ctx.Cmdline.Svc.StorageSvc().WaitMovingDir(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)
