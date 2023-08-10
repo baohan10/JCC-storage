@@ -56,17 +56,16 @@ func (t *MoveObjectToStorage) do(ctx TaskContext) error {
 	}
 	defer mutex.Unlock()
 
-	err = moveSingleObjectToStorage(ctx, t.userID, t.objectID, "", t.storageID)
+	err = moveSingleObjectToStorage(ctx, t.userID, t.objectID, t.storageID)
 	return err
 }
 
-func moveSingleObjectToStorage(ctx TaskContext, userID int64, objectID int64, dirName string, storageID int64) error {
+func moveSingleObjectToStorage(ctx TaskContext, userID int64, objectID int64, storageID int64) error {
 	// 先向协调端请求文件相关的元数据
 	preMoveResp, err := ctx.Coordinator.PreMoveObjectToStorage(coormsg.NewPreMoveObjectToStorage(objectID, storageID, userID))
 	if err != nil {
 		return fmt.Errorf("pre move object to storage: %w", err)
 	}
-	fmt.Printf("preMoveResp: %v\n", preMoveResp)
 
 	// 然后向代理端发送移动文件的请求
 	agentClient, err := agtcli.NewClient(preMoveResp.NodeID, &config.Cfg().RabbitMQ)
@@ -76,10 +75,11 @@ func moveSingleObjectToStorage(ctx TaskContext, userID int64, objectID int64, di
 	defer agentClient.Close()
 
 	agentMoveResp, err := agentClient.StartStorageMoveObject(
-		agtmsg.NewStartStorageMoveObject(preMoveResp.Directory+"/"+dirName,
+		agtmsg.NewStartStorageMoveObject(preMoveResp.Directory,
 			objectID,
+			preMoveResp.Object.Name,
 			userID,
-			preMoveResp.FileSize,
+			preMoveResp.Object.FileSize,
 			preMoveResp.Redundancy,
 		))
 	if err != nil {

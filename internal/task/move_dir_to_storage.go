@@ -2,7 +2,6 @@ package task
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
@@ -74,7 +73,7 @@ func (t *MoveDirToStorage) do(ctx TaskContext) error {
 	defer mutex.Unlock()
 
 	for i := 0; i < len(objsResp.Objects); i++ {
-		err := moveSingleObjectToStorage(ctx, t.userID, objsResp.Objects[i].ObjectID, filepath.Dir(objsResp.Objects[i].Name), t.storageID)
+		err := moveSingleObjectToStorage(ctx, t.userID, objsResp.Objects[i].ObjectID, t.storageID)
 		t.ResultObjectToStorages = append(t.ResultObjectToStorages, ResultObjectToStorage{
 			ObjectName: objsResp.Objects[i].Name,
 			Error:      err,
