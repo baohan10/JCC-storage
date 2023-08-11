@@ -23,11 +23,11 @@ import (
 )
 
 func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObject) (*agtmsg.StartStorageMoveObjectResp, *ramsg.CodeMessage) {
-
+	// TODO  修改文件名，可用objectname
 	outFileName := utils.MakeMoveOperationFileName(msg.ObjectID, msg.UserID)
-	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory, outFileName)
-	fmt.Println(outFileName)
-	fmt.Println(outFilePath)
+	objectDir := filepath.Dir(msg.ObjectName)
+	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory, objectDir, outFileName)
+
 	if repRed, ok := msg.Redundancy.(models.RepRedundancyData); ok {
 		taskID, err := service.moveRepObject(repRed, outFilePath)
 		if err != nil {
