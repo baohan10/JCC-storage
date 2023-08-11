@@ -62,6 +62,7 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	return nil
 }
 
+
 func ObjectDownloadObjectDir(ctx CommandContext, outputBaseDir string, dirName string) error {
 	// 创建本地文件夹
 	err := os.MkdirAll(outputBaseDir, os.ModePerm)
@@ -317,4 +318,5 @@ func init() {
 	commands.MustAdd(ObjectUpdateRepObject, "object", "update", "rep")
 
 	commands.MustAdd(ObjectDeleteObject, "object", "delete")
+
 }

@@ -17,7 +17,6 @@ import (
 	"gitlink.org.cn/cloudream/ec"
 
 	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	agentcaller "gitlink.org.cn/cloudream/proto"
@@ -63,41 +62,38 @@ func (svc *ObjectService) UploadEcObject(userID int64, bucketID int64, objectNam
 	if len(ecWriteResp.Nodes) == 0 {
 		return fmt.Errorf("no node to upload file")
 	}
-	//fmt.Println(ecWriteResp)
-	print(ecWriteResp.Ec.EcK)
-	print(ecWriteResp.Ec.EcN)
-	//fmt.Println(ecWriteResp.Body.Nodes)
 	//生成纠删码的写入节点序列
-	nds := make([]ramsg.RespNode, ecWriteResp.Ec.EcN)
-	ll := len(ecWriteResp.Nodes)
-	start := rand.Intn(ll)
+	nodes := make([]ramsg.RespNode, ecWriteResp.Ec.EcN)
+	numNodes := len(ecWriteResp.Nodes)
+	startWriteNodeID := rand.Intn(numNodes)
 	for i := 0; i < ecWriteResp.Ec.EcN; i++ {
-		nds[i] = ecWriteResp.Nodes[(start+i)%ll]
+		nodes[i] = ecWriteResp.Nodes[(startWriteNodeID+i)%numNodes]
 	}
-	hashs, err := svc.EcWrite(file, fileSize, ecWriteResp.Ec.EcK, ecWriteResp.Ec.EcN, nds)
+	hashs, err := svc.ecWrite(file, fileSize, ecWriteResp.Ec.EcK, ecWriteResp.Ec.EcN, nodes)
 	if err != nil {
 		return fmt.Errorf("EcWrite failed, err: %w", err)
 	}
-	nodeIDs := make([]int64, len(nds))
-	for i := 0; i < len(nds); i++ {
-		nodeIDs[i] = nds[i].ID
+	nodeIDs := make([]int64, len(nodes))
+	for i := 0; i < len(nodes); i++ {
+		nodeIDs[i] = nodes[i].ID
 	}
 	//第二轮通讯:插入元数据hashs
-	_, err = svc.coordinator.CreateEcObject(coormsg.NewCreateEcObject(bucketID, objectName, fileSize, userID, nodeIDs, hashs, ecName))
+	dirName := utils.GetDirectoryName(objectName)
+	_, err = svc.coordinator.CreateEcObject(coormsg.NewCreateEcObject(bucketID, objectName, fileSize, userID, nodeIDs, hashs, ecName, dirName))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
 	return nil
 }
 
-func (svc *ObjectService) EcWrite(file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []ramsg.RespNode) ([]string, error) {
+func (svc *ObjectService) ecWrite(file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []ramsg.RespNode) ([]string, error) {
 
 	// TODO 需要参考RepWrite函数的代码逻辑，做好错误处理
 	//获取文件大小
 
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 	//计算每个块的packet数
-	numPacket := (fileSize + int64(ecK)*config.Cfg().GRPCPacketSize - 1) / (int64(ecK) * config.Cfg().GRPCPacketSize)
+	numPacket := (fileSize + int64(ecK)*config.Cfg().EcPacketSize - 1) / (int64(ecK) * config.Cfg().EcPacketSize)
 	//fmt.Println(numPacket)
 	//创建channel
 	loadBufs := make([]chan []byte, ecN)
@@ -133,11 +129,113 @@ func (svc *ObjectService) EcWrite(file io.ReadCloser, fileSize int64, ecK int, e
 
 }
 
+func (svc *ObjectService) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, hashs []string) (io.ReadCloser, error){
+	//wg := sync.WaitGroup{}
+	numPacket := (fileSize + int64(ecK)*config.Cfg().EcPacketSize - 1) / (int64(ecK) * config.Cfg().EcPacketSize)
+	getBufs := make([]chan []byte, ecN)
+	decodeBufs := make([]chan []byte, ecK)
+	for i := 0; i < ecN; i++ {
+		getBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < ecK; i++ {
+		decodeBufs[i] = make(chan []byte)
+	}
+	for i := 0; i < len(blockIDs); i++ {
+		go svc.get(hashs[i], nodeIPs[i], getBufs[blockIDs[i]], numPacket)
+	}
+	print(numPacket)
+	go decode(getBufs[:], decodeBufs[:], blockIDs, ecK, numPacket)
+	r,w := io.Pipe()
+	print("11111")
+	//persist函数,将解码得到的文件写入pipe
+	go func(){
+		for i := 0; int64(i) < numPacket; i++ {
+			for j := 0; j < len(decodeBufs); j++ {
+				tmp := <-decodeBufs[j]
+				_, err := w.Write(tmp)
+				if err != nil {
+					fmt.Errorf("persist file falied, err:%w", err)
+				}
+			}
+		}
+		w.Close()
+	}()
+	return r, nil
+}
+
+func (svc *ObjectService) get(blockHash string, nodeIP string, getBuf chan []byte, numPacket int64) error {
+	downloadFromAgent := false
+	//使用本地IPFS获取
+	if svc.ipfs != nil{
+		log.Infof("try to use local IPFS to download file")
+		//获取IPFS的reader
+		reader,err := svc.downloadFromLocalIPFS(blockHash)
+		if err != nil {
+			downloadFromAgent = true
+			fmt.Errorf("read ipfs block failed, err: %w", err)
+		}
+		defer reader.Close()
+		for i:=0; int64(i)<numPacket; i++{
+			buf := make([]byte, config.Cfg().EcPacketSize)
+			_, err := io.ReadFull(reader, buf)
+			if err != nil {
+				downloadFromAgent = true
+				fmt.Errorf("read file falied, err:%w", err)
+			}
+			getBuf <- buf
+		}
+		if downloadFromAgent == false{
+			close(getBuf)
+			return nil
+		}
+	}else{
+		downloadFromAgent = true
+	}
+	//从agent获取
+	if downloadFromAgent == true{
+	/*// 二次获取锁
+		mutex, err := reqbuilder.NewBuilder().
+			// 用于从IPFS下载文件
+			IPFS().ReadOneRep(nodeID, fileHash).
+			MutexLock(svc.distlock)
+		if err != nil {
+			return fmt.Errorf("acquire locks failed, err: %w", err)
+		}
+		defer mutex.Unlock()
+	*/
+		// 连接grpc
+		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
+		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
+		}
+		// 下载文件
+		client := agentcaller.NewFileTransportClient(conn)
+		reader, err := mygrpc.GetFileAsStream(client, blockHash)		
+		if err != nil {
+			conn.Close()
+			return fmt.Errorf("request to get file failed, err: %w", err)
+		}
+		for i:=0; int64(i)<numPacket; i++{
+			buf := make([]byte, config.Cfg().EcPacketSize)
+			_, _ = reader.Read(buf)
+			fmt.Println(buf)
+			fmt.Println(numPacket, "\n")
+			getBuf <- buf
+		}
+		close(getBuf)
+		reader.Close()
+		return nil
+	}	
+	return nil
+	
+}
+
 func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket int64) error {
 
 	for i := 0; int64(i) < totalNumPacket; i++ {
 
-		buf := make([]byte, config.Cfg().GRPCPacketSize)
+		buf := make([]byte, config.Cfg().EcPacketSize)
 		idx := i % ecK
 		_, err := file.Read(buf)
 		if err != nil {
@@ -146,9 +244,8 @@ func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket in
 		loadBufs[idx] <- buf
 
 		if idx == ecK-1 {
-			//print("***")
 			for j := ecK; j < len(loadBufs); j++ {
-				zeroPkt := make([]byte, config.Cfg().GRPCPacketSize)
+				zeroPkt := make([]byte, config.Cfg().EcPacketSize)
 				loadBufs[j] <- zeroPkt
 			}
 		}
@@ -156,7 +253,6 @@ func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket in
 			return fmt.Errorf("load file to buf failed, err:%w", err)
 		}
 	}
-	//fmt.Println("load over")
 	for i := 0; i < len(loadBufs); i++ {
 
 		close(loadBufs[i])
@@ -170,11 +266,11 @@ func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int6
 	tmpIn = make([][]byte, len(outBufs))
 	enc := ec.NewRsEnc(ecK, len(outBufs))
 	for i := 0; int64(i) < numPacket; i++ {
-		for j := 0; j < len(outBufs); j++ { //3
+		for j := 0; j < len(outBufs); j++ {
 			tmpIn[j] = <-inBufs[j]
 		}
 		enc.Encode(tmpIn)
-		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
+		for j := 0; j < len(outBufs); j++ { 
 			outBufs[j] <- tmpIn[j]
 		}
 	}
@@ -183,7 +279,7 @@ func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int6
 	}
 }
 
-func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, coefs [][]int64, numPacket int64) {
+func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
 	fmt.Println("decode ")
 	var tmpIn [][]byte
 	var zeroPkt []byte
@@ -200,28 +296,24 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	}
 	enc := ec.NewRsEnc(ecK, len(inBufs))
 	for i := 0; int64(i) < numPacket; i++ {
-		for j := 0; j < len(inBufs); j++ { //3
+		print("!!!!!")
+		for j := 0; j < len(inBufs); j++ { 
 			if hasBlock[j] {
 				tmpIn[j] = <-inBufs[j]
 			} else {
 				tmpIn[j] = zeroPkt
 			}
 		}
-		fmt.Printf("%v", tmpIn)
 		if needRepair {
 			err := enc.Repair(tmpIn)
-			print("&&&&&")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
 			}
 		}
-		//fmt.Printf("%v",tmpIn)
-
-		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
+		for j := 0; j < len(outBufs); j++ { 
 			outBufs[j] <- tmpIn[j]
 		}
 	}
-	fmt.Println("decode over")
 	for i := 0; i < len(outBufs); i++ {
 		close(outBufs[i])
 	}
@@ -231,7 +323,6 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 	uploadToAgent := true
 	if svc.ipfs != nil { //使用IPFS传输
 		//创建IPFS文件
-		print("!!!")
 		log.Infof("try to use local IPFS to upload block")
 		writer, err := svc.ipfs.CreateFile()
 		if err != nil {
@@ -257,7 +348,6 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 		}
 		hashs[idx] = fileHash
 		if err != nil {
-
 		}
 		nodeID := node.ID
 		// 然后让最近节点pin本地上传的文件
@@ -273,7 +363,6 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 		uploadToAgent = false
 		fmt.Errorf("start pinning object: %w", err)
 	}
-
 	for {
 		waitResp, err := agentClient.WaitPinningObject(agtmsg.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
 		if err != nil {
@@ -315,7 +404,6 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 		if err != nil {
 			return fmt.Errorf("request to send file failed, err: %w", err)
 		}
-
 		// 发送文件数据
 		for i := 0; int64(i) < numPacket; i++ {
 			buf := <-inBuf
@@ -337,90 +425,6 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 		wg.Done()
 	}
 	return nil
-	/*
-		//	TO DO ss: 判断本地有没有ipfs daemon、能否与目标agent的ipfs daemon连通、本地ipfs目录空间是否充足
-		//	如果本地有ipfs daemon、能与目标agent的ipfs daemon连通、本地ipfs目录空间充足，将所有内容写入本地ipfs目录，得到对象的cid，发送cid给目标agent让其pin相应的对象
-		//	否则，像目前一样，使用grpc向指定节点获取
-
-		// TODO 如果发生错误，需要考虑将错误传递出去
-		defer wg.Done()
-
-		grpcAddr := fmt.Sprintf("%s:%d", ip, config.Cfg().GRPCPort)
-		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
-		}
-		defer conn.Close()
-
-		client := agentcaller.NewFileTransportClient(conn)
-		stream, err := client.SendFile(context.Background())
-		if err != nil {
-			return fmt.Errorf("request to send file failed, err: %w", err)
-		}
-
-		for i := 0; int64(i) < numPacket; i++ {
-			buf := <-inBuf
-
-			err := stream.Send(&agentcaller.FileDataPacket{
-				Code: agentcaller.FileDataPacket_OK,
-				Data: buf,
-			})
-
-			if err != nil {
-				stream.CloseSend()
-				return fmt.Errorf("send file data failed, err: %w", err)
-			}
-		}
-
-		err = stream.Send(&agentcaller.FileDataPacket{
-			Code: agentcaller.FileDataPacket_EOF,
-		})
-
-		if err != nil {
-			stream.CloseSend()
-			return fmt.Errorf("send file data failed, err: %w", err)
-		}
-
-		resp, err := stream.CloseAndRecv()
-		if err != nil {
-			return fmt.Errorf("receive response failed, err: %w", err)
-		}
-
-		hashs[idx] = resp.FileHash
-		return nil
-	*/
-}
-
-func get(blockHash string, nodeIP string, getBuf chan []byte, numPacket int64) error {
-	panic("not implement yet!")
-	/*
-		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
-		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
-		}
-		defer conn.Close()
-		// TO DO: 判断本地有没有ipfs daemon、能否获取相应对象的cid
-		// 如果本地有ipfs daemon且能获取相应编码块的cid，则获取编码块cid对应的ipfsblock的cid，通过ipfs网络获取这些ipfsblock
-		// 否则，像目前一样，使用grpc向指定节点获取
-		client := agentcaller.NewFileTransportClient(conn)
-		//rpc get
-		// TODO 要考虑读取失败后，如何中断后续解码过程
-		stream, err := client.GetFile(context.Background(), &agentcaller.GetReq{
-			FileHash: blockHash,
-		})
-
-		for i := 0; int64(i) < numPacket; i++ {
-			fmt.Println(i)
-			// TODO 同上
-			res, _ := stream.Recv()
-			fmt.Println(res.BlockOrReplicaData)
-			getBuf <- res.BlockOrReplicaData
-		}
-
-		close(getBuf)
-		return nil
-	*/
 }
 
 func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *sync.WaitGroup) {
@@ -433,12 +437,10 @@ func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *syn
 	if os.IsNotExist(err) {
 		os.MkdirAll(fURL, os.ModePerm)
 	}
-
 	file, err := os.Create(filepath.Join(fURL, localFilePath))
 	if err != nil {
 		return
 	}
-
 	for i := 0; int64(i) < numPacket; i++ {
 		for j := 0; j < len(inBuf); j++ {
 			tmp := <-inBuf[j]
@@ -448,37 +450,4 @@ func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *syn
 	}
 	file.Close()
 	wg.Done()
-}
-
-func ecRead(fileSize int64, nodeIPs []string, blockHashs []string, blockIds []int, ecName string, localFilePath string) {
-	//根据ecName获得以下参数
-	wg := sync.WaitGroup{}
-	ecPolicies := *utils.GetEcPolicy()
-	ecPolicy := ecPolicies[ecName]
-	fmt.Println(ecPolicy)
-	ecK := ecPolicy.GetK()
-	ecN := ecPolicy.GetN()
-	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
-
-	numPacket := (fileSize + int64(ecK)*config.Cfg().GRPCPacketSize - 1) / (int64(ecK) * config.Cfg().GRPCPacketSize)
-	fmt.Println(numPacket)
-	//创建channel
-	getBufs := make([]chan []byte, ecN)
-	decodeBufs := make([]chan []byte, ecK)
-	for i := 0; i < ecN; i++ {
-		getBufs[i] = make(chan []byte)
-	}
-	for i := 0; i < ecK; i++ {
-		decodeBufs[i] = make(chan []byte)
-	}
-	//从协调端获取有哪些编码块
-	//var blockSeq = []int{0,1}
-	blockSeq := blockIds
-	wg.Add(1)
-	for i := 0; i < len(blockSeq); i++ {
-		go get(blockHashs[i], nodeIPs[i], getBufs[blockSeq[i]], numPacket)
-	}
-	go decode(getBufs[:], decodeBufs[:], blockSeq, ecK, coefs, numPacket)
-	go persist(decodeBufs[:], numPacket, localFilePath, &wg)
-	wg.Wait()
 }

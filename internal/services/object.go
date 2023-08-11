@@ -87,7 +87,7 @@ func (svc *ObjectService) DownloadObjectDir(userID int64, dirName string) ([]Res
 }
 
 func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadCloser, error) {
-	mutex, err := reqbuilder.NewBuilder().
+	/*mutex, err := reqbuilder.NewBuilder().
 		// 用于判断用户是否有对象权限
 		Metadata().UserBucket().ReadAny().
 		// 用于查询可用的下载节点
@@ -105,6 +105,7 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer mutex.Unlock()
+	*/
 
 	reader, err := svc.downloadSingleObject(objectID, userID)
 
@@ -144,10 +145,46 @@ func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
 		return reader, nil
-
-		//case consts.REDUNDANCY_EC:
+	
+	case ramsg.RespEcRedundancyData:
 		// TODO EC部分的代码要考虑重构
 		//	ecRead(readResp.FileSize, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
+		blocks := redundancy.Blocks
+		ec := redundancy.Ec
+		ecK := ec.EcK
+		ecN := ec.EcN
+		//采取直接读，优先选内网节点
+		hashs := make([]string, ecK)
+		nds := make([]ramsg.RespNode, ecK)
+		for i:=0; i<ecK; i++{
+			hashs[i] = blocks[i].FileHash
+			nds[i] = svc.chooseDownloadNode(redundancy.Nodes[i])
+		}
+		//nodeIDs, nodeIPs直接按照第1~ecK个排列
+		nodeIDs := make([]int64, ecK)
+		nodeIPs := make([]string, ecK)
+		for i:=0;i<ecK;i++{
+			nodeIDs[i] = nds[i].ID
+			nodeIPs[i] = nds[i].ExternalIP
+			if nds[i].IsSameLocation {
+				nodeIPs[i] = nds[i].LocalIP
+				log.Infof("client and node %d are at the same location, use local ip\n", nds[i].ID)
+			}
+		}
+
+		fileSize := preDownloadResp.FileSize
+		blockIDs := make([]int, ecK)
+		for i:=0; i<ecK; i++{
+			blockIDs[i] = i
+		}
+		reader, err := svc.downloadEcObject(fileSize, ecK, ecN, blockIDs, nodeIDs, nodeIPs, hashs)
+		if err != nil {
+			return nil, fmt.Errorf("ec read failed, err: %w", err)
+		}
+		return reader, nil
+		//fmt.Println(nodeIDs)
+		//fmt.Println(nodeIPs)
+		//fmt.Println(hashs)
 	}
 	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Redundancy)
 }
