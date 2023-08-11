@@ -71,7 +71,12 @@ func (svc *Service) PreUploadEcObject(msg *coormsg.PreUploadEcObject) (*coormsg.
 		))
 	}
 	//查询纠删码参数
-	ec, err := svc.db.ObjectBlock().GetEc(svc.db.SQLCtx(), msg.EcName)
+	ec, err := svc.db.Ec().GetEc(svc.db.SQLCtx(), msg.EcName)
+	if err != nil {
+		logger.WithField("Ec", msg.EcName).
+			Warnf("check ec type failed, err: %s", err.Error())
+		return ramsg.ReplyFailed[coormsg.PreUploadEcResp](errorcode.OperationFailed, "check bucket available failed")
+	}
 	ecc := ramsg.NewEc(ec.EcID, ec.Name, ec.EcK, ec.EcN)
 	return ramsg.ReplyOK(coormsg.NewPreUploadEcResp(respNodes, ecc))
 }
@@ -80,7 +85,7 @@ func (svc *Service) CreateEcObject(msg *coormsg.CreateEcObject) (*coormsg.Create
 	var objID int64
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
 		var err error
-		objID, err = svc.db.Object().CreateEcObject(tx, msg.BucketID, msg.ObjectName, msg.FileSize, msg.UserID, msg.NodeIDs, msg.Hashes, msg.EcName)
+		objID, err = svc.db.Object().CreateEcObject(tx, msg.BucketID, msg.ObjectName, msg.FileSize, msg.UserID, msg.NodeIDs, msg.Hashes, msg.EcName, msg.DirName)
 		return err
 	})
 	if err != nil {

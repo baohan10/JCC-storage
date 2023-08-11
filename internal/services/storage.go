@@ -2,12 +2,12 @@ package services
 
 import (
 	"database/sql"
-
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/common/utils"
+	//"gitlink.org.cn/cloudream/common/utils"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 )
@@ -67,32 +67,54 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 
 	} else {
 		// TODO 以EC_开头的Redundancy才是EC策略
-
-		var hashs []string
-		ids := []int{0}
-		blockHashs, err := svc.db.QueryObjectBlock(object.ObjectID)
+		ecName := object.Redundancy
+		blocks, err := svc.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
-			logger.Warnf("query ObjectBlock failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "query ObjectBlock failed")
+			logger.WithField("ObjectID", object.ObjectID).
+				Warnf("query Blocks failed, err: %s", err.Error())
+			return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "query Blocks failed")
 		}
-
-		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[object.Redundancy]
-		ecN := ecPolicy.GetN()
-		ecK := ecPolicy.GetK()
-		ids = make([]int, ecK)
-		for i := 0; i < ecN; i++ {
-			hashs = append(hashs, "-1")
+		//查询纠删码参数
+		ec, err := svc.db.Ec().GetEc(svc.db.SQLCtx(), ecName)
+		ecc := models.NewEc(ec.EcID, ec.Name, ec.EcK, ec.EcN)
+		/*//查询每个编码块存放的所有节点 
+		respNodes := make([][]ramsg.RespNode, len(blocks))
+		for i:=0; i<len(blocks); i++{
+			nodes, err := svc.db.Cache().FindCachingFileUserNodes(svc.db.SQLCtx(), msg.UserID, blocks[i].BlockHash)
+			if err != nil {
+				logger.WithField("FileHash", blocks[i].BlockHash).
+					Warnf("query Cache failed, err: %s", err.Error())
+				return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query Cache failed")
+			}
+			var nd []ramsg.RespNode
+			for _, node := range nodes {
+				nd = append(nd, ramsg.NewRespNode(
+					node.NodeID,
+					node.ExternalIP,
+					node.LocalIP,
+					// LocationID 相同则认为是在同一个地域
+					foundBelongNode && belongNode.LocationID == node.LocationID,
+				))
+			}
+			respNodes[i] = nd
+			logger.Debugf("##%d\n", i)
 		}
-		for i := 0; i < ecK; i++ {
-			ids[i] = i
+		*/
+		blockss := make([]models.ObjectBlock, len(blocks))
+		for i:=0; i<len(blocks); i++{
+			blockss[i] = models.NewObjectBlock(
+				blocks[i].InnerID,
+				blocks[i].BlockHash,
+			)
 		}
-		hashs = make([]string, ecN)
-		for _, tt := range blockHashs {
-			id := tt.InnerID
-			hash := tt.BlockHash
-			hashs[id] = hash
-		}
+		fmt.Println(blockss)
+		return ramsg.ReplyOK(coormsg.NewPreMoveObjectToStorageRespBody(
+			stg.NodeID,
+			stg.Directory,
+			object.FileSize,
+			models.NewRedundancyEcData(ecc,blockss),
+		))
+		
 		//--查询缓存表，获得每个hash的nodeIps、TempOrPins、Times
 		/*for id,hash := range blockHashs{
 			//type Cache struct {NodeIP string,TempOrPin bool,Cachetime string}
@@ -105,7 +127,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 			}
 			//--kx:根据查出来的hash/hashs、nodeIps、TempOrPins、Times(移动/读取策略)、Delay确定hashs、ids
 		}*/
-		return ramsg.ReplyFailed[coormsg.PreMoveObjectToStorageResp](errorcode.OperationFailed, "not implement yet!")
+		
 	}
 }
 

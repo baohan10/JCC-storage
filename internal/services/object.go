@@ -82,48 +82,53 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 			ramsg.NewRespRepRedundancyData(objectRep.FileHash, respNodes),
 		))
 
-	} else {
+	}else{
 		// TODO 参考上面进行重写
-		/*blocks, err := svc.db.QueryObjectBlock(object.ObjectID)
+		ecName := object.Redundancy
+		blocks, err := svc.db.QueryObjectBlock(object.ObjectID)
 		if err != nil {
-			log.WithField("ObjectID", object.ObjectID).
-				Warnf("query Object Block failed, err: %s", err.Error())
-			return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "query Object Block failed")
+			logger.WithField("ObjectID", object.ObjectID).
+				Warnf("query Blocks failed, err: %s", err.Error())
+			return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query Blocks failed")
 		}
-
-		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[*object.ECName]
-		ecN := ecPolicy.GetN()
-		ecK := ecPolicy.GetK()
-		nodeIPs = make([]string, ecN)
-		hashes = make([]string, ecN)
-
-		for _, tt := range blocks {
-			id := tt.InnerID
-			hash := tt.BlockHash
-			hashes[id] = hash //这里有问题，采取的其实是直接顺序读的方式，等待加入自适应读模块
-
-			nodes, err := svc.db.QueryCacheNodeByBlockHash(hash)
+		logger.Debugf(blocks[4].BlockHash)
+		//查询纠删码参数
+		ec, err := svc.db.Ec().GetEc(svc.db.SQLCtx(), ecName)
+		ecc := ramsg.NewEc(ec.EcID, ec.Name, ec.EcK, ec.EcN)
+		//查询每个编码块存放的所有节点 
+		respNodes := make([][]ramsg.RespNode, len(blocks))
+		for i:=0; i<len(blocks); i++{
+			nodes, err := svc.db.Cache().FindCachingFileUserNodes(svc.db.SQLCtx(), msg.UserID, blocks[i].BlockHash)
 			if err != nil {
-				log.WithField("BlockHash", hash).
+				logger.WithField("FileHash", blocks[i].BlockHash).
 					Warnf("query Cache failed, err: %s", err.Error())
-				return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "query Cache failed")
+				return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "query Cache failed")
 			}
-
-			if len(nodes) == 0 {
-				log.WithField("BlockHash", hash).
-					Warnf("No node cache the block data for the BlockHash")
-				return ramsg.ReplyFailed[coormsg.ReadResp](errorcode.OPERATION_FAILED, "No node cache the block data for the BlockHash")
+			var nd []ramsg.RespNode
+			for _, node := range nodes {
+				nd = append(nd, ramsg.NewRespNode(
+					node.NodeID,
+					node.ExternalIP,
+					node.LocalIP,
+					// LocationID 相同则认为是在同一个地域
+					foundBelongNode && belongNode.LocationID == node.LocationID,
+				))
 			}
-
-			nodeIPs[id] = nodes[0].IP
+			respNodes[i] = nd
+			logger.Debugf("##%d\n", i)
 		}
-		//这里也有和上面一样的问题
-		for i := 1; i < ecK; i++ {
-			blockIDs = append(blockIDs, i)
-		}*/
-
-		return ramsg.ReplyFailed[coormsg.PreDownloadObjectResp](errorcode.OperationFailed, "not implement yet!")
+		
+		var blockss []ramsg.RespObjectBlock
+		for i:=0; i<len(blocks); i++{
+			blockss = append(blockss, ramsg.NewRespObjectBlock(
+				blocks[i].InnerID,
+				blocks[i].BlockHash,
+			))
+		}
+		return ramsg.ReplyOK(coormsg.NewPreDownloadObjectResp(
+			object.FileSize,
+			ramsg.NewRespEcRedundancyData(ecc, blockss, respNodes),
+		))
 	}
 }
 
