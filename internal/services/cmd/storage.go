@@ -24,9 +24,11 @@ import (
 )
 
 func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObject) (*agtmsg.StartStorageMoveObjectResp, *ramsg.CodeMessage) {
+
 	outFileName := utils.MakeMoveOperationFileName(msg.ObjectID, msg.UserID)
 	outFilePath := filepath.Join(config.Cfg().StorageBaseDir, msg.Directory, outFileName)
-
+	fmt.Println(outFileName)
+	fmt.Println(outFilePath)
 	if repRed, ok := msg.Redundancy.(models.RepRedundancyData); ok {
 		taskID, err := service.moveRepObject(repRed, outFilePath)
 		if err != nil {
@@ -38,13 +40,33 @@ func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObjec
 
 	} else {
 		// TODO 处理其他备份类型
+		if repRed, ok := msg.Redundancy.(models.ECRedundancyData); ok {
+			taskID, err := service.moveEcObject(msg.FileSize, repRed, outFilePath)
+			if err != nil {
+				logger.Warnf("move ec object as %s failed, err: %s", outFilePath, err.Error())
+				return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "move ec object failed")
+			}
 
-		return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "not implement yet!")
+			return ramsg.ReplyOK(agtmsg.NewStartStorageMoveObjectResp(taskID))
+		}
+		return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "not rep or ec object???")
 	}
 }
 
 func (svc *Service) moveRepObject(repData models.RepRedundancyData, outFilePath string) (string, error) {
 	tsk := svc.taskManager.StartComparable(task.NewIPFSRead(repData.FileHash, outFilePath))
+	return tsk.ID(), nil
+}
+
+func (svc *Service) moveEcObject(fileSize int64, ecData models.ECRedundancyData, outFilePath string) (string, error) {
+	ecK := ecData.Ec.EcK
+	blockIDs := make([]int, ecK)
+	hashs := make([]string, ecK)
+	for i:=0 ; i<ecK; i++{
+		blockIDs[i] = i
+		hashs[i] = ecData.Blocks[i].FileHash 
+	}
+	tsk := svc.taskManager.StartComparable(task.NewEcRead(fileSize, ecData.Ec, blockIDs, hashs, outFilePath))
 	return tsk.ID(), nil
 }
 
@@ -152,61 +174,8 @@ func (svc *Service) checkStorageComplete(msg *agtmsg.StorageCheck, fileInfos []f
 		}
 	}
 
-	// Storage中多出来的文件不做处理
-
 	return ramsg.ReplyOK(agtmsg.NewStorageCheckResp(consts.StorageDirectoryStateOK, entries))
 }
-
-/*
-func (service *Service) ECMove(msg *agtmsg.ECMoveCommand) *agtmsg.StartStorageMoveObjectResp {
-	panic("not implement yet!")
-		wg := sync.WaitGroup{}
-		fmt.Println("EcMove")
-		fmt.Println(msg.Hashs)
-		hashs := msg.Hashs
-		fileSize := msg.FileSize
-		blockIds := msg.IDs
-		ecName := msg.ECName
-		goalName := msg.BucketName + ":" + msg.ObjectName + ":" + strconv.Itoa(msg.UserID)
-		ecPolicies := *utils.GetEcPolicy()
-		ecPolicy := ecPolicies[ecName]
-		ecK := ecPolicy.GetK()
-		ecN := ecPolicy.GetN()
-		numPacket := (fileSize + int64(ecK)*int64(config.Cfg().GRCPPacketSize) - 1) / (int64(ecK) * int64(config.Cfg().GRCPPacketSize))
-
-		getBufs := make([]chan []byte, ecN)
-		decodeBufs := make([]chan []byte, ecK)
-		for i := 0; i < ecN; i++ {
-			getBufs[i] = make(chan []byte)
-		}
-		for i := 0; i < ecK; i++ {
-			decodeBufs[i] = make(chan []byte)
-		}
-
-		wg.Add(1)
-
-		//执行调度操作
-		// TODO 这一块需要改写以适配IPFS流式读取
-		for i := 0; i < len(blockIds); i++ {
-			go service.get(hashs[i], getBufs[blockIds[i]], numPacket)
-		}
-		go decode(getBufs[:], decodeBufs[:], blockIds, ecK, numPacket)
-		// TODO 写入的文件路径需要带上msg中的Directory字段，参考RepMove
-		go persist(decodeBufs[:], numPacket, goalName, &wg)
-		wg.Wait()
-
-		//向coor报告临时缓存hash
-		coorClient, err := racli.NewCoordinatorClient()
-		if err != nil {
-			// TODO 日志
-			return ramsg.NewAgentMoveRespFailed(errorcode.OPERATION_FAILED, fmt.Sprintf("create coordinator client failed"))
-		}
-		defer coorClient.Close()
-		coorClient.TempCacheReport(NodeID, hashs)
-
-		return ramsg.NewAgentMoveRespOK()
-}
-*/
 
 func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
 	fmt.Println("decode ")
@@ -232,63 +201,19 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 				tmpIn[j] = zeroPkt
 			}
 		}
-		fmt.Printf("%v", tmpIn)
 		if needRepair {
 			err := enc.Repair(tmpIn)
-			print("&&&&&")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
 			}
 		}
-		//fmt.Printf("%v",tmpIn)
-
 		for j := 0; j < len(outBufs); j++ { //1,2,3//示意，需要调用纠删码编解码引擎：  tmp[k] = tmp[k]+(tmpIn[w][k]*coefs[w][j])
 			outBufs[j] <- tmpIn[j]
 		}
 	}
-	fmt.Println("decode over")
 	for i := 0; i < len(outBufs); i++ {
 		close(outBufs[i])
 	}
-}
-
-func (service *Service) get(blockHash string, getBuf chan []byte, numPacket int64) {
-	/*
-		data := CatIPFS(blockHash)
-		for i := 0; int64(i) < numPacket; i++ {
-			buf := []byte(data[i*config.Cfg().GRCPPacketSize : i*config.Cfg().GRCPPacketSize+config.Cfg().GRCPPacketSize])
-			getBuf <- buf
-		}
-		close(getBuf)
-	*/
-}
-
-func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *sync.WaitGroup) {
-	//这里的localFilePath应该是要写入的filename
-	fDir, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	fURL := filepath.Join(filepath.Dir(fDir), "assets3")
-	_, err = os.Stat(fURL)
-	if os.IsNotExist(err) {
-		os.MkdirAll(fURL, os.ModePerm)
-	}
-
-	file, err := os.Create(filepath.Join(fURL, localFilePath))
-	if err != nil {
-		return
-	}
-
-	for i := 0; int64(i) < numPacket; i++ {
-		for j := 0; j < len(inBuf); j++ {
-			tmp := <-inBuf[j]
-			fmt.Println(tmp)
-			file.Write(tmp)
-		}
-	}
-	file.Close()
-	wg.Done()
 }
 
 func (svc *Service) StartStorageUploadRepObject(msg *agtmsg.StartStorageUploadRepObject) (*agtmsg.StartStorageUploadRepObjectResp, *ramsg.CodeMessage) {

@@ -26,6 +26,8 @@ import (
 var AgentIpList []string
 
 func main() {
+	print("!!!!!!!!")
+	//logger.Warnf("worinimab")
 	// TODO 放到配置里读取
 	AgentIpList = []string{"pcm01", "pcm1", "pcm2"}
 
