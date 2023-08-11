@@ -111,7 +111,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 		return ramsg.ReplyOK(coormsg.NewPreMoveObjectToStorageRespBody(
 			stg.NodeID,
 			stg.Directory,
-			object.FileSize,
+			object,
 			models.NewRedundancyEcData(ecc,blockss),
 		))
 		
