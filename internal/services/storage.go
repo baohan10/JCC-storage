@@ -24,13 +24,27 @@ func (svc *StorageService) StartStorageMoveObject(userID int64, objectID int64, 
 	return tsk.ID(), nil
 }
 
-func (svc *StorageService) WaitStorageMoveObjectToStorage(taskID string, waitTimeout time.Duration) (bool, error) {
+func (svc *StorageService) WaitStorageMoveObject(taskID string, waitTimeout time.Duration) (bool, error) {
 	tsk := svc.taskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
 		return true, tsk.Error()
 	}
-
 	return false, nil
+
+}
+
+func (svc *StorageService) StartMovingDir(userID int64, dirName string, storageID int64) (string, error) {
+	tsk := svc.taskMgr.StartNew(task.NewMoveDirToStorage(userID, dirName, storageID))
+	return tsk.ID(), nil
+}
+
+func (svc *StorageService) WaitMovingDir(taskID string, waitTimeout time.Duration) (bool, []task.ResultObjectToStorage, error) {
+	tsk := svc.taskMgr.FindByID(taskID)
+	if tsk.WaitTimeout(waitTimeout) {
+		return true, tsk.Body().(*task.MoveDirToStorage).ResultObjectToStorages, tsk.Error()
+	}
+
+	return false, nil, nil
 }
 
 func (svc *StorageService) DeleteStorageObject(userID int64, objectID int64, storageID int64) error {

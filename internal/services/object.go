@@ -104,17 +104,18 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	if err != nil {
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
-	defer mutex.Unlock()
 	*/
 
 	reader, err := svc.downloadSingleObject(objectID, userID)
+	if err != nil {
+		return reader, err
+	}
 
-	// defer myio.AfterReadClosed(reader, func(closer io.ReadCloser) {
-	// 	// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
-	// 	mutex.Unlock()
-	// })
 	// TODO 需要返回Object信息
-	return reader, err
+	return myio.AfterReadClosed(reader, func(closer io.ReadCloser) {
+		// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
+		mutex.Unlock()
+	}), nil
 }
 
 func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io.ReadCloser, error) {

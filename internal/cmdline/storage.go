@@ -12,7 +12,7 @@ func StorageMoveObject(ctx CommandContext, objectID int64, storageID int64) erro
 	}
 
 	for {
-		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageMoveObjectToStorage(taskID, time.Second*10)
+		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageMoveObject(taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)
@@ -21,6 +21,32 @@ func StorageMoveObject(ctx CommandContext, objectID int64, storageID int64) erro
 			return nil
 		}
 
+		if err != nil {
+			return fmt.Errorf("wait moving: %w", err)
+		}
+	}
+}
+
+func StorageMoveDir(ctx CommandContext, dirName string, storageID int64) error {
+	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartMovingDir(0, dirName, storageID)
+	if err != nil {
+		return fmt.Errorf("start moving object to storage: %w", err)
+	}
+
+	for {
+		complete, results, err := ctx.Cmdline.Svc.StorageSvc().WaitMovingDir(taskID, time.Second*5)
+		if complete {
+			if err != nil {
+				return fmt.Errorf("moving complete with: %w", err)
+			}
+			// 返回各object的move结果
+			for _, result := range results {
+				if result.Error != nil {
+					fmt.Printf("moving %s to storage failed: %s\n", result.ObjectName, result.Error)
+				}
+			}
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("wait moving: %w", err)
 		}
@@ -51,8 +77,9 @@ func StorageUploadRepObject(ctx CommandContext, storageID int64, filePath string
 }
 
 func init() {
-	commands.MustAdd(StorageMoveObject, "storage", "move")
+	commands.MustAdd(StorageMoveObject, "storage", "move", "obj")
+
+	commands.MustAdd(StorageMoveDir, "storage", "move", "dir")
 
 	commands.MustAdd(StorageUploadRepObject, "storage", "upload", "rep")
-
 }

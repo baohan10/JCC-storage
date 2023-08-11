@@ -43,7 +43,7 @@ func (s *StorageService) MoveObject(ctx *gin.Context) {
 	}
 
 	for {
-		complete, err := s.svc.StorageSvc().WaitStorageMoveObjectToStorage(taskID, time.Second*10)
+		complete, err := s.svc.StorageSvc().WaitStorageMoveObject(taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				log.Warnf("moving complete with: %s", err.Error())

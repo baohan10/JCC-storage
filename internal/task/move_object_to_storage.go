@@ -6,7 +6,6 @@ import (
 
 	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
@@ -57,11 +56,13 @@ func (t *MoveObjectToStorage) do(ctx TaskContext) error {
 	}
 	defer mutex.Unlock()
 	print("!!!!!!!")
+	err = moveSingleObjectToStorage(ctx, t.userID, t.objectID, t.storageID)
+	return err
+}
+
+func moveSingleObjectToStorage(ctx TaskContext, userID int64, objectID int64, storageID int64) error {
 	// 先向协调端请求文件相关的元数据
-	preMoveResp, err := ctx.Coordinator.PreMoveObjectToStorage(coormsg.NewPreMoveObjectToStorage(t.objectID, t.storageID, t.userID))
-	print("@@@@@")
-	fmt.Println(preMoveResp.FileSize)
-	fmt.Println(preMoveResp.Redundancy)
+	preMoveResp, err := ctx.Coordinator.PreMoveObjectToStorage(coormsg.NewPreMoveObjectToStorage(objectID, storageID, userID))
 	if err != nil {
 		return fmt.Errorf("pre move object to storage: %w", err)
 	}
@@ -76,9 +77,10 @@ func (t *MoveObjectToStorage) do(ctx TaskContext) error {
 
 	agentMoveResp, err := agentClient.StartStorageMoveObject(
 		agtmsg.NewStartStorageMoveObject(preMoveResp.Directory,
-			t.objectID,
-			t.userID,
-			preMoveResp.FileSize,
+			objectID,
+			preMoveResp.Object.Name,
+			userID,
+			preMoveResp.Object.FileSize,
 			preMoveResp.Redundancy,
 		))
 	if err != nil {
@@ -100,7 +102,7 @@ func (t *MoveObjectToStorage) do(ctx TaskContext) error {
 		}
 	}
 
-	_, err = ctx.Coordinator.MoveObjectToStorage(coormsg.NewMoveObjectToStorage(t.objectID, t.storageID, t.userID))
+	_, err = ctx.Coordinator.MoveObjectToStorage(coormsg.NewMoveObjectToStorage(objectID, storageID, userID))
 	if err != nil {
 		return fmt.Errorf("moving object to storage: %w", err)
 	}
