@@ -61,7 +61,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 		return ramsg.ReplyOK(coormsg.NewPreMoveObjectToStorageRespBody(
 			stg.NodeID,
 			stg.Directory,
-			object.FileSize,
+			object,
 			models.NewRedundancyRepData(objectRep.FileHash),
 		))
 
@@ -132,6 +132,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 }
 
 func (svc *Service) MoveObjectToStorage(msg *coormsg.MoveObjectToStorage) (*coormsg.MoveObjectToStorageResp, *ramsg.CodeMessage) {
+	// TODO: 对于的storage中已经存在的文件，直接覆盖已有文件
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
 		return svc.db.StorageObject().MoveObjectTo(tx, msg.ObjectID, msg.StorageID, msg.UserID)
 	})
