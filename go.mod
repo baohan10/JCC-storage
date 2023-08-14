@@ -8,10 +8,7 @@ require (
 	github.com/samber/lo v1.38.1
 	github.com/smartystreets/goconvey v1.8.0
 	gitlink.org.cn/cloudream/common v0.0.0
-	gitlink.org.cn/cloudream/db v0.0.0
-	gitlink.org.cn/cloudream/ec v0.0.0
-	gitlink.org.cn/cloudream/proto v0.0.0
-	gitlink.org.cn/cloudream/rabbitmq v0.0.0
+	gitlink.org.cn/cloudream/storage-common v0.0.0
 	google.golang.org/grpc v1.54.0
 )
 
@@ -72,7 +69,7 @@ require (
 	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/smartystreets/assertions v1.13.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/streadway/amqp v1.0.0 // indirect
+	github.com/streadway/amqp v1.1.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/whyrusleeping/tar-utils v0.0.0-20180509141711-8c6c8ba81d5c // indirect
@@ -97,12 +94,6 @@ require (
 )
 
 // 运行go mod tidy时需要将下面几行取消注释
-// replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
-// 
-// replace gitlink.org.cn/cloudream/ec => ../ec
-// 
-// replace gitlink.org.cn/cloudream/proto => ../proto
-// 
-// replace gitlink.org.cn/cloudream/db => ../db
-// 
-// replace gitlink.org.cn/cloudream/common => ../common
+replace gitlink.org.cn/cloudream/common => ../../common
+
+replace gitlink.org.cn/cloudream/storage-common => ../storage-common

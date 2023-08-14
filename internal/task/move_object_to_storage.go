@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
+	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 type MoveObjectToStorage struct {

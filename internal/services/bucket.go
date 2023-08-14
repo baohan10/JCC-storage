@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/db/model"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 type BucketService struct {

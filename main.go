@@ -9,12 +9,12 @@ import (
 	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
-	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
 	"gitlink.org.cn/cloudream/storage-client/internal/cmdline"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-client/internal/services"
 	"gitlink.org.cn/cloudream/storage-client/internal/task"
+	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
+	sccli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/scanner"
 )
 
 func main() {

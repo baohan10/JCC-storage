@@ -4,7 +4,7 @@ import (
 	distsvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkg/task"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
+	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
 )
 
 type TaskContext struct {

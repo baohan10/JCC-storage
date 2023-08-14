@@ -10,7 +10,7 @@ import (
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 type UpdateRepObject struct {

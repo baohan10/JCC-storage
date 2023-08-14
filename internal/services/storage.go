@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-client/internal/task"
+	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 type StorageService struct {

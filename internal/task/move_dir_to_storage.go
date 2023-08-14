@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 type MoveDirToStorage struct {

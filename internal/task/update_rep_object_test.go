@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 func Test_chooseUpdateRepObjectNode(t *testing.T) {
