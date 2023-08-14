@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"

@@ -1,8 +1,8 @@
 package task
 
 import (
-	distsvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
-	"gitlink.org.cn/cloudream/common/pkg/task"
+	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
 )

@@ -6,8 +6,8 @@ import (
 
 	_ "google.golang.org/grpc/balancer/grpclb"
 
-	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	"gitlink.org.cn/cloudream/storage-client/internal/cmdline"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"

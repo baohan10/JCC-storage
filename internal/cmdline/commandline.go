@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"gitlink.org.cn/cloudream/common/pkg/cmdtrie"
-	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/cmdtrie"
+	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	"gitlink.org.cn/cloudream/storage-client/internal/services"
 )

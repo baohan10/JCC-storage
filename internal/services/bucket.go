@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )

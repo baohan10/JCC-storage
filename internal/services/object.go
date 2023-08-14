@@ -6,8 +6,8 @@ import (
 	"math/rand"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-client/internal/task"

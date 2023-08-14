@@ -3,7 +3,7 @@ package cmdline
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/common/pkg/cmdtrie"
+	"gitlink.org.cn/cloudream/common/pkgs/cmdtrie"
 	myreflect "gitlink.org.cn/cloudream/common/utils/reflect"
 	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
 )

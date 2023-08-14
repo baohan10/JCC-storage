@@ -16,8 +16,8 @@ import (
 	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage-common/utils"
 
-	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	//"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
 	ramsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message"
 	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"

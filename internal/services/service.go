@@ -1,7 +1,7 @@
 package services
 
 import (
-	distlock "gitlink.org.cn/cloudream/common/pkg/distlock/service"
+	distlock "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	"gitlink.org.cn/cloudream/storage-client/internal/task"
 	racli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
