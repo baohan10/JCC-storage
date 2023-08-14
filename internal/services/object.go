@@ -82,7 +82,7 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 			ramsg.NewRespRepRedundancyData(objectRep.FileHash, respNodes),
 		))
 
-	}else{
+	} else {
 		// TODO 参考上面进行重写
 		ecName := object.Redundancy
 		blocks, err := svc.db.QueryObjectBlock(object.ObjectID)
@@ -95,9 +95,9 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 		//查询纠删码参数
 		ec, err := svc.db.Ec().GetEc(svc.db.SQLCtx(), ecName)
 		ecc := ramsg.NewEc(ec.EcID, ec.Name, ec.EcK, ec.EcN)
-		//查询每个编码块存放的所有节点 
+		//查询每个编码块存放的所有节点
 		respNodes := make([][]ramsg.RespNode, len(blocks))
-		for i:=0; i<len(blocks); i++{
+		for i := 0; i < len(blocks); i++ {
 			nodes, err := svc.db.Cache().FindCachingFileUserNodes(svc.db.SQLCtx(), msg.UserID, blocks[i].BlockHash)
 			if err != nil {
 				logger.WithField("FileHash", blocks[i].BlockHash).
@@ -117,9 +117,9 @@ func (svc *Service) PreDownloadObject(msg *coormsg.PreDownloadObject) (*coormsg.
 			respNodes[i] = nd
 			logger.Debugf("##%d\n", i)
 		}
-		
+
 		var blockss []ramsg.RespObjectBlock
-		for i:=0; i<len(blocks); i++{
+		for i := 0; i < len(blocks); i++ {
 			blockss = append(blockss, ramsg.NewRespObjectBlock(
 				blocks[i].InnerID,
 				blocks[i].BlockHash,
