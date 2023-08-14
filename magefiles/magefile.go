@@ -14,7 +14,7 @@ var Default = Build
 func Build() error {
 	return magefiles.Build(magefiles.BuildArgs{
 		OutputName: "agent",
-		OutputDir:  "../../build/agent",
+		OutputDir:  "agent",
 		AssetsDir:  "assets",
 	})
 }
