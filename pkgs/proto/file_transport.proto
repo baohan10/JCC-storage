@@ -1,0 +1,30 @@
+// 使用的语法版本
+syntax = "proto3";
+
+// 生成的go文件包
+option go_package = "../proto;proto";//grpc这里生效了
+
+
+enum FileDataPacketType {
+    Data = 0;
+    EOF = 1;
+}
+// 文件数据。注意：只在Type为Data的时候，Data字段才能有数据
+message FileDataPacket {
+    FileDataPacketType Type = 1;
+    bytes Data = 2;
+}
+
+message SendResp {
+    string FileHash = 1;
+}
+
+message GetReq {
+    string FileHash = 1;
+}
+
+service FileTransport {
+    rpc SendFile(stream FileDataPacket)returns(SendResp){}
+    rpc GetFile(GetReq)returns(stream FileDataPacket){}
+}
+
