@@ -10,7 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
-	"gitlink.org.cn/cloudream/scanner/internal/config"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 
 	"gitlink.org.cn/cloudream/db/model"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"

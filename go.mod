@@ -1,6 +1,6 @@
-module gitlink.org.cn/cloudream/scanner
+module gitlink.org.cn/cloudream/storage-scanner
 
-go 1.18
+go 1.20
 
 require (
 	github.com/jmoiron/sqlx v1.3.5

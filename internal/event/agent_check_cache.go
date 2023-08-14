@@ -9,7 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
 	"gitlink.org.cn/cloudream/rabbitmq"
-	"gitlink.org.cn/cloudream/scanner/internal/config"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"

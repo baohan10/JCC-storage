@@ -2,7 +2,7 @@ package tickevent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 
 const CHECK_CACHE_BATCH_SIZE = 100

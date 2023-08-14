@@ -1,7 +1,7 @@
 package services
 
 import (
-	"gitlink.org.cn/cloudream/scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 
 type Service struct {

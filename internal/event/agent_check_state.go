@@ -13,7 +13,7 @@ import (
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
-	"gitlink.org.cn/cloudream/scanner/internal/config"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 )
 
 type AgentCheckState struct {

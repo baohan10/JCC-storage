@@ -9,10 +9,10 @@ import (
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db"
 	scsvr "gitlink.org.cn/cloudream/rabbitmq/server/scanner"
-	"gitlink.org.cn/cloudream/scanner/internal/config"
-	"gitlink.org.cn/cloudream/scanner/internal/event"
-	"gitlink.org.cn/cloudream/scanner/internal/services"
-	"gitlink.org.cn/cloudream/scanner/internal/tickevent"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/services"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/tickevent"
 )
 
 func main() {

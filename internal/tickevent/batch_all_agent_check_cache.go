@@ -4,7 +4,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/db/model"
-	"gitlink.org.cn/cloudream/scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 
 const AGENT_CHECK_CACHE_BATCH_SIZE = 2

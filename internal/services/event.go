@@ -4,7 +4,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	scmsg "gitlink.org.cn/cloudream/rabbitmq/message/scanner"
 	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
-	"gitlink.org.cn/cloudream/scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 
 func (svc *Service) PostEvent(msg *scmsg.PostEvent) {
