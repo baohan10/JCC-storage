@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	scmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner"
 )
 

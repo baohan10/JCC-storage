@@ -1,6 +1,6 @@
 package coordinator
 
-import "gitlink.org.cn/cloudream/common/pkg/mq"
+import "gitlink.org.cn/cloudream/common/pkgs/mq"
 
 // 代理端发给协调端，告知临时缓存的数据
 type TempCacheReport struct {

@@ -1,6 +1,6 @@
 package agent
 
-import "gitlink.org.cn/cloudream/common/pkg/mq"
+import "gitlink.org.cn/cloudream/common/pkgs/mq"
 
 type StartPinningObject struct {
 	FileHash string `json:"fileHash"`

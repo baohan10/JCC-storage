@@ -2,7 +2,7 @@ package message
 
 import (
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	myreflect "gitlink.org.cn/cloudream/common/utils/reflect"
 	mymodels "gitlink.org.cn/cloudream/storage-common/models"
 )
