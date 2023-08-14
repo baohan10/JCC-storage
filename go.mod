@@ -1,6 +1,6 @@
-module gitlink.org.cn/cloudream/coordinator
+module gitlink.org.cn/cloudream/storage-coordinator
 
-go 1.18
+go 1.20
 
 require (
 	github.com/samber/lo v1.38.1

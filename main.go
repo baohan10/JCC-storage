@@ -6,11 +6,11 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/coordinator/internal/config"
-	"gitlink.org.cn/cloudream/coordinator/internal/services"
 	mydb "gitlink.org.cn/cloudream/db"
 	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/coordinator"
+	"gitlink.org.cn/cloudream/storage-coordinator/internal/config"
+	"gitlink.org.cn/cloudream/storage-coordinator/internal/services"
 )
 
 func main() {
