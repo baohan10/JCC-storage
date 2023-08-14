@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 )
 
 type IPFSRead struct {

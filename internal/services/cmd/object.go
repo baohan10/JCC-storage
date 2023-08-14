@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/common/pkg/mq"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
 )

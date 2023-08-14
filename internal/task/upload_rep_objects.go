@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-common/utils"

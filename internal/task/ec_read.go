@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"

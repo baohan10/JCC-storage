@@ -1,8 +1,8 @@
 package config
 
 import (
-	"gitlink.org.cn/cloudream/common/pkg/distlock"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	c "gitlink.org.cn/cloudream/common/utils/config"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	racfg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/config"

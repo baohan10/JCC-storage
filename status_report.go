@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-common/consts"
 	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"

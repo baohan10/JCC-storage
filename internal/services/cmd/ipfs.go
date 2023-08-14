@@ -5,8 +5,8 @@ import (
 
 	shell "github.com/ipfs/go-ipfs-api"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/consts"
