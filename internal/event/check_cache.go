@@ -4,8 +4,8 @@ import (
 	"database/sql"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-common/consts"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"

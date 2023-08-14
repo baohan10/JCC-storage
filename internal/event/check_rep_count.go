@@ -5,8 +5,8 @@ import (
 	"math"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 	"gitlink.org.cn/cloudream/storage-common/consts"

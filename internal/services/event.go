@@ -1,7 +1,7 @@
 package services
 
 import (
-	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	scmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner"
 	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"

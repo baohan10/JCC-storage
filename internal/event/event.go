@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
-	event "gitlink.org.cn/cloudream/common/pkg/event"
-	"gitlink.org.cn/cloudream/common/pkg/typedispatcher"
+	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	event "gitlink.org.cn/cloudream/common/pkgs/event"
+	"gitlink.org.cn/cloudream/common/pkgs/typedispatcher"
 	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
 )
 

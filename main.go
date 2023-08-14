@@ -5,8 +5,8 @@ import (
 	"os"
 	"sync"
 
-	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db"
 	scsvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/scanner"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
