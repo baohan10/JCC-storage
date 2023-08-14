@@ -17,9 +17,11 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/magefile/mage v1.15.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/otiai10/copy v1.12.0 // indirect
 	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/streadway/amqp v1.1.0 // indirect
 	github.com/zyedidia/generic v1.2.1 // indirect
