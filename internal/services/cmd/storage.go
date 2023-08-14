@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/agent/internal/config"
-	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/ec"
+	"gitlink.org.cn/cloudream/storage-agent/internal/config"
+	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"

@@ -4,13 +4,13 @@ import (
 	"time"
 
 	shell "github.com/ipfs/go-ipfs-api"
-	"gitlink.org.cn/cloudream/agent/internal/config"
-	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
+	"gitlink.org.cn/cloudream/storage-agent/internal/config"
+	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 )
 
 func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {

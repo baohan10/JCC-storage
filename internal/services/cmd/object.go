@@ -3,11 +3,11 @@ package cmd
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/agent/internal/task"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
+	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 )
 
 func (svc *Service) StartPinningObject(msg *agtmsg.StartPinningObject) (*agtmsg.StartPinningObjectResp, *ramsg.CodeMessage) {

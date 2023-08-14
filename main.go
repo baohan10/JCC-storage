@@ -6,20 +6,20 @@ import (
 	"os"
 	"sync"
 
-	"gitlink.org.cn/cloudream/agent/internal/config"
-	"gitlink.org.cn/cloudream/agent/internal/task"
 	distsvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	agentserver "gitlink.org.cn/cloudream/proto"
+	"gitlink.org.cn/cloudream/storage-agent/internal/config"
+	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 
 	"google.golang.org/grpc"
 
 	"gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/agent"
 
-	cmdsvc "gitlink.org.cn/cloudream/agent/internal/services/cmd"
-	grpcsvc "gitlink.org.cn/cloudream/agent/internal/services/grpc"
+	cmdsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/cmd"
+	grpcsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/grpc"
 )
 
 // TODO 此数据是否在运行时会发生变化？

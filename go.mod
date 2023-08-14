@@ -1,4 +1,6 @@
-module gitlink.org.cn/cloudream/agent
+module gitlink.org.cn/cloudream/storage-agent
+
+go 1.20
 
 require (
 	github.com/ipfs/go-ipfs-api v0.6.0
