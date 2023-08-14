@@ -4,6 +4,7 @@ import (
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/mq"
 	myreflect "gitlink.org.cn/cloudream/common/utils/reflect"
+	mymodels "gitlink.org.cn/cloudream/storage-common/models"
 )
 
 type Node struct {
@@ -44,13 +45,13 @@ type RespRedundancyDataTypesConst interface {
 type RespRedundancyDataTypes interface{}
 
 type RespRepRedundancyData struct {
-	models.RepRedundancyData
+	mymodels.RepRedundancyData
 	Nodes []RespNode `json:"nodes"`
 }
 
 func NewRespRepRedundancyData(fileHash string, nodes []RespNode) RespRepRedundancyData {
 	return RespRepRedundancyData{
-		RepRedundancyData: models.RepRedundancyData{
+		RepRedundancyData: mymodels.RepRedundancyData{
 			FileHash: fileHash,
 		},
 		Nodes: nodes,
@@ -72,14 +73,14 @@ func NewRespEcRedundancyData(ec Ec, blocks []RespObjectBlock, nodes [][]RespNode
 }
 
 type RespObjectBlock struct {
-	models.ObjectBlock
+	mymodels.ObjectBlock
 	//Node RespNode `json:"node"`
 }
 
 // func NewRespObjectBlock(index int, fileHash string, node RespNode) RespObjectBlock {
 func NewRespObjectBlock(index int, fileHash string) RespObjectBlock {
 	return RespObjectBlock{
-		ObjectBlock: models.ObjectBlock{
+		ObjectBlock: mymodels.ObjectBlock{
 			Index:    index,
 			FileHash: fileHash,
 		},
@@ -106,7 +107,7 @@ func NewEc(id int, name string, k int, n int) Ec {
 func init() {
 	mq.RegisterTypeSet[models.RedundancyConfigTypes](myreflect.TypeOf[models.RepRedundancyConfig](), myreflect.TypeOf[models.ECRedundancyConfig]())
 
-	mq.RegisterTypeSet[models.RedundancyDataTypes](myreflect.TypeOf[models.RepRedundancyData](), myreflect.TypeOf[models.ECRedundancyData]())
+	mq.RegisterTypeSet[mymodels.RedundancyDataTypes](myreflect.TypeOf[mymodels.RepRedundancyData](), myreflect.TypeOf[mymodels.ECRedundancyData]())
 
 	mq.RegisterTypeSet[RespRedundancyDataTypes](myreflect.TypeOf[RespRepRedundancyData](), myreflect.TypeOf[RespEcRedundancyData]())
 }

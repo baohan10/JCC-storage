@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 )
 

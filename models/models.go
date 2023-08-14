@@ -2,22 +2,6 @@ package models
 
 /// TODO 将分散在各处的公共结构体定义集中到这里来
 
-const (
-	RedundancyRep = "rep"
-	RedundancyEC  = "ec"
-)
-
-type RedundancyConfigTypes interface{}
-type RedundancyConfigTypesConst interface {
-	RepRedundancyConfig | ECRedundancyConfig
-}
-type RepRedundancyConfig struct {
-	RepCount int `json:"repCount"`
-}
-
-type ECRedundancyConfig struct {
-}
-
 type RedundancyDataTypes interface{}
 type RedundancyDataTypesConst interface {
 	RepRedundancyData | ECRedundancyData
@@ -33,22 +17,22 @@ func NewRedundancyRepData(fileHash string) RepRedundancyData {
 }
 
 type ECRedundancyData struct {
-	Ec       EC          `json:"ec"`
+	Ec     EC            `json:"ec"`
 	Blocks []ObjectBlock `json:"blocks"`
 }
 
 func NewRedundancyEcData(ec EC, blocks []ObjectBlock) ECRedundancyData {
 	return ECRedundancyData{
-		Ec:  ec,
+		Ec:     ec,
 		Blocks: blocks,
 	}
 }
 
 type EC struct {
-	ID      int    `json:"id"`
-	Name   string `json:"name"`
-	EcK    int    `json:"ecK"`
-	EcN    int    `json:"ecN"`
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	EcK  int    `json:"ecK"`
+	EcN  int    `json:"ecN"`
 }
 
 type ObjectBlock struct {
@@ -63,11 +47,11 @@ func NewObjectBlock(index int, fileHash string) ObjectBlock {
 	}
 }
 
-func NewEc(id int, name string, ecK int, ecN int) EC{
+func NewEc(id int, name string, ecK int, ecN int) EC {
 	return EC{
-		ID: id,
+		ID:   id,
 		Name: name,
-		EcK: ecK,
-		EcN: ecN,
+		EcK:  ecK,
+		EcN:  ecN,
 	}
 }
