@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/storage-common/consts"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
 	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
