@@ -87,7 +87,8 @@ func (svc *ObjectService) DownloadObjectDir(userID int64, dirName string) ([]Res
 }
 
 func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadCloser, error) {
-	/*mutex, err := reqbuilder.NewBuilder().
+	// TODO zkx 需要梳理EC锁涉及的锁，补充下面漏掉的部分
+	mutex, err := reqbuilder.NewBuilder().
 		// 用于判断用户是否有对象权限
 		Metadata().UserBucket().ReadAny().
 		// 用于查询可用的下载节点
@@ -104,7 +105,6 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	if err != nil {
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
-	*/
 
 	reader, err := svc.downloadSingleObject(objectID, userID)
 	if err != nil {
@@ -114,7 +114,7 @@ func (svc *ObjectService) DownloadObject(userID int64, objectID int64) (io.ReadC
 	// TODO 需要返回Object信息
 	return myio.AfterReadClosed(reader, func(closer io.ReadCloser) {
 		// TODO 可以考虑在打开了读取流之后就解锁，而不是要等外部读取完毕
-		//mutex.Unlock()
+		mutex.Unlock()
 	}), nil
 }
 
@@ -146,7 +146,7 @@ func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io
 			return nil, fmt.Errorf("rep read failed, err: %w", err)
 		}
 		return reader, nil
-	
+
 	case ramsg.RespEcRedundancyData:
 		// TODO EC部分的代码要考虑重构
 		//	ecRead(readResp.FileSize, readResp.NodeIPs, readResp.Hashes, readResp.BlockIDs, *readResp.ECName)
@@ -157,14 +157,14 @@ func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io
 		//采取直接读，优先选内网节点
 		hashs := make([]string, ecK)
 		nds := make([]ramsg.RespNode, ecK)
-		for i:=0; i<ecK; i++{
+		for i := 0; i < ecK; i++ {
 			hashs[i] = blocks[i].FileHash
 			nds[i] = svc.chooseDownloadNode(redundancy.Nodes[i])
 		}
 		//nodeIDs, nodeIPs直接按照第1~ecK个排列
 		nodeIDs := make([]int64, ecK)
 		nodeIPs := make([]string, ecK)
-		for i:=0;i<ecK;i++{
+		for i := 0; i < ecK; i++ {
 			nodeIDs[i] = nds[i].ID
 			nodeIPs[i] = nds[i].ExternalIP
 			if nds[i].IsSameLocation {
@@ -175,7 +175,7 @@ func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io
 
 		fileSize := preDownloadResp.FileSize
 		blockIDs := make([]int, ecK)
-		for i:=0; i<ecK; i++{
+		for i := 0; i < ecK; i++ {
 			blockIDs[i] = i
 		}
 		reader, err := svc.downloadEcObject(fileSize, ecK, ecN, blockIDs, nodeIDs, nodeIPs, hashs)
@@ -183,9 +183,6 @@ func (svc *ObjectService) downloadSingleObject(objectID int64, userID int64) (io
 			return nil, fmt.Errorf("ec read failed, err: %w", err)
 		}
 		return reader, nil
-		//fmt.Println(nodeIDs)
-		//fmt.Println(nodeIPs)
-		//fmt.Println(hashs)
 	}
 	return nil, fmt.Errorf("unsupported redundancy type: %s", preDownloadResp.Redundancy)
 }

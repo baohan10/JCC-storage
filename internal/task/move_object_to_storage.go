@@ -55,7 +55,6 @@ func (t *MoveObjectToStorage) do(ctx TaskContext) error {
 		return fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer mutex.Unlock()
-	print("!!!!!!!")
 	err = moveSingleObjectToStorage(ctx, t.userID, t.objectID, t.storageID)
 	return err
 }
@@ -69,7 +68,6 @@ func moveSingleObjectToStorage(ctx TaskContext, userID int64, objectID int64, st
 
 	// 然后向代理端发送移动文件的请求
 	agentClient, err := agtcli.NewClient(preMoveResp.NodeID, &config.Cfg().RabbitMQ)
-	//agentClient, err := agtcli.NewClient(0, &config.Cfg().RabbitMQ)
 	if err != nil {
 		return fmt.Errorf("create agent client to %d failed, err: %w", preMoveResp.NodeID, err)
 	}

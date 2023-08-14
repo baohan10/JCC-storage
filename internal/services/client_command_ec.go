@@ -29,7 +29,8 @@ import (
 )
 
 func (svc *ObjectService) UploadEcObject(userID int64, bucketID int64, objectName string, file io.ReadCloser, fileSize int64, ecName string) error {
-	
+	// TODO 需要加锁
+
 	/*reqBlder := reqbuilder.NewBuilder()
 	for _, uploadObject := range t.Objects {
 		reqBlder.Metadata().
@@ -37,21 +38,21 @@ func (svc *ObjectService) UploadEcObject(userID int64, bucketID int64, objectNam
 			Object().CreateOne(t.bucketID, uploadObject.ObjectName)
 	}*/
 	/*
-	mutex, err := reqBlder.
-		Metadata().
-		// 用于判断用户是否有桶的权限
-		UserBucket().ReadOne(userID, bucketID).
-		// 用于查询可用的上传节点
-		Node().ReadAny().
-		// 用于设置Rep配置
-		ObjectRep().CreateAny().
-		// 用于创建Cache记录
-		Cache().CreateAny().
-		MutexLock(ctx.DistLock)
-	if err != nil {
-		return fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-	defer mutex.Unlock()
+		mutex, err := reqBlder.
+			Metadata().
+			// 用于判断用户是否有桶的权限
+			UserBucket().ReadOne(userID, bucketID).
+			// 用于查询可用的上传节点
+			Node().ReadAny().
+			// 用于设置Rep配置
+			ObjectRep().CreateAny().
+			// 用于创建Cache记录
+			Cache().CreateAny().
+			MutexLock(ctx.DistLock)
+		if err != nil {
+			return fmt.Errorf("acquire locks failed, err: %w", err)
+		}
+		defer mutex.Unlock()
 	*/
 	//发送写请求，请求Coor分配写入节点Ip
 	ecWriteResp, err := svc.coordinator.PreUploadEcObject(coormsg.NewPreUploadEcObject(bucketID, objectName, fileSize, ecName, userID, config.Cfg().ExternalIP))
@@ -93,7 +94,7 @@ func (svc *ObjectService) ecWrite(file io.ReadCloser, fileSize int64, ecK int, e
 
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 	//计算每个块的packet数
-	numPacket := (fileSize + int64(ecK)*config.Cfg().EcPacketSize - 1) / (int64(ecK) * config.Cfg().EcPacketSize)
+	numPacket := (fileSize + int64(ecK)*config.Cfg().ECPacketSize - 1) / (int64(ecK) * config.Cfg().ECPacketSize)
 	//fmt.Println(numPacket)
 	//创建channel
 	loadBufs := make([]chan []byte, ecN)
@@ -121,7 +122,7 @@ func (svc *ObjectService) ecWrite(file io.ReadCloser, fileSize int64, ecK int, e
 	defer mutex.Unlock()
 	*/
 	for i := 0; i < ecN; i++ {
-		go svc.Send(nodes[i], encodeBufs[i], numPacket, &wg, hashs, i)
+		go svc.send(nodes[i], encodeBufs[i], numPacket, &wg, hashs, i)
 	}
 	wg.Wait()
 
@@ -129,9 +130,10 @@ func (svc *ObjectService) ecWrite(file io.ReadCloser, fileSize int64, ecK int, e
 
 }
 
-func (svc *ObjectService) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, hashs []string) (io.ReadCloser, error){
+func (svc *ObjectService) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, hashs []string) (io.ReadCloser, error) {
+	// TODO zkx 先试用同步方式实现逻辑，做好错误处理。同时也方便下面直接使用uploadToNode和uploadToLocalIPFS来优化代码结构
 	//wg := sync.WaitGroup{}
-	numPacket := (fileSize + int64(ecK)*config.Cfg().EcPacketSize - 1) / (int64(ecK) * config.Cfg().EcPacketSize)
+	numPacket := (fileSize + int64(ecK)*config.Cfg().ECPacketSize - 1) / (int64(ecK) * config.Cfg().ECPacketSize)
 	getBufs := make([]chan []byte, ecN)
 	decodeBufs := make([]chan []byte, ecK)
 	for i := 0; i < ecN; i++ {
@@ -145,10 +147,9 @@ func (svc *ObjectService) downloadEcObject(fileSize int64, ecK int, ecN int, blo
 	}
 	print(numPacket)
 	go decode(getBufs[:], decodeBufs[:], blockIDs, ecK, numPacket)
-	r,w := io.Pipe()
-	print("11111")
+	r, w := io.Pipe()
 	//persist函数,将解码得到的文件写入pipe
-	go func(){
+	go func() {
 		for i := 0; int64(i) < numPacket; i++ {
 			for j := 0; j < len(decodeBufs); j++ {
 				tmp := <-decodeBufs[j]
@@ -166,17 +167,17 @@ func (svc *ObjectService) downloadEcObject(fileSize int64, ecK int, ecN int, blo
 func (svc *ObjectService) get(blockHash string, nodeIP string, getBuf chan []byte, numPacket int64) error {
 	downloadFromAgent := false
 	//使用本地IPFS获取
-	if svc.ipfs != nil{
+	if svc.ipfs != nil {
 		log.Infof("try to use local IPFS to download file")
 		//获取IPFS的reader
-		reader,err := svc.downloadFromLocalIPFS(blockHash)
+		reader, err := svc.downloadFromLocalIPFS(blockHash)
 		if err != nil {
 			downloadFromAgent = true
 			fmt.Errorf("read ipfs block failed, err: %w", err)
 		}
 		defer reader.Close()
-		for i:=0; int64(i)<numPacket; i++{
-			buf := make([]byte, config.Cfg().EcPacketSize)
+		for i := 0; int64(i) < numPacket; i++ {
+			buf := make([]byte, config.Cfg().ECPacketSize)
 			_, err := io.ReadFull(reader, buf)
 			if err != nil {
 				downloadFromAgent = true
@@ -184,16 +185,16 @@ func (svc *ObjectService) get(blockHash string, nodeIP string, getBuf chan []byt
 			}
 			getBuf <- buf
 		}
-		if downloadFromAgent == false{
+		if downloadFromAgent == false {
 			close(getBuf)
 			return nil
 		}
-	}else{
+	} else {
 		downloadFromAgent = true
 	}
 	//从agent获取
-	if downloadFromAgent == true{
-	/*// 二次获取锁
+	if downloadFromAgent == true {
+		/*// 二次获取锁
 		mutex, err := reqbuilder.NewBuilder().
 			// 用于从IPFS下载文件
 			IPFS().ReadOneRep(nodeID, fileHash).
@@ -202,7 +203,7 @@ func (svc *ObjectService) get(blockHash string, nodeIP string, getBuf chan []byt
 			return fmt.Errorf("acquire locks failed, err: %w", err)
 		}
 		defer mutex.Unlock()
-	*/
+		*/
 		// 连接grpc
 		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, config.Cfg().GRPCPort)
 		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -211,13 +212,13 @@ func (svc *ObjectService) get(blockHash string, nodeIP string, getBuf chan []byt
 		}
 		// 下载文件
 		client := agentcaller.NewFileTransportClient(conn)
-		reader, err := mygrpc.GetFileAsStream(client, blockHash)		
+		reader, err := mygrpc.GetFileAsStream(client, blockHash)
 		if err != nil {
 			conn.Close()
 			return fmt.Errorf("request to get file failed, err: %w", err)
 		}
-		for i:=0; int64(i)<numPacket; i++{
-			buf := make([]byte, config.Cfg().EcPacketSize)
+		for i := 0; int64(i) < numPacket; i++ {
+			buf := make([]byte, config.Cfg().ECPacketSize)
 			_, _ = reader.Read(buf)
 			fmt.Println(buf)
 			fmt.Println(numPacket, "\n")
@@ -226,16 +227,16 @@ func (svc *ObjectService) get(blockHash string, nodeIP string, getBuf chan []byt
 		close(getBuf)
 		reader.Close()
 		return nil
-	}	
+	}
 	return nil
-	
+
 }
 
 func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket int64) error {
 
 	for i := 0; int64(i) < totalNumPacket; i++ {
 
-		buf := make([]byte, config.Cfg().EcPacketSize)
+		buf := make([]byte, config.Cfg().ECPacketSize)
 		idx := i % ecK
 		_, err := file.Read(buf)
 		if err != nil {
@@ -245,7 +246,7 @@ func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket in
 
 		if idx == ecK-1 {
 			for j := ecK; j < len(loadBufs); j++ {
-				zeroPkt := make([]byte, config.Cfg().EcPacketSize)
+				zeroPkt := make([]byte, config.Cfg().ECPacketSize)
 				loadBufs[j] <- zeroPkt
 			}
 		}
@@ -270,7 +271,7 @@ func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int6
 			tmpIn[j] = <-inBufs[j]
 		}
 		enc.Encode(tmpIn)
-		for j := 0; j < len(outBufs); j++ { 
+		for j := 0; j < len(outBufs); j++ {
 			outBufs[j] <- tmpIn[j]
 		}
 	}
@@ -297,7 +298,7 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	enc := ec.NewRsEnc(ecK, len(inBufs))
 	for i := 0; int64(i) < numPacket; i++ {
 		print("!!!!!")
-		for j := 0; j < len(inBufs); j++ { 
+		for j := 0; j < len(inBufs); j++ {
 			if hasBlock[j] {
 				tmpIn[j] = <-inBufs[j]
 			} else {
@@ -310,7 +311,7 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 				fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
 			}
 		}
-		for j := 0; j < len(outBufs); j++ { 
+		for j := 0; j < len(outBufs); j++ {
 			outBufs[j] <- tmpIn[j]
 		}
 	}
@@ -319,7 +320,11 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	}
 }
 
-func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) error {
+func (svc *ObjectService) send(node ramsg.RespNode, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int) error {
+	// TODO zkx 先直接复制client\internal\task\upload_rep_objects.go中的uploadToNode和uploadToLocalIPFS来替代这部分逻辑
+	// 方便之后异步化处理
+	// uploadToAgent的逻辑反了，而且中间步骤失败，就必须打印日志后停止后续操作
+
 	uploadToAgent := true
 	if svc.ipfs != nil { //使用IPFS传输
 		//创建IPFS文件
@@ -359,24 +364,24 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 		defer agentClient.Close()
 
 		pinObjResp, err := agentClient.StartPinningObject(agtmsg.NewStartPinningObject(fileHash))
-	if err != nil {
-		uploadToAgent = false
-		fmt.Errorf("start pinning object: %w", err)
-	}
-	for {
-		waitResp, err := agentClient.WaitPinningObject(agtmsg.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
 		if err != nil {
 			uploadToAgent = false
-			fmt.Errorf("waitting pinning object: %w", err)
+			fmt.Errorf("start pinning object: %w", err)
 		}
-		if waitResp.IsComplete {
-			if waitResp.Error != "" {
+		for {
+			waitResp, err := agentClient.WaitPinningObject(agtmsg.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
+			if err != nil {
 				uploadToAgent = false
-				fmt.Errorf("agent pinning object: %s", waitResp.Error)
+				fmt.Errorf("waitting pinning object: %w", err)
 			}
-			break
+			if waitResp.IsComplete {
+				if waitResp.Error != "" {
+					uploadToAgent = false
+					fmt.Errorf("agent pinning object: %s", waitResp.Error)
+				}
+				break
+			}
 		}
-	}
 		if uploadToAgent == false {
 			return nil
 		}
@@ -384,7 +389,6 @@ func (svc *ObjectService) Send(node ramsg.RespNode, inBuf chan []byte, numPacket
 	//////////////////////////////通过Agent上传
 	if uploadToAgent == true {
 		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-		print("!!!!!!")
 		nodeIP := node.ExternalIP
 		if node.IsSameLocation {
 			nodeIP = node.LocalIP

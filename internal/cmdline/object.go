@@ -62,7 +62,6 @@ func ObjectDownloadObject(ctx CommandContext, localFilePath string, objectID int
 	return nil
 }
 
-
 func ObjectDownloadObjectDir(ctx CommandContext, outputBaseDir string, dirName string) error {
 	// 创建本地文件夹
 	err := os.MkdirAll(outputBaseDir, os.ModePerm)
@@ -161,8 +160,7 @@ func ObjectUploadRepObject(ctx CommandContext, localFilePath string, bucketID in
 }
 
 func ObjectUploadEcObject(ctx CommandContext, localFilePath string, bucketID int64, objectName string, ecName string) error {
-	// TODO
-	//panic("not implement yet")
+	// TODO 参考rep的，改成异步流程
 	file, err := os.Open(localFilePath)
 	if err != nil {
 		return fmt.Errorf("open file %s failed, err: %w", localFilePath, err)

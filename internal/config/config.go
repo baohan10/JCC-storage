@@ -9,15 +9,15 @@ import (
 )
 
 type Config struct {
-	GRPCPort       int             `json:"grpcPort"`
-	EcPacketSize int64           `json:"ecPacketSize"`
-	MaxRepCount    int             `json:"maxRepCount"`
-	LocalIP        string          `json:"localIP"`
-	ExternalIP     string          `json:"externalIP"`
-	Logger         logger.Config   `json:"logger"`
-	RabbitMQ       racfg.Config    `json:"rabbitMQ"`
-	IPFS           *ipfs.Config    `json:"ipfs"` // 此字段非空代表客户端上存在ipfs daemon
-	DistLock       distlock.Config `json:"distlock"`
+	GRPCPort     int             `json:"grpcPort"`
+	ECPacketSize int64           `json:"ecPacketSize"`
+	MaxRepCount  int             `json:"maxRepCount"`
+	LocalIP      string          `json:"localIP"`
+	ExternalIP   string          `json:"externalIP"`
+	Logger       logger.Config   `json:"logger"`
+	RabbitMQ     racfg.Config    `json:"rabbitMQ"`
+	IPFS         *ipfs.Config    `json:"ipfs"` // 此字段非空代表客户端上存在ipfs daemon
+	DistLock     distlock.Config `json:"distlock"`
 }
 
 var cfg Config
