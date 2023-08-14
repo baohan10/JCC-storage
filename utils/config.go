@@ -27,7 +27,7 @@ func (r *EcConfig) GetN() int {
 
 func GetEcPolicy() *map[string]EcConfig {
 	doc := etree.NewDocument()
-	if err := doc.ReadFromFile("../conf/sysSetting.xml"); err != nil {
+	if err := doc.ReadFromFile("../confs/sysSetting.xml"); err != nil {
 		panic(err)
 	}
 	ecMap := make(map[string]EcConfig, 20)
@@ -53,7 +53,7 @@ func GetEcPolicy() *map[string]EcConfig {
 
 func GetAgentIps() []string {
 	doc := etree.NewDocument()
-	if err := doc.ReadFromFile("../conf/sysSetting.xml"); err != nil {
+	if err := doc.ReadFromFile("../confs/sysSetting.xml"); err != nil {
 		panic(err)
 	}
 	root := doc.SelectElement("setting")

@@ -1,0 +1,31 @@
+{
+    "minAvailableRepProportion": 0.8,
+    "nodeUnavailableSeconds": 300,
+    "logger": {
+        "output": "file",
+        "outputFileName": "scanner",
+        "outputDirectory": "log",
+        "level": "debug"
+    },
+    "db": {
+        "address": "127.0.0.1:3306",
+        "account": "root",
+        "password": "123456",
+        "databaseName": "cloudream"
+    },
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "cloudream",
+        "password": "123456",
+        "vhost": "/"
+    },
+    "distlock": {
+        "etcdAddress": "127.0.0.1:2379",
+        "etcdUsername": "",
+        "etcdPassword": "",
+        "etcdLockAcquireTimeoutMs": 5000,
+        "etcdLockLeaseTimeSec": 5,
+        "lockRequestLeaseTimeSec": 5,
+        "submitLockRequestWithoutLease": true
+    }
+}

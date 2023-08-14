@@ -2,6 +2,8 @@ module gitlink.org.cn/cloudream/storage-common
 
 require (
 	github.com/baohan10/reedsolomon v0.0.0-20230406042632-43574cac9fa7
+	github.com/beevik/etree v1.2.0
+	github.com/go-ping/ping v1.1.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/samber/lo v1.36.0
@@ -30,6 +32,7 @@ require (
 	github.com/zyedidia/generic v1.2.1 // indirect
 	golang.org/x/exp v0.0.0-20230519143937-03e91628a987 // indirect
 	golang.org/x/net v0.8.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect
 	golang.org/x/text v0.8.0 // indirect
 	google.golang.org/genproto v0.0.0-20230403163135-c38d8f061ccd // indirect
