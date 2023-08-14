@@ -4,12 +4,12 @@ import (
 	"time"
 
 	shell "github.com/ipfs/go-ipfs-api"
-	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/pkg/mq"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
+	"gitlink.org.cn/cloudream/storage-common/consts"
 	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
 )
 

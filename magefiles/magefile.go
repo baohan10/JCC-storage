@@ -3,10 +3,10 @@
 package main
 
 import (
-	"magefiles"
+	"gitlink.org.cn/cloudream/common/magefiles"
 
 	//mage:import
-	_ "magefiles/targets"
+	_ "gitlink.org.cn/cloudream/common/magefiles/targets"
 )
 
 var Default = Build

@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/storage-common/consts"
 	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
 )
 
