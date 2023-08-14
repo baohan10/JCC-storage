@@ -5,8 +5,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/storage-common/models"
+	mymodels "gitlink.org.cn/cloudream/storage-common/models"
 
 	"gitlink.org.cn/cloudream/common/pkg/mq"
 	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
@@ -52,7 +53,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 			stg.NodeID,
 			stg.Directory,
 			object,
-			models.NewRedundancyRepData(objectRep.FileHash),
+			mymodels.NewRedundancyRepData(objectRep.FileHash),
 		))
 
 	} else {
@@ -67,11 +68,11 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 		//查询纠删码参数
 		ec, err := svc.db.Ec().GetEc(svc.db.SQLCtx(), ecName)
 		// TODO zkx 异常处理
-		ecc := models.NewEc(ec.EcID, ec.Name, ec.EcK, ec.EcN)
+		ecc := mymodels.NewEc(ec.EcID, ec.Name, ec.EcK, ec.EcN)
 
-		blockss := make([]models.ObjectBlock, len(blocks))
+		blockss := make([]mymodels.ObjectBlock, len(blocks))
 		for i := 0; i < len(blocks); i++ {
-			blockss[i] = models.NewObjectBlock(
+			blockss[i] = mymodels.NewObjectBlock(
 				blocks[i].InnerID,
 				blocks[i].BlockHash,
 			)
@@ -81,7 +82,7 @@ func (svc *Service) PreMoveObjectToStorage(msg *coormsg.PreMoveObjectToStorage) 
 			stg.NodeID,
 			stg.Directory,
 			object,
-			models.NewRedundancyEcData(ecc, blockss),
+			mymodels.NewRedundancyEcData(ecc, blockss),
 		))
 	}
 }
