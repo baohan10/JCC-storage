@@ -37,19 +37,17 @@ func (service *Service) StartStorageMoveObject(msg *agtmsg.StartStorageMoveObjec
 
 		return ramsg.ReplyOK(agtmsg.NewStartStorageMoveObjectResp(taskID))
 
-	} else {
-		// TODO 处理其他备份类型
-		if repRed, ok := msg.Redundancy.(models.ECRedundancyData); ok {
-			taskID, err := service.moveEcObject(msg.FileSize, repRed, outFilePath)
-			if err != nil {
-				logger.Warnf("move ec object as %s failed, err: %s", outFilePath, err.Error())
-				return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "move ec object failed")
-			}
-
-			return ramsg.ReplyOK(agtmsg.NewStartStorageMoveObjectResp(taskID))
+	} else if repRed, ok := msg.Redundancy.(models.ECRedundancyData); ok {
+		taskID, err := service.moveEcObject(msg.ObjectID, msg.FileSize, repRed, outFilePath)
+		if err != nil {
+			logger.Warnf("move ec object as %s failed, err: %s", outFilePath, err.Error())
+			return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "move ec object failed")
 		}
-		return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "not rep or ec object???")
+
+		return ramsg.ReplyOK(agtmsg.NewStartStorageMoveObjectResp(taskID))
 	}
+
+	return ramsg.ReplyFailed[agtmsg.StartStorageMoveObjectResp](errorcode.OperationFailed, "not rep or ec object???")
 }
 
 func (svc *Service) moveRepObject(repData models.RepRedundancyData, outFilePath string) (string, error) {
@@ -57,15 +55,15 @@ func (svc *Service) moveRepObject(repData models.RepRedundancyData, outFilePath 
 	return tsk.ID(), nil
 }
 
-func (svc *Service) moveEcObject(fileSize int64, ecData models.ECRedundancyData, outFilePath string) (string, error) {
+func (svc *Service) moveEcObject(objID int64, fileSize int64, ecData models.ECRedundancyData, outFilePath string) (string, error) {
 	ecK := ecData.Ec.EcK
 	blockIDs := make([]int, ecK)
 	hashs := make([]string, ecK)
-	for i:=0 ; i<ecK; i++{
+	for i := 0; i < ecK; i++ {
 		blockIDs[i] = i
-		hashs[i] = ecData.Blocks[i].FileHash 
+		hashs[i] = ecData.Blocks[i].FileHash
 	}
-	tsk := svc.taskManager.StartComparable(task.NewEcRead(fileSize, ecData.Ec, blockIDs, hashs, outFilePath))
+	tsk := svc.taskManager.StartComparable(task.NewEcRead(objID, fileSize, ecData.Ec, blockIDs, hashs, outFilePath))
 	return tsk.ID(), nil
 }
 

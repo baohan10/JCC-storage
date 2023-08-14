@@ -12,7 +12,7 @@ type Config struct {
 	ID                int64           `json:"id"`
 	GRPCListenAddress string          `json:"grpcListenAddress"`
 	GRPCPort          int             `json:"grpcPort"`
-	GRPCPacketSize    int64           `json:"grpcPacketSize"`
+	ECPacketSize      int64           `json:"ecPacketSize"`
 	LocalIP           string          `json:"localIP"`
 	ExternalIP        string          `json:"externalIP"`
 	StorageBaseDir    string          `json:"storageBaseDir"`

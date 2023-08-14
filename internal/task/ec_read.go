@@ -6,28 +6,30 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	
-	"gitlink.org.cn/cloudream/ec"
-	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/common/models"
+
 	"gitlink.org.cn/cloudream/agent/internal/config"
+	"gitlink.org.cn/cloudream/common/models"
+	"gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/ec"
 )
 
 type EcRead struct {
-	FileSize int64
-	Ec       models.EC
-	BlockIDs    []int
-	BlockHashs  []string
-	LocalPath string
+	objID      int64
+	FileSize   int64
+	Ec         models.EC
+	BlockIDs   []int
+	BlockHashs []string
+	LocalPath  string
 }
 
-func NewEcRead(fileSize int64,ec models.EC, blockIDs []int, blockHashs []string, localPath string) *EcRead {
+func NewEcRead(objID int64, fileSize int64, ec models.EC, blockIDs []int, blockHashs []string, localPath string) *EcRead {
 	return &EcRead{
-		FileSize:  fileSize,
-		Ec:        ec,
-		BlockIDs:  blockIDs,
-		BlockHashs:  blockHashs,
-		LocalPath: localPath,
+		objID:      objID,
+		FileSize:   fileSize,
+		Ec:         ec,
+		BlockIDs:   blockIDs,
+		BlockHashs: blockHashs,
+		LocalPath:  localPath,
 	}
 }
 
@@ -36,28 +38,8 @@ func (t *EcRead) Compare(other *Task) bool {
 	if !ok {
 		return false
 	}
-	checkBLockIDs := true
-	if len(t.BlockIDs) != len(tsk.BlockIDs){
-		checkBLockIDs = false
-	}else{
-		for i:=0; i<len(t.BlockIDs); i++{
-			if t.BlockIDs[i] != tsk.BlockIDs[i]{
-				checkBLockIDs = false
-			}
-		}
-	}
 
-	checkHashs := true
-	if len(t.BlockHashs) != len(tsk.BlockHashs){
-		checkHashs = false
-	}else{
-		for i:=0; i<len(t.BlockHashs); i++{
-			if t.BlockHashs[i] != tsk.BlockHashs[i]{
-				checkHashs = false
-			}
-		}
-	}
-	return t.FileSize == tsk.FileSize && t.Ec == tsk.Ec && checkBLockIDs && checkHashs &&t.LocalPath == tsk.LocalPath
+	return t.objID == tsk.objID && t.LocalPath == tsk.LocalPath
 }
 
 func (t *EcRead) Execute(ctx TaskContext, complete CompleteFn) {
@@ -119,8 +101,10 @@ func (t *EcRead) Execute(ctx TaskContext, complete CompleteFn) {
 	})
 }
 
-func readObject(ctx TaskContext, fileSize int64, ecK int, ecN int, blockIDs []int, hashs []string)(io.ReadCloser, error){
-	numPacket := (fileSize + int64(ecK)*config.Cfg().GRPCPacketSize - 1) / (int64(ecK) * config.Cfg().GRPCPacketSize)
+func readObject(ctx TaskContext, fileSize int64, ecK int, ecN int, blockIDs []int, hashs []string) (io.ReadCloser, error) {
+	// TODO zkx 先使用同步方式实现读取多个block并解码数据的逻辑，做好错误处理
+
+	numPacket := (fileSize + int64(ecK)*config.Cfg().ECPacketSize - 1) / (int64(ecK) * config.Cfg().ECPacketSize)
 	getBufs := make([]chan []byte, ecN)
 	decodeBufs := make([]chan []byte, ecK)
 	for i := 0; i < ecN; i++ {
@@ -134,9 +118,9 @@ func readObject(ctx TaskContext, fileSize int64, ecK int, ecN int, blockIDs []in
 	}
 	//print(numPacket)
 	go decode(getBufs[:], decodeBufs[:], blockIDs, ecK, numPacket)
-	r,w := io.Pipe()
+	r, w := io.Pipe()
 	//这个就是persist函数
-	go func(){
+	go func() {
 		for i := 0; int64(i) < numPacket; i++ {
 			for j := 0; j < len(decodeBufs); j++ {
 				tmp := <-decodeBufs[j]
@@ -159,8 +143,8 @@ func get(ctx TaskContext, blockHash string, getBuf chan []byte, numPacket int64)
 		return fmt.Errorf("read ipfs block failed, err: %w", err)
 	}
 	defer reader.Close()
-	for i:=0; int64(i)<numPacket; i++{
-		buf := make([]byte, config.Cfg().GRPCPacketSize)
+	for i := 0; int64(i) < numPacket; i++ {
+		buf := make([]byte, config.Cfg().ECPacketSize)
 		_, err := io.ReadFull(reader, buf)
 		if err != nil {
 			return fmt.Errorf("read file falied, err:%w", err)
