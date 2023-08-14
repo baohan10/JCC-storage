@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"gitlink.org.cn/cloudream/common/pkg/logger"
-	log "gitlink.org.cn/cloudream/common/pkg/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
 	sccli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/scanner"
 	rasvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/coordinator"
