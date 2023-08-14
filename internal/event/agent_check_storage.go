@@ -8,11 +8,11 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/db/model"
-	"gitlink.org.cn/cloudream/rabbitmq"
-	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
+	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 )
 
@@ -151,7 +151,7 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.StorageCheck(agtmsg.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, objects), rabbitmq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agentClient.StorageCheck(agtmsg.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, objects), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
 		return

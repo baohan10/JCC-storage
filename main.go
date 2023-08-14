@@ -7,8 +7,8 @@ import (
 
 	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/db"
-	scsvr "gitlink.org.cn/cloudream/rabbitmq/server/scanner"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db"
+	scsvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/scanner"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/services"

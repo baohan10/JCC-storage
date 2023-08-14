@@ -4,7 +4,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
 )
 
 type CheckObject struct {

@@ -2,7 +2,7 @@ package tickevent
 
 import (
 	tickevent "gitlink.org.cn/cloudream/common/pkg/tickevent"
-	mydb "gitlink.org.cn/cloudream/db"
+	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 

@@ -7,13 +7,13 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/db/model"
-	"gitlink.org.cn/cloudream/rabbitmq"
+	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 
-	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
+	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
 )
 
 type AgentCheckCache struct {
@@ -134,7 +134,7 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.CheckIPFS(agtmsg.NewCheckIPFS(isComplete, caches), rabbitmq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agentClient.CheckIPFS(agtmsg.NewCheckIPFS(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("checking ipfs: %s", err.Error())
 		return

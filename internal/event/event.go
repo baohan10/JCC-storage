@@ -7,7 +7,7 @@ import (
 	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	event "gitlink.org.cn/cloudream/common/pkg/event"
 	"gitlink.org.cn/cloudream/common/pkg/typedispatcher"
-	mydb "gitlink.org.cn/cloudream/db"
+	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
 )
 
 type ExecuteArgs struct {

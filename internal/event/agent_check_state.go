@@ -8,11 +8,11 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/db/model"
-	"gitlink.org.cn/cloudream/rabbitmq"
-	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
-	scevt "gitlink.org.cn/cloudream/rabbitmq/message/scanner/event"
+	"gitlink.org.cn/cloudream/common/pkg/mq"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 )
 
@@ -68,7 +68,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	}
 	defer agentClient.Close()
 
-	getResp, err := agentClient.GetState(agtmsg.NewGetState(), rabbitmq.RequestOption{Timeout: time.Second * 30})
+	getResp, err := agentClient.GetState(agtmsg.NewGetState(), mq.RequestOption{Timeout: time.Second * 30})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("getting state: %s", err.Error())
 

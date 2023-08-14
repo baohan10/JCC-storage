@@ -7,7 +7,7 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/utils/sort"
-	"gitlink.org.cn/cloudream/db/model"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 )
 
 func Test_chooseNewRepNodes(t *testing.T) {

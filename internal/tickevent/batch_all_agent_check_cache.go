@@ -3,7 +3,7 @@ package tickevent
 import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	"gitlink.org.cn/cloudream/db/model"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 
