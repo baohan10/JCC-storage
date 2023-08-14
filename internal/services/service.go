@@ -1,8 +1,8 @@
 package services
 
 import (
-	mydb "gitlink.org.cn/cloudream/db"
-	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
+	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
+	sccli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/scanner"
 )
 
 type Service struct {

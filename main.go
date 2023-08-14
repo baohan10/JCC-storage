@@ -6,9 +6,9 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
-	mydb "gitlink.org.cn/cloudream/db"
-	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
-	rasvr "gitlink.org.cn/cloudream/rabbitmq/server/coordinator"
+	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
+	sccli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/scanner"
+	rasvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/coordinator"
 	"gitlink.org.cn/cloudream/storage-coordinator/internal/config"
 	"gitlink.org.cn/cloudream/storage-coordinator/internal/services"
 )

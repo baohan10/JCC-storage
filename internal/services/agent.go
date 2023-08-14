@@ -1,7 +1,7 @@
 package services
 
 import (
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 func (service *Service) TempCacheReport(msg *coormsg.TempCacheReport) {
