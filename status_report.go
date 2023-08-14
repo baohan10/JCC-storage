@@ -7,9 +7,9 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
-	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
+	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
 )
 
 func reportStatus(wg *sync.WaitGroup) {

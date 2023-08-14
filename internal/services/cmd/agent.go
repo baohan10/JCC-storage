@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"gitlink.org.cn/cloudream/common/consts"
-	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
+	"gitlink.org.cn/cloudream/common/pkg/mq"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
 )
 
-func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *ramsg.CodeMessage) {
+func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *mq.CodeMessage) {
 	var ipfsState string
 
 	if svc.ipfs.IsUp() {
@@ -15,5 +15,5 @@ func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *ramsg
 		ipfsState = consts.IPFSStateOK
 	}
 
-	return ramsg.ReplyOK(agtmsg.NewGetStateRespBody(ipfsState))
+	return mq.ReplyOK(agtmsg.NewGetStateRespBody(ipfsState))
 }

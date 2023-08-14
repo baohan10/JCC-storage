@@ -10,13 +10,13 @@ import (
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
-	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
+	mygrpc "gitlink.org.cn/cloudream/storage-common/utils/grpc"
 
-	agentcaller "gitlink.org.cn/cloudream/proto"
-	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
-	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	ramsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message"
+	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
+	agentcaller "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

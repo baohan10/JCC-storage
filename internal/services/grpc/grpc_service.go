@@ -7,7 +7,7 @@ import (
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	agentserver "gitlink.org.cn/cloudream/proto"
+	agentserver "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
 )
 
 type GRPCService struct {

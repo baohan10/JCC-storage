@@ -6,11 +6,8 @@ require (
 	github.com/ipfs/go-ipfs-api v0.6.0
 	github.com/samber/lo v1.38.1
 	gitlink.org.cn/cloudream/common v0.0.0
-	gitlink.org.cn/cloudream/ec v0.0.0
-	gitlink.org.cn/cloudream/proto v0.0.0
-	gitlink.org.cn/cloudream/rabbitmq v0.0.0
-	google.golang.org/grpc v1.54.0
-	magefiles v0.0.0
+	gitlink.org.cn/cloudream/storage-common v0.0.0
+	google.golang.org/grpc v1.57.0
 )
 
 require (
@@ -36,7 +33,6 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p v0.27.0 // indirect
-	github.com/magefile/mage v1.15.0 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -51,13 +47,11 @@ require (
 	github.com/multiformats/go-multihash v0.2.1 // indirect
 	github.com/multiformats/go-multistream v0.4.1 // indirect
 	github.com/multiformats/go-varint v0.0.7 // indirect
-	github.com/otiai10/copy v1.12.0 // indirect
 	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/streadway/amqp v1.0.0 // indirect
+	github.com/streadway/amqp v1.1.0 // indirect
 	github.com/whyrusleeping/tar-utils v0.0.0-20201201191210-20a61371de5b // indirect
 	github.com/zyedidia/generic v1.2.1 // indirect
-	gitlink.org.cn/cloudream/db v0.0.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.9 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.9 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.9 // indirect
@@ -70,22 +64,15 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	google.golang.org/genproto v0.0.0-20230403163135-c38d8f061ccd // indirect
+	google.golang.org/genproto v0.0.0-20230526161137-0005af68ea54 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-go 1.18
-
 // 运行go mod tidy时需要将下面几行取消注释
-// replace gitlink.org.cn/cloudream/ec => ../ec
-// 
-// replace gitlink.org.cn/cloudream/proto => ../proto
-// 
-// replace gitlink.org.cn/cloudream/rabbitmq => ../rabbitmq
-// 
-// replace gitlink.org.cn/cloudream/common => ../common
-// 
-// replace gitlink.org.cn/cloudream/db => ../db
-// 
-// replace magefiles => ../magefiles
+
+replace gitlink.org.cn/cloudream/common => ../../common
+
+replace gitlink.org.cn/cloudream/storage-common => ../storage-common

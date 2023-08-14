@@ -7,17 +7,17 @@ import (
 	"gitlink.org.cn/cloudream/common/consts"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
-	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
-	agtmsg "gitlink.org.cn/cloudream/rabbitmq/message/agent"
+	"gitlink.org.cn/cloudream/common/pkg/mq"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
+	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
 )
 
-func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {
+func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) (*agtmsg.CheckIPFSResp, *mq.CodeMessage) {
 	filesMap, err := svc.ipfs.GetPinnedFiles()
 	if err != nil {
 		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
-		return ramsg.ReplyFailed[agtmsg.CheckIPFSResp](errorcode.OperationFailed, "get pinned files from ipfs failed")
+		return mq.ReplyFailed[agtmsg.CheckIPFSResp](errorcode.OperationFailed, "get pinned files from ipfs failed")
 	}
 
 	// TODO 根据锁定清单过滤被锁定的文件的记录
@@ -28,7 +28,7 @@ func (svc *Service) CheckIPFS(msg *agtmsg.CheckIPFS) (*agtmsg.CheckIPFSResp, *ra
 	}
 }
 
-func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {
+func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) (*agtmsg.CheckIPFSResp, *mq.CodeMessage) {
 	var entries []agtmsg.CheckIPFSRespEntry
 	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
@@ -60,10 +60,10 @@ func (svc *Service) checkIncrement(msg *agtmsg.CheckIPFS, filesMap map[string]sh
 
 	// 增量情况下，不需要对filesMap中没检查的记录进行处理
 
-	return ramsg.ReplyOK(agtmsg.NewCheckIPFSResp(entries))
+	return mq.ReplyOK(agtmsg.NewCheckIPFSResp(entries))
 }
 
-func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) (*agtmsg.CheckIPFSResp, *ramsg.CodeMessage) {
+func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]shell.PinInfo) (*agtmsg.CheckIPFSResp, *mq.CodeMessage) {
 	var entries []agtmsg.CheckIPFSRespEntry
 	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
@@ -103,5 +103,5 @@ func (svc *Service) checkComplete(msg *agtmsg.CheckIPFS, filesMap map[string]she
 		entries = append(entries, agtmsg.NewCheckIPFSRespEntry(hash, agtmsg.CHECK_IPFS_RESP_OP_CREATE_TEMP))
 	}
 
-	return ramsg.ReplyOK(agtmsg.NewCheckIPFSResp(entries))
+	return mq.ReplyOK(agtmsg.NewCheckIPFSResp(entries))
 }
