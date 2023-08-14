@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"gitlink.org.cn/cloudream/client/internal/task"
+	"gitlink.org.cn/cloudream/storage-client/internal/task"
 )
 
 func ObjectListBucketObjects(ctx CommandContext, bucketID int64) error {

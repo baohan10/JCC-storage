@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"gitlink.org.cn/cloudream/client/internal/services"
 	"gitlink.org.cn/cloudream/common/pkg/cmdtrie"
 	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
+	"gitlink.org.cn/cloudream/storage-client/internal/services"
 )
 
 type CommandContext struct {

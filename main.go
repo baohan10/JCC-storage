@@ -6,15 +6,15 @@ import (
 
 	_ "google.golang.org/grpc/balancer/grpclb"
 
-	"gitlink.org.cn/cloudream/client/internal/cmdline"
-	"gitlink.org.cn/cloudream/client/internal/config"
-	"gitlink.org.cn/cloudream/client/internal/services"
-	"gitlink.org.cn/cloudream/client/internal/task"
 	distlocksvc "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	coorcli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
+	"gitlink.org.cn/cloudream/storage-client/internal/cmdline"
+	"gitlink.org.cn/cloudream/storage-client/internal/config"
+	"gitlink.org.cn/cloudream/storage-client/internal/services"
+	"gitlink.org.cn/cloudream/storage-client/internal/task"
 )
 
 func main() {

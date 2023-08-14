@@ -6,8 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	"gitlink.org.cn/cloudream/client/internal/config"
-	"gitlink.org.cn/cloudream/client/internal/task"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
@@ -16,6 +14,8 @@ import (
 	agentcaller "gitlink.org.cn/cloudream/proto"
 	ramsg "gitlink.org.cn/cloudream/rabbitmq/message"
 	coormsg "gitlink.org.cn/cloudream/rabbitmq/message/coordinator"
+	"gitlink.org.cn/cloudream/storage-client/internal/config"
+	"gitlink.org.cn/cloudream/storage-client/internal/task"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 

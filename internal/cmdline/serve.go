@@ -3,7 +3,7 @@ package cmdline
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/client/internal/http"
+	"gitlink.org.cn/cloudream/storage-client/internal/http"
 )
 
 func ServeHTTP(ctx CommandContext, args []string) error {

@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	"gitlink.org.cn/cloudream/common/utils"
 	mygrpc "gitlink.org.cn/cloudream/common/utils/grpc"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
+	"gitlink.org.cn/cloudream/storage-client/internal/config"
 
 	agentcaller "gitlink.org.cn/cloudream/proto"
 	agtcli "gitlink.org.cn/cloudream/rabbitmq/client/agent"

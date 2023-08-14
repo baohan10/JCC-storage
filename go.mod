@@ -1,6 +1,6 @@
-module gitlink.org.cn/cloudream/client
+module gitlink.org.cn/cloudream/storage-client
 
-go 1.18
+go 1.20
 
 require (
 	github.com/gin-gonic/gin v1.9.1

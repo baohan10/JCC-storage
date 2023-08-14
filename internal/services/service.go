@@ -1,11 +1,11 @@
 package services
 
 import (
-	"gitlink.org.cn/cloudream/client/internal/task"
 	distlock "gitlink.org.cn/cloudream/common/pkg/distlock/service"
 	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	racli "gitlink.org.cn/cloudream/rabbitmq/client/coordinator"
 	sccli "gitlink.org.cn/cloudream/rabbitmq/client/scanner"
+	"gitlink.org.cn/cloudream/storage-client/internal/task"
 )
 
 type Service struct {

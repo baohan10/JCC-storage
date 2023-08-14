@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"gitlink.org.cn/cloudream/client/internal/config"
 	"gitlink.org.cn/cloudream/common/utils"
 	"gitlink.org.cn/cloudream/ec"
+	"gitlink.org.cn/cloudream/storage-client/internal/config"
 
 	//"gitlink.org.cn/cloudream/common/pkg/distlock/reqbuilder"
 	log "gitlink.org.cn/cloudream/common/pkg/logger"

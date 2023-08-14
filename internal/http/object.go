@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlink.org.cn/cloudream/client/internal/task"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkg/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	"gitlink.org.cn/cloudream/common/utils/serder"
+	"gitlink.org.cn/cloudream/storage-client/internal/task"
 )
 
 type ObjectService struct {
