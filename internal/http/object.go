@@ -118,7 +118,7 @@ func (s *ObjectService) Upload(ctx *gin.Context) {
 func (s *ObjectService) uploadRep(ctx *gin.Context, req *ObjectUploadReq) {
 	log := logger.WithField("HTTP", "Object.Upload")
 
-	var repInfo models.RepRedundancyConfig
+	var repInfo models.RepRedundancyInfo
 	if err := serder.AnyToAny(req.Info.Redundancy.Config, &repInfo); err != nil {
 		log.Warnf("parsing rep redundancy config: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
