@@ -47,11 +47,11 @@ func NewPreDownloadObject(objectID int64, userID int64, clientExternalIP string)
 
 // 协调端告知客户端，待读取数据的元数据
 type PreDownloadObjectResp struct {
-	FileSize   int64                         `json:"fileSize,string"`
-	Redundancy ramsg.RespRedundancyDataTypes `json:"redundancy"`
+	FileSize   int64                    `json:"fileSize,string"`
+	Redundancy ramsg.RespRedundancyData `json:"redundancy"`
 }
 
-func NewPreDownloadObjectResp[T ramsg.RespRedundancyDataTypesConst](fileSize int64, redundancy T) PreDownloadObjectResp {
+func NewPreDownloadObjectResp[T ramsg.RespRedundancyDataConst](fileSize int64, redundancy T) PreDownloadObjectResp {
 	return PreDownloadObjectResp{
 		Redundancy: redundancy,
 		FileSize:   fileSize,

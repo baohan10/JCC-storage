@@ -2,9 +2,9 @@ package models
 
 /// TODO 将分散在各处的公共结构体定义集中到这里来
 
-type RedundancyDataTypes interface{}
-type RedundancyDataTypesConst interface {
-	RepRedundancyData | ECRedundancyData
+type RedundancyData interface{}
+type RedundancyDataConst interface {
+	RepRedundancyData | ECRedundancyData | RedundancyData
 }
 type RepRedundancyData struct {
 	FileHash string `json:"fileHash"`

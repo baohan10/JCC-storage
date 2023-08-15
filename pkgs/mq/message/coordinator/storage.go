@@ -51,13 +51,13 @@ func NewPreMoveObjectToStorage(objectID int64, stgID int64, userID int64) PreMov
 
 // 协调端发给客户端，告知要调度数据的详情
 type PreMoveObjectToStorageResp struct {
-	NodeID     int64                      `json:"nodeID"`
-	Directory  string                     `json:"directory"`
-	Object     model.Object               `json:"object"`
-	Redundancy models.RedundancyDataTypes `json:"redundancy"`
+	NodeID     int64                 `json:"nodeID"`
+	Directory  string                `json:"directory"`
+	Object     model.Object          `json:"object"`
+	Redundancy models.RedundancyData `json:"redundancy"`
 }
 
-func NewPreMoveObjectToStorageRespBody[T models.RedundancyDataTypes](nodeID int64, dir string, object model.Object, redundancy T) PreMoveObjectToStorageResp {
+func NewPreMoveObjectToStorageRespBody[T models.RedundancyData](nodeID int64, dir string, object model.Object, redundancy T) PreMoveObjectToStorageResp {
 	return PreMoveObjectToStorageResp{
 		NodeID:     nodeID,
 		Directory:  dir,

@@ -8,15 +8,15 @@ import (
 
 // 客户端发给代理端，告知要调度多副本冗余的数据，以及要调度数据的详情
 type StartStorageMoveObject struct {
-	UserID     int64                      `json:"userID"`
-	ObjectID   int64                      `json:"objectID"`
-	ObjectName string                     `json:"objectName"`
-	Directory  string                     `json:"directory"`
-	FileSize   int64                      `json:"fileSize,string"`
-	Redundancy models.RedundancyDataTypes `json:"redundancy"`
+	UserID     int64                 `json:"userID"`
+	ObjectID   int64                 `json:"objectID"`
+	ObjectName string                `json:"objectName"`
+	Directory  string                `json:"directory"`
+	FileSize   int64                 `json:"fileSize,string"`
+	Redundancy models.RedundancyData `json:"redundancy"`
 }
 
-func NewStartStorageMoveObject[T models.RedundancyDataTypes](dir string, objectID int64, objectName string, userID int64, fileSize int64, redundancy T) StartStorageMoveObject {
+func NewStartStorageMoveObject[T models.RedundancyDataConst](dir string, objectID int64, objectName string, userID int64, fileSize int64, redundancy T) StartStorageMoveObject {
 	return StartStorageMoveObject{
 		Directory:  dir,
 		ObjectID:   objectID,

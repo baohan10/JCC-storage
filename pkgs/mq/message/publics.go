@@ -38,11 +38,11 @@ func NewRespNode(id int64, externalIP string, localIP string, isSameLocation boo
 }
 
 // Resp开头的RedundancyData与RedundancyData的区别在于，多了Nodes等字段。需要一个更好的名称。
-type RespRedundancyDataTypesConst interface {
+type RespRedundancyDataConst interface {
 	RespRepRedundancyData | RespEcRedundancyData
 }
 
-type RespRedundancyDataTypes interface{}
+type RespRedundancyData interface{}
 
 type RespRepRedundancyData struct {
 	mymodels.RepRedundancyData
@@ -105,9 +105,9 @@ func NewEc(id int, name string, k int, n int) Ec {
 }
 
 func init() {
-	mq.RegisterTypeSet[models.RedundancyConfigTypes](myreflect.TypeOf[models.RepRedundancyConfig](), myreflect.TypeOf[models.ECRedundancyConfig]())
+	mq.RegisterTypeSet[models.RedundancyInfo](myreflect.TypeOf[models.RepRedundancyInfo](), myreflect.TypeOf[models.ECRedundancyInfo]())
 
-	mq.RegisterTypeSet[mymodels.RedundancyDataTypes](myreflect.TypeOf[mymodels.RepRedundancyData](), myreflect.TypeOf[mymodels.ECRedundancyData]())
+	mq.RegisterTypeSet[mymodels.RedundancyData](myreflect.TypeOf[mymodels.RepRedundancyData](), myreflect.TypeOf[mymodels.ECRedundancyData]())
 
-	mq.RegisterTypeSet[RespRedundancyDataTypes](myreflect.TypeOf[RespRepRedundancyData](), myreflect.TypeOf[RespEcRedundancyData]())
+	mq.RegisterTypeSet[RespRedundancyData](myreflect.TypeOf[RespRepRedundancyData](), myreflect.TypeOf[RespEcRedundancyData]())
 }
