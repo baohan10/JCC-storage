@@ -5,10 +5,9 @@ import (
 	"os"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
-	sccli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/scanner"
-	rasvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/coordinator"
+	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage-coordinator/internal/config"
 	"gitlink.org.cn/cloudream/storage-coordinator/internal/services"
 )
@@ -28,21 +27,21 @@ func main() {
 
 	db, err := mydb.NewDB(&config.Cfg().DB)
 	if err != nil {
-		log.Fatalf("new db failed, err: %s", err.Error())
+		logger.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	scanner, err := sccli.NewClient(&config.Cfg().RabbitMQ)
+	scanner, err := scmq.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
-		log.Fatalf("new scanner client failed, err: %s", err.Error())
+		logger.Fatalf("new scanner client failed, err: %s", err.Error())
 	}
 
-	coorSvr, err := rasvr.NewServer(services.NewService(db, scanner), &config.Cfg().RabbitMQ)
+	coorSvr, err := coormq.NewServer(services.NewService(db, scanner), &config.Cfg().RabbitMQ)
 	if err != nil {
-		log.Fatalf("new coordinator server failed, err: %s", err.Error())
+		logger.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
 
 	coorSvr.OnError = func(err error) {
-		log.Warnf("coordinator server err: %s", err.Error())
+		logger.Warnf("coordinator server err: %s", err.Error())
 	}
 
 	// 启动服务
@@ -52,13 +51,13 @@ func main() {
 	<-forever
 }
 
-func serveCoorServer(server *rasvr.Server) {
-	log.Info("start serving command server")
+func serveCoorServer(server *coormq.Server) {
+	logger.Info("start serving command server")
 
 	err := server.Serve()
 	if err != nil {
-		log.Errorf("command server stopped with error: %s", err.Error())
+		logger.Errorf("command server stopped with error: %s", err.Error())
 	}
 
-	log.Info("command server stopped")
+	logger.Info("command server stopped")
 }
