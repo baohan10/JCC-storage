@@ -13,8 +13,8 @@ import (
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-client/internal/services"
 	"gitlink.org.cn/cloudream/storage-client/internal/task"
-	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
-	sccli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/scanner"
+	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
 )
 
 func main() {
@@ -30,13 +30,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	coorClient, err := coorcli.NewClient(&config.Cfg().RabbitMQ)
+	coorClient, err := coormq.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Warnf("new coordinator client failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 
-	scanner, err := sccli.NewClient(&config.Cfg().RabbitMQ)
+	scanner, err := scmq.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Warnf("new scanner client failed, err: %s", err.Error())
 		os.Exit(1)

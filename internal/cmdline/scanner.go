@@ -5,7 +5,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/cmdtrie"
 	myreflect "gitlink.org.cn/cloudream/common/utils/reflect"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 )
 
 var parseScannerEventCmdTrie cmdtrie.StaticCommandTrie[any] = cmdtrie.NewStaticCommandTrie[any]()
@@ -33,7 +33,7 @@ func init() {
 
 	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckCache, myreflect.TypeNameOf[scevt.CheckCache]())
 
-	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckObject, myreflect.TypeNameOf[scevt.CheckObject]())
+	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckPackage, myreflect.TypeNameOf[scevt.CheckPackage]())
 
 	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckRepCount, myreflect.TypeNameOf[scevt.CheckRepCount]())
 

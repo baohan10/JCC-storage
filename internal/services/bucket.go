@@ -5,7 +5,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
+	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
 type BucketService struct {
@@ -22,7 +22,7 @@ func (svc *BucketService) GetBucket(userID int64, bucketID int64) (model.Bucket,
 }
 
 func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
-	resp, err := svc.coordinator.GetUserBuckets(coormsg.NewGetUserBuckets(userID))
+	resp, err := svc.coordinator.GetUserBuckets(coormq.NewGetUserBuckets(userID))
 	if err != nil {
 		return nil, fmt.Errorf("get user buckets failed, err: %w", err)
 	}
@@ -30,13 +30,13 @@ func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
 	return resp.Buckets, nil
 }
 
-func (svc *BucketService) GetBucketObjects(userID int64, bucketID int64) ([]model.Object, error) {
-	resp, err := svc.coordinator.GetBucketObjects(coormsg.NewGetBucketObjects(userID, bucketID))
+func (svc *BucketService) GetBucketPackages(userID int64, bucketID int64) ([]model.Package, error) {
+	resp, err := svc.coordinator.GetBucketPackages(coormq.NewGetBucketPackages(userID, bucketID))
 	if err != nil {
-		return nil, fmt.Errorf("get bucket objects failed, err: %w", err)
+		return nil, fmt.Errorf("get bucket packages failed, err: %w", err)
 	}
 
-	return resp.Objects, nil
+	return resp.Packages, nil
 }
 
 func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, error) {
@@ -53,7 +53,7 @@ func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, 
 	}
 	defer mutex.Unlock()
 
-	resp, err := svc.coordinator.CreateBucket(coormsg.NewCreateBucket(userID, bucketName))
+	resp, err := svc.coordinator.CreateBucket(coormq.NewCreateBucket(userID, bucketName))
 	if err != nil {
 		return 0, fmt.Errorf("creating bucket: %w", err)
 	}
@@ -68,6 +68,7 @@ func (svc *BucketService) DeleteBucket(userID int64, bucketID int64) error {
 		Metadata().
 		UserBucket().WriteAny().
 		Bucket().WriteOne(bucketID).
+		// TODO2
 		Object().WriteAny().
 		ObjectRep().WriteAny().
 		ObjectBlock().WriteAny().
@@ -78,7 +79,7 @@ func (svc *BucketService) DeleteBucket(userID int64, bucketID int64) error {
 	}
 	defer mutex.Unlock()
 
-	_, err = svc.coordinator.DeleteBucket(coormsg.NewDeleteBucket(userID, bucketID))
+	_, err = svc.coordinator.DeleteBucket(coormq.NewDeleteBucket(userID, bucketID))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)
 	}
