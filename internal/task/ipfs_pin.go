@@ -31,7 +31,7 @@ func (t *IPFSPin) Execute(ctx TaskContext, complete CompleteFn) {
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 	defer log.Debugf("end")
 
-	err := ctx.IPFS.Pin(t.FileHash)
+	err := ctx.ipfs.Pin(t.FileHash)
 	if err != nil {
 		err := fmt.Errorf("pin file failed, err: %w", err)
 		log.WithField("FileHash", t.FileHash).Warn(err.Error())
