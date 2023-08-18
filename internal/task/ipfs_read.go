@@ -61,7 +61,7 @@ func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 	}
 	defer outputFile.Close()
 
-	rd, err := ctx.IPFS.OpenRead(t.FileHash)
+	rd, err := ctx.ipfs.OpenRead(t.FileHash)
 	if err != nil {
 		err := fmt.Errorf("read ipfs file failed, err: %w", err)
 		log.WithField("FileHash", t.FileHash).Warn(err.Error())

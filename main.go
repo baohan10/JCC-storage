@@ -15,8 +15,8 @@ import (
 
 	"google.golang.org/grpc"
 
-	"gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
-	rasvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/agent"
+	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 
 	cmdsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/cmd"
 	grpcsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/grpc"
@@ -46,7 +46,7 @@ func main() {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
 
-	coor, err := coordinator.NewClient(&config.Cfg().RabbitMQ)
+	coorCli, err := coormq.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
@@ -60,11 +60,11 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(5)
 
-	taskMgr := task.NewManager(ipfs, coor, distlock)
+	taskMgr := task.NewManager(ipfs, coorCli, distlock)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := rasvr.NewServer(cmdsvc.NewService(ipfs, &taskMgr), config.Cfg().ID, &config.Cfg().RabbitMQ)
+	agtSvr, err := agtmq.NewServer(cmdsvc.NewService(ipfs, &taskMgr, coorCli), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -91,7 +91,7 @@ func main() {
 	wg.Wait()
 }
 
-func serveAgentServer(server *rasvr.Server, wg *sync.WaitGroup) {
+func serveAgentServer(server *agtmq.Server, wg *sync.WaitGroup) {
 	log.Info("start serving command server")
 
 	err := server.Serve()

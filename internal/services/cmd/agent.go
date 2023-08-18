@@ -3,10 +3,10 @@ package cmd
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-common/consts"
-	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
+	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 )
 
-func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *mq.CodeMessage) {
+func (svc *Service) GetState(msg *agtmq.GetState) (*agtmq.GetStateResp, *mq.CodeMessage) {
 	var ipfsState string
 
 	if svc.ipfs.IsUp() {
@@ -15,5 +15,5 @@ func (svc *Service) GetState(msg *agtmsg.GetState) (*agtmsg.GetStateResp, *mq.Co
 		ipfsState = consts.IPFSStateOK
 	}
 
-	return mq.ReplyOK(agtmsg.NewGetStateRespBody(ipfsState))
+	return mq.ReplyOK(agtmq.NewGetStateResp(ipfsState))
 }
