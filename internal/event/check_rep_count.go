@@ -13,7 +13,7 @@ import (
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 )
 
 type CheckRepCount struct {

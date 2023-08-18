@@ -10,9 +10,8 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-common/consts"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 )
 
@@ -61,14 +60,14 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	agentClient, err := agtcli.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtmq.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
 	defer agentClient.Close()
 
-	getResp, err := agentClient.GetState(agtmsg.NewGetState(), mq.RequestOption{Timeout: time.Second * 30})
+	getResp, err := agentClient.GetState(agtmq.NewGetState(), mq.RequestOption{Timeout: time.Second * 30})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("getting state: %s", err.Error())
 
