@@ -8,7 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-common/consts"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 )
 
 type CheckCache struct {

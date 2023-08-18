@@ -10,9 +10,8 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-common/consts"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 )
 
@@ -20,9 +19,9 @@ type AgentCheckStorage struct {
 	scevt.AgentCheckStorage
 }
 
-func NewAgentCheckStorage(storageID int64, objectIDs []int64) *AgentCheckStorage {
+func NewAgentCheckStorage(storageID int64, packageIDs []int64) *AgentCheckStorage {
 	return &AgentCheckStorage{
-		AgentCheckStorage: scevt.NewAgentCheckStorage(storageID, objectIDs),
+		AgentCheckStorage: scevt.NewAgentCheckStorage(storageID, packageIDs),
 	}
 }
 
@@ -36,11 +35,11 @@ func (t *AgentCheckStorage) TryMerge(other Event) bool {
 		return false
 	}
 
-	// ObjectIDs为nil时代表全量检查
-	if event.ObjectIDs == nil {
-		t.ObjectIDs = nil
-	} else if t.ObjectIDs != nil {
-		t.ObjectIDs = lo.Union(t.ObjectIDs, event.ObjectIDs)
+	// PackageIDs为nil时代表全量检查
+	if event.PackageIDs == nil {
+		t.PackageIDs = nil
+	} else if t.PackageIDs != nil {
+		t.PackageIDs = lo.Union(t.PackageIDs, event.PackageIDs)
 	}
 
 	return true
@@ -74,7 +73,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	if t.ObjectIDs == nil {
+	if t.PackageIDs == nil {
 		t.checkComplete(execCtx, stg)
 	} else {
 		t.checkIncrement(execCtx, stg)
@@ -87,10 +86,10 @@ func (t *AgentCheckStorage) checkComplete(execCtx ExecuteContext, stg model.Stor
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().
 		// 全量模式下查询、修改Move记录
-		StorageObject().WriteAny().
+		StoragePackage().WriteAny().
 		Storage().
 		// 全量模式下删除对象文件
-		WriteAnyObject(t.StorageID).
+		WriteAnyPackage(t.StorageID).
 		MutexLock(execCtx.Args.DistLock)
 	if err != nil {
 		log.Warnf("acquire locks failed, err: %s", err.Error())
@@ -98,13 +97,13 @@ func (t *AgentCheckStorage) checkComplete(execCtx ExecuteContext, stg model.Stor
 	}
 	defer mutex.Unlock()
 
-	objects, err := execCtx.Args.DB.StorageObject().GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
+	packages, err := execCtx.Args.DB.StoragePackage().GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
 	if err != nil {
-		log.WithField("StorageID", t.StorageID).Warnf("get storage objects failed, err: %s", err.Error())
+		log.WithField("StorageID", t.StorageID).Warnf("get storage packages failed, err: %s", err.Error())
 		return
 	}
 
-	t.startCheck(execCtx, stg, true, objects)
+	t.startCheck(execCtx, stg, true, packages)
 }
 
 func (t *AgentCheckStorage) checkIncrement(execCtx ExecuteContext, stg model.Storage) {
@@ -113,10 +112,10 @@ func (t *AgentCheckStorage) checkIncrement(execCtx ExecuteContext, stg model.Sto
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().
 		// 全量模式下查询、修改Move记录。因为可能有多个User Move相同的文件，所以只能用集合Write锁
-		StorageObject().WriteAny().
+		StoragePackage().WriteAny().
 		Storage().
 		// 全量模式下删除对象文件。因为可能有多个User Move相同的文件，所以只能用集合Write锁
-		WriteAnyObject(t.StorageID).
+		WriteAnyPackage(t.StorageID).
 		MutexLock(execCtx.Args.DistLock)
 	if err != nil {
 		log.Warnf("acquire locks failed, err: %s", err.Error())
@@ -124,34 +123,34 @@ func (t *AgentCheckStorage) checkIncrement(execCtx ExecuteContext, stg model.Sto
 	}
 	defer mutex.Unlock()
 
-	var objects []model.StorageObject
-	for _, objID := range t.ObjectIDs {
-		objs, err := execCtx.Args.DB.StorageObject().GetAllByStorageAndObjectID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
+	var packages []model.StoragePackage
+	for _, objID := range t.PackageIDs {
+		objs, err := execCtx.Args.DB.StoragePackage().GetAllByStorageAndPackageID(execCtx.Args.DB.SQLCtx(), t.StorageID, objID)
 		if err != nil {
 			log.WithField("StorageID", t.StorageID).
-				WithField("ObjectID", objID).
-				Warnf("get storage object failed, err: %s", err.Error())
+				WithField("PackageID", objID).
+				Warnf("get storage package failed, err: %s", err.Error())
 			return
 		}
 
-		objects = append(objects, objs...)
+		packages = append(packages, objs...)
 	}
 
-	t.startCheck(execCtx, stg, false, objects)
+	t.startCheck(execCtx, stg, false, packages)
 }
 
-func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage, isComplete bool, objects []model.StorageObject) {
+func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage, isComplete bool, packages []model.StoragePackage) {
 	log := logger.WithType[AgentCheckStorage]("Event")
 
 	// 投递任务
-	agentClient, err := agtcli.NewClient(stg.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtmq.NewClient(stg.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.StorageCheck(agtmsg.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, objects), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agentClient.StorageCheck(agtmq.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, packages), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
 		return
@@ -161,40 +160,40 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	var chkObjIDs []int64
 	for _, entry := range checkResp.Entries {
 		switch entry.Operation {
-		case agtmsg.CHECK_STORAGE_RESP_OP_DELETE:
-			err := execCtx.Args.DB.StorageObject().Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
+		case agtmq.CHECK_STORAGE_RESP_OP_DELETE:
+			err := execCtx.Args.DB.StoragePackage().Delete(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.PackageID, entry.UserID)
 			if err != nil {
 				log.WithField("StorageID", t.StorageID).
-					WithField("ObjectID", entry.ObjectID).
-					Warnf("delete storage object failed, err: %s", err.Error())
+					WithField("PackageID", entry.PackageID).
+					Warnf("delete storage package failed, err: %s", err.Error())
 			}
-			chkObjIDs = append(chkObjIDs, entry.ObjectID)
+			chkObjIDs = append(chkObjIDs, entry.PackageID)
 
 			log.WithField("StorageID", t.StorageID).
-				WithField("ObjectID", entry.ObjectID).
+				WithField("PackageID", entry.PackageID).
 				WithField("UserID", entry.UserID).
-				Debugf("delete storage object")
+				Debugf("delete storage package")
 
-		case agtmsg.CHECK_STORAGE_RESP_OP_SET_NORMAL:
-			err := execCtx.Args.DB.StorageObject().SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.ObjectID, entry.UserID)
+		case agtmq.CHECK_STORAGE_RESP_OP_SET_NORMAL:
+			err := execCtx.Args.DB.StoragePackage().SetStateNormal(execCtx.Args.DB.SQLCtx(), t.StorageID, entry.PackageID, entry.UserID)
 			if err != nil {
 				log.WithField("StorageID", t.StorageID).
-					WithField("ObjectID", entry.ObjectID).
-					Warnf("change storage object state failed, err: %s", err.Error())
+					WithField("PackageID", entry.PackageID).
+					Warnf("change storage package state failed, err: %s", err.Error())
 			}
 
 			log.WithField("StorageID", t.StorageID).
-				WithField("ObjectID", entry.ObjectID).
+				WithField("PackageID", entry.PackageID).
 				WithField("UserID", entry.UserID).
-				Debugf("set storage object normal")
+				Debugf("set storage package normal")
 		}
 	}
 
 	if len(chkObjIDs) > 0 {
-		execCtx.Executor.Post(NewCheckObject(chkObjIDs))
+		execCtx.Executor.Post(NewCheckPackage(chkObjIDs))
 	}
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.ObjectIDs) })
+	RegisterMessageConvertor(func(msg scevt.AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.PackageIDs) })
 }

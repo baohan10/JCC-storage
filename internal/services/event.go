@@ -2,12 +2,12 @@ package services
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	scmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 )
 
-func (svc *Service) PostEvent(msg *scmsg.PostEvent) {
+func (svc *Service) PostEvent(msg *scmq.PostEvent) {
 
 	evtMsg, err := scevt.MapToMessage(msg.Event)
 	if err != nil {

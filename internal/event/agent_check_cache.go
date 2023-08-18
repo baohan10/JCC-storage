@@ -11,9 +11,8 @@ import (
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 
-	agtcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/agent"
-	agtmsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/agent"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/scanner/event"
+	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
 )
 
 type AgentCheckCache struct {
@@ -127,14 +126,14 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	log := logger.WithType[AgentCheckCache]("Event")
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := agtcli.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := agtmq.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.CheckIPFS(agtmsg.NewCheckIPFS(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agentClient.CheckIPFS(agtmq.NewCheckIPFS(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("checking ipfs: %s", err.Error())
 		return
@@ -143,7 +142,7 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	// 根据返回结果修改数据库
 	for _, entry := range checkResp.Entries {
 		switch entry.Operation {
-		case agtmsg.CHECK_IPFS_RESP_OP_DELETE_TEMP:
+		case agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP:
 			err := execCtx.Args.DB.Cache().DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 			if err != nil {
 				log.WithField("FileHash", entry.FileHash).
@@ -155,7 +154,7 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 				WithField("NodeID", t.NodeID).
 				Debugf("delete temp cache")
 
-		case agtmsg.CHECK_IPFS_RESP_OP_CREATE_TEMP:
+		case agtmq.CHECK_IPFS_RESP_OP_CREATE_TEMP:
 			err := execCtx.Args.DB.Cache().CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
 			if err != nil {
 				log.WithField("FileHash", entry.FileHash).

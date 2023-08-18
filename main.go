@@ -6,9 +6,9 @@ import (
 	"sync"
 
 	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
-	log "gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db"
-	scsvr "gitlink.org.cn/cloudream/storage-common/pkgs/mq/server/scanner"
+	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/services"
@@ -22,7 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = log.Init(&config.Cfg().Logger)
+	err = logger.Init(&config.Cfg().Logger)
 	if err != nil {
 		fmt.Printf("init logger failed, err: %s", err.Error())
 		os.Exit(1)
@@ -30,7 +30,7 @@ func main() {
 
 	db, err := db.NewDB(&config.Cfg().DB)
 	if err != nil {
-		log.Fatalf("new db failed, err: %s", err.Error())
+		logger.Fatalf("new db failed, err: %s", err.Error())
 	}
 
 	wg := sync.WaitGroup{}
@@ -38,7 +38,7 @@ func main() {
 
 	distlockSvc, err := distlocksvc.NewService(&config.Cfg().DistLock)
 	if err != nil {
-		log.Warnf("new distlock service failed, err: %s", err.Error())
+		logger.Warnf("new distlock service failed, err: %s", err.Error())
 		os.Exit(1)
 	}
 	go serveDistLock(distlockSvc, &wg)
@@ -46,12 +46,12 @@ func main() {
 	eventExecutor := event.NewExecutor(db, distlockSvc)
 	go serveEventExecutor(&eventExecutor, &wg)
 
-	agtSvr, err := scsvr.NewServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
+	agtSvr, err := scmq.NewServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
 	if err != nil {
-		log.Fatalf("new agent server failed, err: %s", err.Error())
+		logger.Fatalf("new agent server failed, err: %s", err.Error())
 	}
 	agtSvr.OnError = func(err error) {
-		log.Warnf("agent server err: %s", err.Error())
+		logger.Warnf("agent server err: %s", err.Error())
 	}
 	go serveScannerServer(agtSvr, &wg)
 
@@ -65,43 +65,43 @@ func main() {
 }
 
 func serveEventExecutor(executor *event.Executor, wg *sync.WaitGroup) {
-	log.Info("start serving event executor")
+	logger.Info("start serving event executor")
 
 	err := executor.Execute()
 
 	if err != nil {
-		log.Errorf("event executor stopped with error: %s", err.Error())
+		logger.Errorf("event executor stopped with error: %s", err.Error())
 	}
 
-	log.Info("event executor stopped")
+	logger.Info("event executor stopped")
 
 	wg.Done()
 }
 
-func serveScannerServer(server *scsvr.Server, wg *sync.WaitGroup) {
-	log.Info("start serving scanner server")
+func serveScannerServer(server *scmq.Server, wg *sync.WaitGroup) {
+	logger.Info("start serving scanner server")
 
 	err := server.Serve()
 
 	if err != nil {
-		log.Errorf("scanner server stopped with error: %s", err.Error())
+		logger.Errorf("scanner server stopped with error: %s", err.Error())
 	}
 
-	log.Info("scanner server stopped")
+	logger.Info("scanner server stopped")
 
 	wg.Done()
 }
 
 func serveDistLock(svc *distlocksvc.Service, wg *sync.WaitGroup) {
-	log.Info("start serving distlock")
+	logger.Info("start serving distlock")
 
 	err := svc.Serve()
 
 	if err != nil {
-		log.Errorf("distlock stopped with error: %s", err.Error())
+		logger.Errorf("distlock stopped with error: %s", err.Error())
 	}
 
-	log.Info("distlock stopped")
+	logger.Info("distlock stopped")
 
 	wg.Done()
 }
@@ -113,7 +113,7 @@ func startTickEvent(tickExecutor *tickevent.Executor) {
 
 	tickExecutor.Start(tickevent.NewBatchAllAgentCheckCache(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
-	tickExecutor.Start(tickevent.NewBatchCheckAllObject(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
+	tickExecutor.Start(tickevent.NewBatchCheckAllPackage(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
 	tickExecutor.Start(tickevent.NewBatchCheckAllRepCount(), interval, tickevent.StartOption{RandomStartDelayMs: 60 * 1000})
 
