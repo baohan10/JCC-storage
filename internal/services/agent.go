@@ -1,14 +1,14 @@
 package services
 
 import (
-	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
+	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
-func (service *Service) TempCacheReport(msg *coormsg.TempCacheReport) {
-	service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
+func (service *Service) TempCacheReport(msg *coormq.TempCacheReport) {
+	//service.db.BatchInsertOrUpdateCache(msg.Hashes, msg.NodeID)
 }
 
-func (service *Service) AgentStatusReport(msg *coormsg.AgentStatusReport) {
+func (service *Service) AgentStatusReport(msg *coormq.AgentStatusReport) {
 	//jh：根据command中的Ip，插入节点延迟表，和节点表的NodeStatus
 	//根据command中的Ip，插入节点延迟表
 
