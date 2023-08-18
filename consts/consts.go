@@ -10,14 +10,14 @@ const (
 )
 
 const (
-	ObjectStateNormal  = "Normal"
-	ObjectStateDeleted = "Deleted"
+	PackageStateNormal  = "Normal"
+	PackageStateDeleted = "Deleted"
 )
 
 const (
-	StorageObjectStateNormal   = "Normal"
-	StorageObjectStateDeleted  = "Deleted"
-	StorageObjectStateOutdated = "Outdated"
+	StoragePackageStateNormal   = "Normal"
+	StoragePackageStateDeleted  = "Deleted"
+	StoragePackageStateOutdated = "Outdated"
 )
 
 const (

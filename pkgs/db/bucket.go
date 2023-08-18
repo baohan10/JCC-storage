@@ -102,18 +102,18 @@ func (db *BucketDB) Delete(ctx SQLContext, bucketID int64) error {
 		return fmt.Errorf("delete bucket failed, err: %w", err)
 	}
 
-	// 删除Bucket内的Object
+	// 删除Bucket内的Package
 	var objIDs []int64
-	err = sqlx.Select(ctx, &objIDs, "select ObjectID from Object where BucketID = ?", bucketID)
+	err = sqlx.Select(ctx, &objIDs, "select PackageID from Package where BucketID = ?", bucketID)
 	if err != nil {
-		return fmt.Errorf("query object failed, err: %w", err)
+		return fmt.Errorf("query package failed, err: %w", err)
 	}
 
 	for _, objID := range objIDs {
 		// TODO 不一定所有的错误都要中断后续过程
-		err = db.Object().SoftDelete(ctx, objID)
+		err = db.Package().SoftDelete(ctx, objID)
 		if err != nil {
-			return fmt.Errorf("set object seleted failed, err: %w", err)
+			return fmt.Errorf("set package seleted failed, err: %w", err)
 		}
 	}
 	return nil

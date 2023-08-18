@@ -27,13 +27,6 @@ func (db *NodeDB) GetAllNodes(ctx SQLContext) ([]model.Node, error) {
 	return ret, err
 }
 
-// GetByExternalIP 根据外网IP查找节点
-func (db *NodeDB) GetByExternalIP(ctx SQLContext, exterIP string) (model.Node, error) {
-	var ret model.Node
-	err := sqlx.Get(ctx, &ret, "select * from Node where ExternalIP = ?", exterIP)
-	return ret, err
-}
-
 // GetUserNodes 根据用户id查询可用node
 func (db *NodeDB) GetUserNodes(ctx SQLContext, userID int64) ([]model.Node, error) {
 	var nodes []model.Node

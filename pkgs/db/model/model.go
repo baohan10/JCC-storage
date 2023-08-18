@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gitlink.org.cn/cloudream/common/models"
+)
 
 type Node struct {
 	NodeID         int64      `db:"NodeID" json:"nodeID"`
@@ -52,27 +56,30 @@ type Bucket struct {
 	CreatorID int64  `db:"CreatorID" json:"creatorID"`
 }
 
+type Package struct {
+	PackageID  int64                      `db:"PackageID" json:"packageID"`
+	Name       string                     `db:"Name" json:"name"`
+	BucketID   int64                      `db:"BucketID" json:"bucketID"`
+	State      string                     `db:"State" json:"state"`
+	Redundancy models.TypedRedundancyInfo `db:"Redundancy" json:"redundancy"`
+}
+
 type Object struct {
-	ObjectID   int64  `db:"ObjectID" json:"objectID"`
-	Name       string `db:"Name" json:"name"`
-	BucketID   int64  `db:"BucketID" json:"bucketID"`
-	State      string `db:"State" json:"state"`
-	FileSize   int64  `db:"FileSize" json:"fileSize,string"`
-	Redundancy string `db:"Redundancy" json:"redundancy"`
-	DirName    string `db:"DirName" json:"dirName"`
+	ObjectID  int64  `db:"ObjectID" json:"objectID"`
+	PackageID int64  `db:"PackageID" json:"packageID"`
+	Path      string `db:"Path" json:"path"`
+	Size      int64  `db:"Size" json:"size,string"`
 }
 
 type ObjectRep struct {
 	ObjectID int64  `db:"ObjectID" json:"objectID"`
-	RepCount int    `db:"RepCount" json:"repCount"`
 	FileHash string `db:"FileHash" json:"fileHash"`
 }
 
 type ObjectBlock struct {
-	BlockID   int64  `db:"BlockID" json:"blockID"`
-	ObjectID  int64  `db:"ObjectID" json:"objectID"`
-	InnerID   int    `db:"InnerID" json:"innerID"`
-	BlockHash string `db:"BlockHash" json:"blockHash"`
+	ObjectID int64  `db:"ObjectID" json:"objectID"`
+	Index    int    `db:"Index" json:"index"`
+	FileHash string `db:"FileHash" json:"fileHash"`
 }
 
 type Cache struct {
@@ -83,8 +90,8 @@ type Cache struct {
 	Priority  int       `db:"Priority" json:"priority"`
 }
 
-type StorageObject struct {
-	ObjectID  int64  `db:"ObjectID" json:"objectID"`
+type StoragePackage struct {
+	PackageID int64  `db:"PackageID" json:"packageID"`
 	StorageID int64  `db:"StorageID" json:"storageID"`
 	UserID    int64  `db:"UserID" json:"userID"`
 	State     string `db:"State" json:"state"`

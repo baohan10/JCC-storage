@@ -14,7 +14,17 @@ create table Node (
   LastReportTime timestamp comment '节点上次上报时间'
 ) comment = '节点表';
 
-insert into Node (NodeID, Name, LocalIP, ExternalIP, LocationID, State) values (0, "LocalNode", "localhost", "localhost", 0, 1);
+insert into
+  Node (
+    NodeID,
+    Name,
+    LocalIP,
+    ExternalIP,
+    LocationID,
+    State
+  )
+values
+  (0, "LocalNode", "localhost", "localhost", 0, 1);
 
 create table Storage (
   StorageID int not null auto_increment primary key comment '存储服务ID',
@@ -24,7 +34,10 @@ create table Storage (
   State varchar(100) comment '状态'
 ) comment = "存储服务表";
 
-insert into Storage (StorageID, Name, NodeID, Directory, State) values (1, "HuaWei-Cloud", 1,"/" ,"Online");
+insert into
+  Storage (StorageID, Name, NodeID, Directory, State)
+values
+  (1, "HuaWei-Cloud", 1, "/", "Online");
 
 create table NodeDelay (
   SourceNodeID int not null comment '发起检测的节点ID',
@@ -43,14 +56,22 @@ create table UserBucket (
   BucketID int not null comment '用户可访问的桶ID',
   primary key(UserID, BucketID)
 ) comment = '用户桶权限表';
-insert into UserBucket (UserID, BucketID) values (0, 1);
+
+insert into
+  UserBucket (UserID, BucketID)
+values
+  (0, 1);
+
 create table UserNode (
   UserID int not null comment '用户ID',
   NodeID int not null comment '用户可使用的节点ID',
   primary key(UserID, NodeID)
 ) comment = '用户节点权限表';
 
-insert into UserNode (UserID, NodeID) values (0, 1);
+insert into
+  UserNode (UserID, NodeID)
+values
+  (0, 1);
 
 create table UserStorage (
   UserID int not null comment "用户ID",
@@ -58,7 +79,10 @@ create table UserStorage (
   primary key(UserID, StorageID)
 );
 
-insert into UserStorage (UserID, StorageID) values (0, 1);
+insert into
+  UserStorage (UserID, StorageID)
+values
+  (0, 1);
 
 create table Bucket (
   BucketID int not null auto_increment primary key comment '桶ID',
@@ -66,29 +90,37 @@ create table Bucket (
   CreatorID int not null comment '创建者ID'
 ) comment = '桶表';
 
-insert into Bucket (BucketID, Name, CreatorID) values (0, "bucket01", 0);
+insert into
+  Bucket (BucketID, Name, CreatorID)
+values
+  (0, "bucket01", 0);
+
+create table Package (
+  PackageID int not null auto_increment primary key comment '包ID',
+  Name varchar(100) not null comment '对象名',
+  BucketID int not null comment '桶ID',
+  State varchar(100) not null comment '状态',
+  Redundancy JSON not null comment '冗余策略'
+);
 
 create table Object (
   ObjectID int not null auto_increment primary key comment '对象ID',
-  Name varchar(100) not null comment '对象名',
-  BucketID int not null comment '桶ID',
-  State varchar(100) not null comment '对象状态',
-  FileSize bigint not null comment '对象大小(Byte)',
-  Redundancy varchar(100) not null comment '对象冗余策略'
-  DirName varchar(100) not null comment '对象所属文件夹'
+  PackageID int not null comment '包ID',
+  Path varchar(1000) not null comment '对象路径',
+  Size bigint not null comment '对象大小(Byte)',
+  UNIQUE KEY PackagePath (PackageID, Path)
 ) comment = '对象表';
 
 create table ObjectRep (
   ObjectID int not null primary key comment '对象ID',
-  RepCount int not null comment '对象的副本数',
   FileHash varchar(100) not null comment '副本哈希值'
 ) comment = '对象副本表';
 
 create table ObjectBlock (
-  BlockID int not null auto_increment primary key comment '编码块块ID',
   ObjectID int not null comment '对象ID',
-  InnerID int not null comment '编码块在条带内的排序',
-  BlockHash varchar(100) not null comment '编码块哈希值'
+  Index int not null comment '编码块在条带内的排序',
+  FileHash varchar(100) not null comment '编码块哈希值',
+  primary key(ObjectID, Index)
 ) comment = '对象编码块表';
 
 create table Cache (
@@ -100,19 +132,23 @@ create table Cache (
   primary key(FileHash, NodeID)
 ) comment = '缓存表';
 
-create table StorageObject (
-  ObjectID int not null comment '对象ID',
+create table StoragePackage (
+  PackageID int not null comment '包ID',
   StorageID int not null comment '存储服务ID',
   UserID int not null comment '调度了此文件的用户ID',
-  State varchar(100) not null comment '对象状态',
-  primary key(ObjectID, StorageID, UserID)
+  State varchar(100) not null comment '包状态',
+  primary key(PackageID, StorageID, UserID)
 );
 
 create table Location (
   LocationID int not null auto_increment primary key comment 'ID',
   Name varchar(128) not null comment '名称'
 ) comment = '地域表';
-insert into Location (LocationID, Name) values (1, "Local");
+
+insert into
+  Location (LocationID, Name)
+values
+  (1, "Local");
 
 create table Ec (
   EcID int not null comment '纠删码ID',
@@ -121,5 +157,12 @@ create table Ec (
   EcN int not null comment 'ecN'
 ) comment = '纠删码表';
 
-insert into Ec (EcID, Name, EcK, EcN) values (1, "rs_9_6", 6, 9);
-insert into Ec (EcID, Name, EcK, EcN) values (2, "rs_5_3", 3, 5);
+insert into
+  Ec (EcID, Name, EcK, EcN)
+values
+  (1, "rs_9_6", 6, 9);
+
+insert into
+  Ec (EcID, Name, EcK, EcN)
+values
+  (2, "rs_5_3", 3, 5);

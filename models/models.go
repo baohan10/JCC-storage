@@ -17,11 +17,11 @@ func NewRedundancyRepData(fileHash string) RepRedundancyData {
 }
 
 type ECRedundancyData struct {
-	Ec     EC            `json:"ec"`
-	Blocks []ObjectBlock `json:"blocks"`
+	Ec     EC                `json:"ec"`
+	Blocks []ObjectBlockData `json:"blocks"`
 }
 
-func NewRedundancyEcData(ec EC, blocks []ObjectBlock) ECRedundancyData {
+func NewRedundancyEcData(ec EC, blocks []ObjectBlockData) ECRedundancyData {
 	return ECRedundancyData{
 		Ec:     ec,
 		Blocks: blocks,
@@ -35,15 +35,17 @@ type EC struct {
 	EcN  int    `json:"ecN"`
 }
 
-type ObjectBlock struct {
-	Index    int    `json:"index"`
-	FileHash string `json:"fileHash"`
+type ObjectBlockData struct {
+	Index    int     `json:"index"`
+	FileHash string  `json:"fileHash"`
+	NodeIDs  []int64 `json:"nodeIDs"`
 }
 
-func NewObjectBlock(index int, fileHash string) ObjectBlock {
-	return ObjectBlock{
+func NewObjectBlockData(index int, fileHash string, nodeIDs []int64) ObjectBlockData {
+	return ObjectBlockData{
 		Index:    index,
 		FileHash: fileHash,
+		NodeIDs:  nodeIDs,
 	}
 }
 
@@ -53,5 +55,29 @@ func NewEc(id int, name string, ecK int, ecN int) EC {
 		Name: name,
 		EcK:  ecK,
 		EcN:  ecN,
+	}
+}
+
+type ObjectRepData struct {
+	ObjectID int64   `json:"objectID"`
+	FileHash string  `json:"fileHash"`
+	NodeIDs  []int64 `json:"nodeIDs"`
+}
+
+func NewObjectRepData(objectID int64, fileHash string, nodeIDs []int64) ObjectRepData {
+	return ObjectRepData{
+		ObjectID: objectID,
+		FileHash: fileHash,
+		NodeIDs:  nodeIDs,
+	}
+}
+
+type ObjectECData struct {
+	Blocks []ObjectBlockData `json:"blocks"`
+}
+
+func NewObjectECData(blocks []ObjectBlockData) ObjectECData {
+	return ObjectECData{
+		Blocks: blocks,
 	}
 }
