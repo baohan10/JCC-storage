@@ -2,9 +2,11 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/storage-common/consts"
+	"gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 )
 
@@ -16,7 +18,12 @@ func (db *DB) ObjectBlock() *ObjectBlockDB {
 	return &ObjectBlockDB{DB: db}
 }
 
-func (db *ObjectBlockDB) Delete(ctx SQLContext, objectID int64) error {
+func (db *ObjectBlockDB) Create(ctx SQLContext, objectID int64, index int, fileHash string) error {
+	_, err := ctx.Exec("insert into ObjectBlock(ObjectID, Index, FileHash) values(?,?,?)", objectID, index, fileHash)
+	return err
+}
+
+func (db *ObjectBlockDB) DeleteObjectAll(ctx SQLContext, objectID int64) error {
 	_, err := ctx.Exec("delete from ObjectBlock where ObjectID = ?", objectID)
 	return err
 }
@@ -24,9 +31,10 @@ func (db *ObjectBlockDB) Delete(ctx SQLContext, objectID int64) error {
 func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (int, error) {
 	var cnt int
 	err := sqlx.Get(ctx, &cnt,
-		"select count(BlockHash) from ObjectBlock, Object where BlockHash = ? and "+
+		"select count(FileHash) from ObjectBlock, Object, Package where FileHash = ? and "+
 			"ObjectBlock.ObjectID = Object.ObjectID and "+
-			"Object.State = ?", fileHash, consts.ObjectStateNormal)
+			"Object.PackageID = Package.PackageID and "+
+			"Package.State = ?", fileHash, consts.PackageStateNormal)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
@@ -43,7 +51,7 @@ func (db *ObjectBlockDB) GetBatchObjectBlocks(ctx SQLContext, objectIDs []int64)
 		err = db.d.Select(&x, sql, objectID)
 		xx := make([]string, len(x))
 		for ii := 0; ii < len(x); ii++ {
-			xx[x[ii].InnerID] = x[ii].BlockHash
+			xx[x[ii].Index] = x[ii].FileHash
 		}
 		blocks[i] = xx
 	}
@@ -69,4 +77,50 @@ func (db *ObjectBlockDB) GetBatchBlocksNodes(ctx SQLContext, hashs [][]string) (
 		nodes[i] = fileNodes
 	}
 	return nodes, err
+}
+
+func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]models.ObjectECData, error) {
+	var objectIDs []int64
+	err := sqlx.Select(ctx, &objectIDs, "select ObjectID from Object where PackageID = ? order by ObjectID asc", packageID)
+	if err != nil {
+		return nil, fmt.Errorf("query objectIDs: %w", err)
+	}
+
+	rets := make([]models.ObjectECData, 0, len(objectIDs))
+
+	for _, objID := range objectIDs {
+		var tmpRets []struct {
+			Index    int     `db:"Index"`
+			FileHash string  `db:"FileHash"`
+			NodeIDs  *string `db:"NodeIDs"`
+		}
+
+		err := sqlx.Select(ctx,
+			&tmpRets,
+			"select ObjectBlock.Index, ObjectBlock.FileHash, group_concat(NodeID) as NodeIDs from ObjectBlock "+
+				"left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
+				"where ObjectID = ? group by ObjectBlock.Index, ObjectBlock.FileHash",
+			objID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		blocks := make([]models.ObjectBlockData, 0, len(tmpRets))
+		for _, tmp := range tmpRets {
+			var block models.ObjectBlockData
+			block.Index = tmp.Index
+			block.FileHash = tmp.FileHash
+
+			if tmp.NodeIDs != nil {
+				block.NodeIDs = splitIDStringUnsafe(*tmp.NodeIDs)
+			}
+
+			blocks = append(blocks, block)
+		}
+
+		rets = append(rets, models.NewObjectECData(blocks))
+	}
+
+	return rets, nil
 }
