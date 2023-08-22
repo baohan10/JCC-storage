@@ -3,14 +3,10 @@ package task
 import (
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
-	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
 type TaskContext struct {
-	ipfs        *ipfs.IPFS
-	distLock    *distsvc.Service
-	coordinator *coormq.Client
+	distlock *distsvc.Service
 }
 
 // 需要在Task结束后主动调用，completing函数将在Manager加锁期间被调用，
@@ -25,10 +21,8 @@ type Task = task.Task[TaskContext]
 
 type CompleteOption = task.CompleteOption
 
-func NewManager(ipfs *ipfs.IPFS, distlock *distsvc.Service, coorCli *coormq.Client) Manager {
+func NewManager(distlock *distsvc.Service) Manager {
 	return task.NewManager(TaskContext{
-		ipfs:        ipfs,
-		distLock:    distlock,
-		coordinator: coorCli,
+		distlock: distlock,
 	})
 }

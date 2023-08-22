@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/storage-client/internal/config"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
@@ -56,13 +56,19 @@ func (t *StorageMovePackage) do(ctx TaskContext) error {
 		}
 		defer mutex.Unlock()
 	*/
-	getStgResp, err := ctx.coordinator.GetStorageInfo(coormq.NewGetStorageInfo(t.userID, t.storageID))
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
+	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(t.userID, t.storageID))
 	if err != nil {
 		return fmt.Errorf("getting storage info: %w", err)
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := agtmq.NewClient(getStgResp.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := globals.AgentMQPool.Acquire(getStgResp.NodeID)
 	if err != nil {
 		return fmt.Errorf("create agent client to %d failed, err: %w", getStgResp.NodeID, err)
 	}
@@ -93,7 +99,7 @@ func (t *StorageMovePackage) do(ctx TaskContext) error {
 		}
 	}
 
-	_, err = ctx.Coordinator().PackageMovedToStorage(coormq.NewPackageMovedToStorage(t.userID, t.packageID, t.storageID))
+	_, err = coorCli.PackageMovedToStorage(coormq.NewPackageMovedToStorage(t.userID, t.packageID, t.storageID))
 	if err != nil {
 		return fmt.Errorf("moving package to storage: %w", err)
 	}

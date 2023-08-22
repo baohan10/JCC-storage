@@ -9,6 +9,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/common/models"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 )
 
 func PackageListBucketPackages(ctx CommandContext, bucketID int64) error {
@@ -46,13 +47,12 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int6
 	defer objIter.Close()
 
 	for {
-		objInfo, ok := objIter.MoveNext()
-		if !ok {
+		objInfo, err := objIter.MoveNext()
+		if err == iterator.ErrNoMoreItem {
 			break
 		}
-
-		if objInfo.Error != nil {
-			return objInfo.Error
+		if err != nil {
+			return err
 		}
 		defer objInfo.File.Close()
 
@@ -88,7 +88,7 @@ func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
-	objIter := myos.NewUploadingObjectIterator(rootPath, uploadFilePathes)
+	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
 	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingRepPackage(0, bucketID, name, objIter, models.NewRepRedundancyInfo(repCount))
 
 	if err != nil {
@@ -141,7 +141,7 @@ func PackageUpdateRepPackage(ctx CommandContext, packageID int64, rootPath strin
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
-	objIter := myos.NewUploadingObjectIterator(rootPath, uploadFilePathes)
+	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
 	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartUpdatingRepPackage(0, packageID, objIter)
 	if err != nil {
 		return fmt.Errorf("update object %d failed, err: %w", packageID, err)
@@ -180,7 +180,7 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
-	objIter := myos.NewUploadingObjectIterator(rootPath, uploadFilePathes)
+	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
 	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, models.NewECRedundancyInfo(ecName))
 
 	if err != nil {
@@ -233,7 +233,7 @@ func PackageUpdateECPackage(ctx CommandContext, packageID int64, rootPath string
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
-	objIter := myos.NewUploadingObjectIterator(rootPath, uploadFilePathes)
+	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
 	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartUpdatingECPackage(0, packageID, objIter)
 	if err != nil {
 		return fmt.Errorf("update package %d failed, err: %w", packageID, err)

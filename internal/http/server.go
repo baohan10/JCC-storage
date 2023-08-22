@@ -38,7 +38,7 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) initRouters() {
-	s.engine.GET("/package/download", s.PackageSvc().Download)
+	s.engine.GET("/object/download", s.ObjectSvc().Download)
 	s.engine.POST("/package/upload", s.PackageSvc().Upload)
 	s.engine.POST("/package/delete", s.PackageSvc().Delete)
 

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-client/internal/task"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
@@ -20,12 +20,12 @@ func (svc *Service) StorageSvc() *StorageService {
 }
 
 func (svc *StorageService) StartStorageMovePackage(userID int64, packageID int64, storageID int64) (string, error) {
-	tsk := svc.taskMgr.StartNew(task.NewStorageMovePackage(userID, packageID, storageID))
+	tsk := svc.TaskMgr.StartNew(task.NewStorageMovePackage(userID, packageID, storageID))
 	return tsk.ID(), nil
 }
 
 func (svc *StorageService) WaitStorageMovePackage(taskID string, waitTimeout time.Duration) (bool, error) {
-	tsk := svc.taskMgr.FindByID(taskID)
+	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
 		return true, tsk.Error()
 	}
@@ -40,12 +40,18 @@ func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, s
 
 // 请求节点启动从Storage中上传文件的任务。会返回节点ID和任务ID
 func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo) (int64, string, error) {
-	stgResp, err := svc.coordinator.GetStorageInfo(coormq.NewGetStorageInfo(userID, storageID))
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return 0, "", fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
+	stgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(userID, storageID))
 	if err != nil {
 		return 0, "", fmt.Errorf("getting storage info: %w", err)
 	}
 
-	agentCli, err := agtmq.NewClient(stgResp.NodeID, &config.Cfg().RabbitMQ)
+	agentCli, err := globals.AgentMQPool.Acquire(stgResp.NodeID)
 	if err != nil {
 		return 0, "", fmt.Errorf("new agent client: %w", err)
 	}
@@ -60,7 +66,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 }
 
 func (svc *StorageService) WaitStorageCreatePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, int64, error) {
-	agentCli, err := agtmq.NewClient(nodeID, &config.Cfg().RabbitMQ)
+	agentCli, err := globals.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		// TODO 失败是否要当做任务已经结束？
 		return true, 0, fmt.Errorf("new agent client: %w", err)

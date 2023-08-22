@@ -8,6 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	mytask "gitlink.org.cn/cloudream/storage-client/internal/task"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtcmd "gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
@@ -22,6 +23,12 @@ func (svc *Service) PackageSvc() *PackageService {
 }
 
 func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (iterator.DownloadingObjectIterator, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
 	/*
 		TODO2
 		// TODO zkx 需要梳理EC锁涉及的锁，补充下面漏掉的部分
@@ -43,33 +50,30 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 			return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 		}
 	*/
-	getPkgResp, err := svc.coordinator.GetPackage(coormq.NewGetPackage(userID, packageID))
+	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(userID, packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package: %w", err)
 	}
 
-	getObjsResp, err := svc.coordinator.GetPackageObjects(coormq.NewGetPackageObjects(userID, packageID))
+	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(userID, packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package objects: %w", err)
 	}
 
 	if getPkgResp.Redundancy.Type == models.RedundancyRep {
-		getObjRepDataResp, err := svc.coordinator.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(packageID))
+		getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(packageID))
 		if err != nil {
 			return nil, fmt.Errorf("getting package object rep data: %w", err)
 		}
 
-		iter := iterator.NewRepObjectIterator(getObjsResp.Objects, getObjRepDataResp.Data, svc.coordinator, svc.distlock, iterator.DownloadConfig{
-			LocalIPFS:  svc.ipfs,
-			ExternalIP: config.Cfg().ExternalIP,
-			GRPCPort:   config.Cfg().GRPCPort,
-			MQ:         &config.Cfg().RabbitMQ,
+		iter := iterator.NewRepObjectIterator(getObjsResp.Objects, getObjRepDataResp.Data, &iterator.DownloadContext{
+			Distlock: svc.DistLock,
 		})
 
 		return iter, nil
 	}
 
-	getObjECDataResp, err := svc.coordinator.GetPackageObjectECData(coormq.NewGetPackageObjectECData(packageID))
+	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
@@ -79,118 +83,84 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
-	getECResp, err := svc.coordinator.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
 	if err != nil {
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, svc.coordinator, svc.distlock, getECResp.Config, config.Cfg().ECPacketSize, iterator.DownloadConfig{
-		LocalIPFS:  svc.ipfs,
-		ExternalIP: config.Cfg().ExternalIP,
-		GRPCPort:   config.Cfg().GRPCPort,
-		MQ:         &config.Cfg().RabbitMQ,
+	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, getECResp.Config, &iterator.ECDownloadContext{
+		DownloadContext: &iterator.DownloadContext{
+			Distlock: svc.DistLock,
+		},
+		ECPacketSize: config.Cfg().ECPacketSize,
 	})
 
 	return iter, nil
 }
 
 func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo models.RepRedundancyInfo) (string, error) {
-	tsk := svc.taskMgr.StartNew(agtcmd.Wrap[mytask.TaskContext](
-		agtcmd.NewCreateRepPackage(
-			userID, bucketID, name, objIter,
-			repInfo,
-			agtcmd.UploadConfig{
-				LocalIPFS:   svc.ipfs,
-				LocalNodeID: nil,
-				ExternalIP:  config.Cfg().ExternalIP,
-				GRPCPort:    config.Cfg().GRPCPort,
-				MQ:          &config.Cfg().RabbitMQ,
-			})))
+	tsk := svc.TaskMgr.StartNew(mytask.NewCreateRepPackage(userID, bucketID, name, objIter, repInfo))
 	return tsk.ID(), nil
 }
 
-func (svc *PackageService) WaitCreatingRepPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreateRepPackageResult, error) {
-	tsk := svc.taskMgr.FindByID(taskID)
+func (svc *PackageService) WaitCreatingRepPackage(taskID string, waitTimeout time.Duration) (bool, *mytask.CreateRepPackageResult, error) {
+	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		cteatePkgTask := tsk.Body().(*agtcmd.TaskWrapper[mytask.TaskContext]).InnerTask().(*agtcmd.CreateRepPackage)
-		return true, &cteatePkgTask.Result, tsk.Error()
+		cteatePkgTask := tsk.Body().(*mytask.CreateRepPackage)
+		return true, cteatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil
 }
 
 func (svc *PackageService) StartUpdatingRepPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator) (string, error) {
-	tsk := svc.taskMgr.StartNew(agtcmd.Wrap[mytask.TaskContext](
-		agtcmd.NewUpdateRepPackage(
-			userID, packageID, objIter,
-			agtcmd.UploadConfig{
-				LocalIPFS:   svc.ipfs,
-				LocalNodeID: nil,
-				ExternalIP:  config.Cfg().ExternalIP,
-				GRPCPort:    config.Cfg().GRPCPort,
-				MQ:          &config.Cfg().RabbitMQ,
-			})))
+	tsk := svc.TaskMgr.StartNew(mytask.NewUpdateRepPackage(userID, packageID, objIter))
 	return tsk.ID(), nil
 }
 
 func (svc *PackageService) WaitUpdatingRepPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.UpdateRepPackageResult, error) {
-	tsk := svc.taskMgr.FindByID(taskID)
+	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		updatePkgTask := tsk.Body().(*agtcmd.TaskWrapper[mytask.TaskContext]).InnerTask().(*agtcmd.UpdateRepPackage)
-		return true, &updatePkgTask.Result, tsk.Error()
+		updatePkgTask := tsk.Body().(*mytask.UpdateRepPackage)
+		return true, updatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil
 }
 
 func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo models.ECRedundancyInfo) (string, error) {
-	tsk := svc.taskMgr.StartNew(agtcmd.Wrap[mytask.TaskContext](
-		agtcmd.NewCreateECPackage(
-			userID, bucketID, name, objIter,
-			ecInfo,
-			config.Cfg().ECPacketSize,
-			agtcmd.UploadConfig{
-				LocalIPFS:   svc.ipfs,
-				LocalNodeID: nil,
-				ExternalIP:  config.Cfg().ExternalIP,
-				GRPCPort:    config.Cfg().GRPCPort,
-				MQ:          &config.Cfg().RabbitMQ,
-			})))
+	tsk := svc.TaskMgr.StartNew(mytask.NewCreateECPackage(userID, bucketID, name, objIter, ecInfo))
 	return tsk.ID(), nil
 }
 
 func (svc *PackageService) WaitCreatingECPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreateRepPackageResult, error) {
-	tsk := svc.taskMgr.FindByID(taskID)
+	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		cteatePkgTask := tsk.Body().(*agtcmd.TaskWrapper[mytask.TaskContext]).InnerTask().(*agtcmd.CreateRepPackage)
-		return true, &cteatePkgTask.Result, tsk.Error()
+		cteatePkgTask := tsk.Body().(*mytask.CreateRepPackage)
+		return true, cteatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil
 }
 
 func (svc *PackageService) StartUpdatingECPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator) (string, error) {
-	tsk := svc.taskMgr.StartNew(agtcmd.Wrap[mytask.TaskContext](
-		agtcmd.NewUpdateECPackage(
-			userID, packageID, objIter,
-			config.Cfg().ECPacketSize,
-			agtcmd.UploadConfig{
-				LocalIPFS:   svc.ipfs,
-				LocalNodeID: nil,
-				ExternalIP:  config.Cfg().ExternalIP,
-				GRPCPort:    config.Cfg().GRPCPort,
-				MQ:          &config.Cfg().RabbitMQ,
-			})))
+	tsk := svc.TaskMgr.StartNew(mytask.NewUpdateECPackage(userID, packageID, objIter))
 	return tsk.ID(), nil
 }
 
 func (svc *PackageService) WaitUpdatingECPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.UpdateECPackageResult, error) {
-	tsk := svc.taskMgr.FindByID(taskID)
+	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		updatePkgTask := tsk.Body().(*agtcmd.TaskWrapper[mytask.TaskContext]).InnerTask().(*agtcmd.UpdateECPackage)
-		return true, &updatePkgTask.Result, tsk.Error()
+		updatePkgTask := tsk.Body().(*mytask.UpdateECPackage)
+		return true, updatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil
 }
 
 func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
 	/*
 		// TODO2
 		mutex, err := reqbuilder.NewBuilder().
@@ -212,7 +182,7 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 		defer mutex.Unlock()
 	*/
 
-	_, err := svc.coordinator.DeletePackage(coormq.NewDeletePackage(userID, packageID))
+	_, err = coorCli.DeletePackage(coormq.NewDeletePackage(userID, packageID))
 	if err != nil {
 		return fmt.Errorf("deleting package: %w", err)
 	}
