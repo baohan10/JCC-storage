@@ -56,7 +56,14 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int6
 		}
 		defer objInfo.File.Close()
 
-		outputFile, err := os.Create(filepath.Join(outputDir, objInfo.Object.Path))
+		fullPath := filepath.Join(outputDir, objInfo.Object.Path)
+
+		dirPath := filepath.Dir(fullPath)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return fmt.Errorf("creating object dir: %w", err)
+		}
+
+		outputFile, err := os.Create(fullPath)
 		if err != nil {
 			return fmt.Errorf("creating object file: %w", err)
 		}
@@ -72,6 +79,8 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int6
 }
 
 func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64, name string, repCount int) error {
+	rootPath = filepath.Clean(rootPath)
+
 	var uploadFilePathes []string
 	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
 		if err != nil {

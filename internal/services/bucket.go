@@ -3,9 +3,9 @@ package services
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
@@ -93,11 +93,11 @@ func (svc *BucketService) DeleteBucket(userID int64, bucketID int64) error {
 		Metadata().
 		UserBucket().WriteAny().
 		Bucket().WriteOne(bucketID).
-		// TODO2
+		Package().WriteAny().
 		Object().WriteAny().
 		ObjectRep().WriteAny().
 		ObjectBlock().WriteAny().
-		StorageObject().WriteAny().
+		StoragePackage().WriteAny().
 		MutexLock(svc.DistLock)
 	if err != nil {
 		return fmt.Errorf("acquire locks failed, err: %w", err)

@@ -19,12 +19,12 @@ func (svc *Service) StorageSvc() *StorageService {
 	return &StorageService{Service: svc}
 }
 
-func (svc *StorageService) StartStorageMovePackage(userID int64, packageID int64, storageID int64) (string, error) {
-	tsk := svc.TaskMgr.StartNew(task.NewStorageMovePackage(userID, packageID, storageID))
+func (svc *StorageService) StartStorageLoadPackage(userID int64, packageID int64, storageID int64) (string, error) {
+	tsk := svc.TaskMgr.StartNew(task.NewStorageLoadPackage(userID, packageID, storageID))
 	return tsk.ID(), nil
 }
 
-func (svc *StorageService) WaitStorageMovePackage(taskID string, waitTimeout time.Duration) (bool, error) {
+func (svc *StorageService) WaitStorageLoadPackage(taskID string, waitTimeout time.Duration) (bool, error) {
 	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
 		return true, tsk.Error()

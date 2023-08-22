@@ -10,6 +10,8 @@ import (
 	mytask "gitlink.org.cn/cloudream/storage-client/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtcmd "gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
@@ -29,27 +31,26 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 	}
 	defer coorCli.Close()
 
-	/*
-		TODO2
-		// TODO zkx 需要梳理EC锁涉及的锁，补充下面漏掉的部分
-		mutex, err := reqbuilder.NewBuilder().
-			// 用于判断用户是否有对象权限
-			Metadata().UserBucket().ReadAny().
-			// 用于查询可用的下载节点
-			Node().ReadAny().
-			// 用于读取文件信息
-			Object().ReadOne(objectID).
-			// 用于查询Rep配置
-			ObjectRep().ReadOne(objectID).
-			// 用于查询Block配置
-			ObjectBlock().ReadAny().
-			// 用于查询包含了副本的节点
-			Cache().ReadAny().
-			MutexLock(svc.distlock)
-		if err != nil {
-			return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-		}
-	*/
+	mutex, err := reqbuilder.NewBuilder().
+		// 用于判断用户是否有对象权限
+		Metadata().UserBucket().ReadAny().
+		// 用于查询可用的下载节点
+		Node().ReadAny().
+		// 用于读取包信息
+		Package().ReadOne(packageID).
+		// 用于读取包内的文件信息
+		Object().ReadAny().
+		// 用于查询Rep配置
+		ObjectRep().ReadAny().
+		// 用于查询Block配置
+		ObjectBlock().ReadAny().
+		// 用于查询包含了副本的节点
+		Cache().ReadAny().
+		MutexLock(svc.DistLock)
+	if err != nil {
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+
 	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(userID, packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package: %w", err)
@@ -61,25 +62,54 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 	}
 
 	if getPkgResp.Redundancy.Type == models.RedundancyRep {
-		getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(packageID))
+		iter, err := svc.downloadRepPackage(packageID, getObjsResp.Objects, coorCli)
+
 		if err != nil {
-			return nil, fmt.Errorf("getting package object rep data: %w", err)
+			mutex.Unlock()
+			return nil, err
 		}
 
-		iter := iterator.NewRepObjectIterator(getObjsResp.Objects, getObjRepDataResp.Data, &iterator.DownloadContext{
-			Distlock: svc.DistLock,
-		})
+		iter.OnClosing = func() {
+			mutex.Unlock()
+		}
+
+		return iter, nil
+	} else {
+		iter, err := svc.downloadECPackage(getPkgResp.Package, getObjsResp.Objects, coorCli)
+
+		if err != nil {
+			mutex.Unlock()
+			return nil, err
+		}
+
+		iter.OnClosing = func() {
+			mutex.Unlock()
+		}
 
 		return iter, nil
 	}
+}
 
-	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(packageID))
+func (svc *PackageService) downloadRepPackage(packageID int64, objects []model.Object, coorCli *coormq.PoolClient) (*iterator.RepObjectIterator, error) {
+	getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(packageID))
+	if err != nil {
+		return nil, fmt.Errorf("getting package object rep data: %w", err)
+	}
+
+	iter := iterator.NewRepObjectIterator(objects, getObjRepDataResp.Data, &iterator.DownloadContext{
+		Distlock: svc.DistLock,
+	})
+
+	return iter, nil
+}
+func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.Object, coorCli *coormq.PoolClient) (*iterator.ECObjectIterator, error) {
+	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(pkg.PackageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
 
 	var ecRed models.ECRedundancyInfo
-	if err := serder.AnyToAny(getPkgResp.Package.Redundancy.Info, &ecRed); err != nil {
+	if err := serder.AnyToAny(pkg.Redundancy.Info, &ecRed); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
@@ -88,7 +118,7 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, getECResp.Config, &iterator.ECDownloadContext{
+	iter := iterator.NewECObjectIterator(objects, getObjECDataResp.Data, getECResp.Config, &iterator.ECDownloadContext{
 		DownloadContext: &iterator.DownloadContext{
 			Distlock: svc.DistLock,
 		},
@@ -161,26 +191,25 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	}
 	defer coorCli.Close()
 
-	/*
-		// TODO2
-		mutex, err := reqbuilder.NewBuilder().
-			Metadata().
-			// 用于判断用户是否有对象的权限
-			UserBucket().ReadAny().
-			// 用于读取、修改对象信息
-			Object().WriteOne(objectID).
-			// 用于删除Rep配置
-			ObjectRep().WriteOne(objectID).
-			// 用于删除Block配置
-			ObjectBlock().WriteAny().
-			// 用于修改Move此Object的记录的状态
-			StorageObject().WriteAny().
-			MutexLock(svc.distlock)
-		if err != nil {
-			return fmt.Errorf("acquire locks failed, err: %w", err)
-		}
-		defer mutex.Unlock()
-	*/
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 用于判断用户是否有对象的权限
+		UserBucket().ReadAny().
+		// 用于读取、修改包信息
+		Package().WriteOne(packageID).
+		// 用于删除包内的所有文件
+		Object().WriteAny().
+		// 用于删除Rep配置
+		ObjectRep().WriteAny().
+		// 用于删除Block配置
+		ObjectBlock().WriteAny().
+		// 用于修改Move此Object的记录的状态
+		StoragePackage().WriteAny().
+		MutexLock(svc.DistLock)
+	if err != nil {
+		return fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
 
 	_, err = coorCli.DeletePackage(coormq.NewDeletePackage(userID, packageID))
 	if err != nil {
