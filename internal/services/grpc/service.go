@@ -6,25 +6,29 @@ import (
 
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	agentserver "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
+	"gitlink.org.cn/cloudream/storage-common/globals"
+	agentserver "gitlink.org.cn/cloudream/storage-common/pkgs/grpc/agent"
 )
 
-type GRPCService struct {
-	agentserver.FileTransportServer
-	ipfs *ipfs.IPFS
+type Service struct {
+	agentserver.AgentServer
 }
 
-func NewService(ipfs *ipfs.IPFS) *GRPCService {
-	return &GRPCService{
-		ipfs: ipfs,
-	}
+func NewService() *Service {
+	return &Service{}
 }
 
-func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) error {
+func (s *Service) SendIPFSFile(server agentserver.Agent_SendIPFSFileServer) error {
 	log.Debugf("client upload file")
 
-	writer, err := s.ipfs.CreateFile()
+	ipfsCli, err := globals.IPFSPool.Acquire()
+	if err != nil {
+		log.Warnf("new ipfs client: %s", err.Error())
+		return fmt.Errorf("new ipfs client: %w", err)
+	}
+	defer ipfsCli.Close()
+
+	writer, err := ipfsCli.CreateFileStream()
 	if err != nil {
 		log.Warnf("create file failed, err: %s", err.Error())
 		return fmt.Errorf("create file failed, err: %w", err)
@@ -45,18 +49,17 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 			return fmt.Errorf("recv message failed, err: %w", err)
 		}
 
-		if msg.Type == agentserver.FileDataPacketType_Data {
-			err = myio.WriteAll(writer, msg.Data)
-			if err != nil {
-				// 关闭文件写入，不需要返回的hash和error
-				writer.Abort(io.ErrClosedPipe)
-				log.Warnf("write data to file failed, err: %s", err.Error())
-				return fmt.Errorf("write data to file failed, err: %w", err)
-			}
+		err = myio.WriteAll(writer, msg.Data)
+		if err != nil {
+			// 关闭文件写入，不需要返回的hash和error
+			writer.Abort(io.ErrClosedPipe)
+			log.Warnf("write data to file failed, err: %s", err.Error())
+			return fmt.Errorf("write data to file failed, err: %w", err)
+		}
 
-			recvSize += int64(len(msg.Data))
+		recvSize += int64(len(msg.Data))
 
-		} else if msg.Type == agentserver.FileDataPacketType_EOF {
+		if msg.Type == agentserver.FileDataPacketType_EOF {
 			// 客户端明确说明文件传输已经结束，那么结束写入，获得文件Hash
 			hash, err := writer.Finish()
 			if err != nil {
@@ -65,7 +68,7 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 			}
 
 			// 并将结果返回到客户端
-			err = server.SendAndClose(&agentserver.SendResp{
+			err = server.SendAndClose(&agentserver.SendIPFSFileResp{
 				FileHash: hash,
 			})
 			if err != nil {
@@ -78,10 +81,17 @@ func (s *GRPCService) SendFile(server agentserver.FileTransport_SendFileServer) 
 	}
 }
 
-func (s *GRPCService) GetFile(req *agentserver.GetReq, server agentserver.FileTransport_GetFileServer) error {
+func (s *Service) GetIPFSFile(req *agentserver.GetIPFSFileReq, server agentserver.Agent_GetIPFSFileServer) error {
 	log.WithField("FileHash", req.FileHash).Debugf("client download file")
 
-	reader, err := s.ipfs.OpenRead(req.FileHash)
+	ipfsCli, err := globals.IPFSPool.Acquire()
+	if err != nil {
+		log.Warnf("new ipfs client: %s", err.Error())
+		return fmt.Errorf("new ipfs client: %w", err)
+	}
+	defer ipfsCli.Close()
+
+	reader, err := ipfsCli.OpenRead(req.FileHash)
 	if err != nil {
 		log.Warnf("open file %s to read failed, err: %s", req.FileHash, err.Error())
 		return fmt.Errorf("open file to read failed, err: %w", err)

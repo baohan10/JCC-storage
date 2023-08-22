@@ -1,4 +1,4 @@
-package cmd
+package mq
 
 import (
 	"io/fs"
@@ -13,18 +13,26 @@ import (
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	mytask "gitlink.org.cn/cloudream/storage-agent/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/consts"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/utils"
 
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	stgcmd "gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	myos "gitlink.org.cn/cloudream/storage-common/utils/os"
 )
 
 func (svc *Service) StartStorageMovePackage(msg *agtmq.StartStorageMovePackage) (*agtmq.StartStorageMovePackageResp, *mq.CodeMessage) {
-	getStgResp, err := svc.coordinator.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		logger.Warnf("new coordinator client: %s", err.Error())
+
+		return nil, mq.Failed(errorcode.OperationFailed, "new coordinator client failed")
+	}
+	defer coorCli.Close()
+
+	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
 	if err != nil {
 		logger.WithField("StorageID", msg.StorageID).
 			Warnf("getting storage info: %s", err.Error())
@@ -40,7 +48,7 @@ func (svc *Service) StartStorageMovePackage(msg *agtmq.StartStorageMovePackage) 
 		return nil, mq.Failed(errorcode.OperationFailed, "create output directory failed")
 	}
 
-	tsk := svc.taskManager.StartNew(stgcmd.Wrap[mytask.TaskContext](stgcmd.NewDownloadPackage(msg.UserID, msg.PackageID, outputDirPath)))
+	tsk := svc.taskManager.StartNew(mytask.NewDownloadPackage(msg.UserID, msg.PackageID, outputDirPath))
 	return mq.ReplyOK(agtmq.NewStartStorageMovePackageResp(tsk.ID()))
 }
 
@@ -152,7 +160,15 @@ func (svc *Service) checkStorageComplete(msg *agtmq.StorageCheck, fileInfos []fs
 }
 
 func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePackage) (*agtmq.StartStorageCreatePackageResp, *mq.CodeMessage) {
-	getStgResp, err := svc.coordinator.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		logger.Warnf("new coordinator client: %s", err.Error())
+
+		return nil, mq.Failed(errorcode.OperationFailed, "new coordinator client failed")
+	}
+	defer coorCli.Close()
+
+	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
 	if err != nil {
 		logger.WithField("StorageID", msg.StorageID).
 			Warnf("getting storage info: %s", err.Error())
@@ -180,7 +196,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 		return nil, mq.Failed(errorcode.OperationFailed, "read directory failed")
 	}
 
-	objIter := myos.NewUploadingObjectIterator(fullPath, uploadFilePathes)
+	objIter := iterator.NewUploadingObjectIterator(fullPath, uploadFilePathes)
 
 	if msg.Redundancy.Type == models.RedundancyRep {
 		repInfo, err := msg.Redundancy.ToRepInfo()
@@ -190,14 +206,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 			return nil, mq.Failed(errorcode.OperationFailed, "get rep redundancy info failed")
 		}
 
-		tsk := svc.taskManager.StartNew(stgcmd.Wrap[mytask.TaskContext](
-			stgcmd.NewCreateRepPackage(msg.UserID, msg.BucketID, msg.Name, objIter, repInfo, stgcmd.UploadConfig{
-				LocalIPFS:   svc.ipfs,
-				LocalNodeID: &config.Cfg().ID,
-				ExternalIP:  config.Cfg().ExternalIP,
-				GRPCPort:    config.Cfg().GRPCPort,
-				MQ:          &config.Cfg().RabbitMQ,
-			})))
+		tsk := svc.taskManager.StartNew(mytask.NewCreateRepPackage(msg.UserID, msg.BucketID, msg.Name, objIter, repInfo))
 		return mq.ReplyOK(agtmq.NewStartStorageCreatePackageResp(tsk.ID()))
 	}
 
@@ -208,14 +217,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 		return nil, mq.Failed(errorcode.OperationFailed, "get ec redundancy info failed")
 	}
 
-	tsk := svc.taskManager.StartNew(stgcmd.Wrap[mytask.TaskContext](
-		stgcmd.NewCreateECPackage(msg.UserID, msg.BucketID, msg.Name, objIter, ecInfo, config.Cfg().ECPacketSize, stgcmd.UploadConfig{
-			LocalIPFS:   svc.ipfs,
-			LocalNodeID: &config.Cfg().ID,
-			ExternalIP:  config.Cfg().ExternalIP,
-			GRPCPort:    config.Cfg().GRPCPort,
-			MQ:          &config.Cfg().RabbitMQ,
-		})))
+	tsk := svc.taskManager.StartNew(mytask.NewCreateECPackage(msg.UserID, msg.BucketID, msg.Name, objIter, ecInfo))
 	return mq.ReplyOK(agtmq.NewStartStorageCreatePackageResp(tsk.ID()))
 }
 
@@ -231,17 +233,16 @@ func (svc *Service) WaitStorageCreatePackage(msg *agtmq.WaitStorageCreatePackage
 		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(false, "", 0))
 	}
 
-	wrapTask := tsk.Body().(*stgcmd.TaskWrapper[mytask.TaskContext])
-
 	if tsk.Error() != nil {
 		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, tsk.Error().Error(), 0))
 	}
 
-	if repTask, ok := wrapTask.InnerTask().(*stgcmd.CreateRepPackage); ok {
+	// TODO 避免判断类型
+	if repTask, ok := tsk.Body().(*mytask.CreateRepPackage); ok {
 		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, "", repTask.Result.PackageID))
 	}
 
-	if ecTask, ok := wrapTask.InnerTask().(*stgcmd.CreateECPackage); ok {
+	if ecTask, ok := tsk.Body().(*mytask.CreateECPackage); ok {
 		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, "", ecTask.Result.PackageID))
 	}
 

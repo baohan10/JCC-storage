@@ -8,18 +8,17 @@ import (
 
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/common/utils/ipfs"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
-	agentserver "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
+	"gitlink.org.cn/cloudream/storage-common/globals"
+	agtrpc "gitlink.org.cn/cloudream/storage-common/pkgs/grpc/agent"
 
 	"google.golang.org/grpc"
 
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 
-	cmdsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/cmd"
 	grpcsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/grpc"
+	cmdsvc "gitlink.org.cn/cloudream/storage-agent/internal/services/mq"
 )
 
 // TODO 此数据是否在运行时会发生变化？
@@ -41,15 +40,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	ipfs, err := ipfs.NewIPFS(&config.Cfg().IPFS)
-	if err != nil {
-		log.Fatalf("new ipfs failed, err: %s", err.Error())
-	}
-
-	coorCli, err := coormq.NewClient(&config.Cfg().RabbitMQ)
-	if err != nil {
-		log.Fatalf("new ipfs failed, err: %s", err.Error())
-	}
+	globals.InitLocal(&config.Cfg().Local)
+	globals.InitMQPool(&config.Cfg().RabbitMQ)
+	globals.InitAgentRPCPool(&agtrpc.PoolConfig{
+		Port: config.Cfg().GRPC.Port,
+	})
+	globals.InitIPFSPool(&config.Cfg().IPFS)
 
 	distlock, err := distsvc.NewService(&config.Cfg().DistLock)
 	if err != nil {
@@ -60,11 +56,11 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(5)
 
-	taskMgr := task.NewManager(ipfs, coorCli, distlock)
+	taskMgr := task.NewManager(distlock)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := agtmq.NewServer(cmdsvc.NewService(ipfs, &taskMgr, coorCli), config.Cfg().ID, &config.Cfg().RabbitMQ)
+	agtSvr, err := agtmq.NewServer(cmdsvc.NewService(&taskMgr), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
@@ -76,14 +72,14 @@ func main() {
 	go reportStatus(&wg) //网络延迟感知
 
 	//面向客户端收发数据
-	listenAddr := config.Cfg().GRPCListenAddress
+	listenAddr := config.Cfg().GRPC.MakeListenAddress()
 	lis, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		log.Fatalf("listen on %s failed, err: %s", listenAddr, err.Error())
 	}
 
 	s := grpc.NewServer()
-	agentserver.RegisterFileTransportServer(s, grpcsvc.NewService(ipfs))
+	agtrpc.RegisterAgentServer(s, grpcsvc.NewService())
 	go serveGRPC(s, lis, &wg)
 
 	go serveDistLock(distlock)

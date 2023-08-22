@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 )
 
 type IPFSPin struct {
@@ -31,7 +32,19 @@ func (t *IPFSPin) Execute(ctx TaskContext, complete CompleteFn) {
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 	defer log.Debugf("end")
 
-	err := ctx.ipfs.Pin(t.FileHash)
+	ipfsCli, err := globals.IPFSPool.Acquire()
+	if err != nil {
+		err := fmt.Errorf("new ipfs client: %w", err)
+		log.Warn(err.Error())
+
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
+		return
+	}
+	defer ipfsCli.Close()
+
+	err = ipfsCli.Pin(t.FileHash)
 	if err != nil {
 		err := fmt.Errorf("pin file failed, err: %w", err)
 		log.WithField("FileHash", t.FileHash).Warn(err.Error())
