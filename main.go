@@ -6,11 +6,11 @@ import (
 	"os"
 	"sync"
 
-	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/globals"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock"
 	agtrpc "gitlink.org.cn/cloudream/storage-common/pkgs/grpc/agent"
 
 	"google.golang.org/grpc"
@@ -47,7 +47,7 @@ func main() {
 	})
 	globals.InitIPFSPool(&config.Cfg().IPFS)
 
-	distlock, err := distsvc.NewService(&config.Cfg().DistLock)
+	distlock, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
@@ -115,7 +115,7 @@ func serveGRPC(s *grpc.Server, lis net.Listener, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func serveDistLock(svc *distsvc.Service) {
+func serveDistLock(svc *distlock.Service) {
 	log.Info("start serving distlock")
 
 	err := svc.Serve()
