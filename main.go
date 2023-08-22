@@ -5,10 +5,10 @@ import (
 	"os"
 	"sync"
 
-	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock"
 	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
@@ -39,7 +39,7 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 
-	distlockSvc, err := distlocksvc.NewService(&config.Cfg().DistLock)
+	distlockSvc, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {
 		logger.Warnf("new distlock service failed, err: %s", err.Error())
 		os.Exit(1)
@@ -95,7 +95,7 @@ func serveScannerServer(server *scmq.Server, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func serveDistLock(svc *distlocksvc.Service, wg *sync.WaitGroup) {
+func serveDistLock(svc *distlock.Service, wg *sync.WaitGroup) {
 	logger.Info("start serving distlock")
 
 	err := svc.Serve()
