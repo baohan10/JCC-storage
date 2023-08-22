@@ -42,5 +42,5 @@ func (s *Server) initRouters() {
 	s.engine.POST("/package/upload", s.PackageSvc().Upload)
 	s.engine.POST("/package/delete", s.PackageSvc().Delete)
 
-	s.engine.POST("/storage/movePackage", s.StorageSvc().LoadPackage)
+	s.engine.POST("/storage/loadPackage", s.StorageSvc().LoadPackage)
 }
