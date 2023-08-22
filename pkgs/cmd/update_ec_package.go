@@ -2,51 +2,44 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
 type UpdateECPackage struct {
-	userID       int64
-	packageID    int64
-	objectIter   iterator.UploadingObjectIterator
-	ecPacketSize int64
-	uploadConfig UploadConfig
-
-	Result UpdateECPackageResult
+	userID     int64
+	packageID  int64
+	objectIter iterator.UploadingObjectIterator
 }
 
 type UpdateECPackageResult struct {
 	ObjectResults []ECObjectUploadResult
 }
 
-func NewUpdateECPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator, ecPacketSize int64, uploadConfig UploadConfig) *UpdateECPackage {
+func NewUpdateECPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator) *UpdateECPackage {
 	return &UpdateECPackage{
-		userID:       userID,
-		packageID:    packageID,
-		objectIter:   objIter,
-		ecPacketSize: ecPacketSize,
-		uploadConfig: uploadConfig,
+		userID:     userID,
+		packageID:  packageID,
+		objectIter: objIter,
 	}
 }
 
-func (t *UpdateECPackage) Execute(ctx TaskContext, complete CompleteFn) {
-	err := t.do(ctx)
-	t.objectIter.Close()
-	complete(err, CompleteOption{
-		RemovingDelay: time.Minute,
-	})
-}
+func (t *UpdateECPackage) Execute(ctx *UpdateECPackageContext) (*UpdateECPackageResult, error) {
+	defer t.objectIter.Close()
 
-func (t *UpdateECPackage) do(ctx TaskContext) error {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+
 	/*
 		TODO2
 		reqBlder := reqbuilder.NewBuilder()
@@ -78,19 +71,19 @@ func (t *UpdateECPackage) do(ctx TaskContext) error {
 		defer mutex.Unlock()
 	*/
 
-	getPkgResp, err := ctx.Coordinator().GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
+	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
 	if err != nil {
-		return fmt.Errorf("getting package: %w", err)
+		return nil, fmt.Errorf("getting package: %w", err)
 	}
 
-	getUserNodesResp, err := ctx.Coordinator().GetUserNodes(coormq.NewGetUserNodes(t.userID))
+	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
 	if err != nil {
-		return fmt.Errorf("getting user nodes: %w", err)
+		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := ctx.Coordinator().FindClientLocation(coormq.NewFindClientLocation(t.uploadConfig.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
 	if err != nil {
-		return fmt.Errorf("finding client location: %w", err)
+		return nil, fmt.Errorf("finding client location: %w", err)
 	}
 
 	nodeInfos := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
@@ -102,12 +95,12 @@ func (t *UpdateECPackage) do(ctx TaskContext) error {
 
 	var ecRed models.ECRedundancyInfo
 	if err := serder.AnyToAny(getPkgResp.Package.Redundancy.Info, &ecRed); err != nil {
-		return fmt.Errorf("get ec redundancy info: %w", err)
+		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
-	getECResp, err := ctx.Coordinator().GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
 	if err != nil {
-		return fmt.Errorf("getting ec: %w", err)
+		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
 	/*
@@ -122,13 +115,14 @@ func (t *UpdateECPackage) do(ctx TaskContext) error {
 		defer mutex2.Unlock()
 	*/
 
-	rets, err := uploadAndUpdateECPackage(ctx, t.packageID, t.objectIter, nodeInfos, getECResp.Config, t.ecPacketSize, t.uploadConfig)
+	rets, err := uploadAndUpdateECPackage(ctx, t.packageID, t.objectIter, nodeInfos, getECResp.Config)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	t.Result.ObjectResults = rets
-	return nil
+	return &UpdateECPackageResult{
+		ObjectResults: rets,
+	}, nil
 }
 
 // chooseUploadNode 选择一个上传文件的节点

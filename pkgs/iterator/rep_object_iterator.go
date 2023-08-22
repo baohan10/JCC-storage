@@ -9,17 +9,11 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/common/utils/ipfs"
+	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	mymq "gitlink.org.cn/cloudream/storage-common/pkgs/mq"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	myio "gitlink.org.cn/cloudream/common/utils/io"
-	agentcaller "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
-	mygrpc "gitlink.org.cn/cloudream/storage-common/utils/grpc"
 )
 
 type DownloadingObjectIterator = Iterator[*IterDownloadingObject]
@@ -30,10 +24,8 @@ type RepObjectIterator struct {
 	currentIndex  int
 	inited        bool
 
-	coorCli        *coormq.Client
-	distlock       *distsvc.Service
-	downloadConfig DownloadConfig
-	cliLocation    model.Location
+	downloadCtx *DownloadContext
+	cliLocation model.Location
 }
 
 type IterDownloadingObject struct {
@@ -46,29 +38,29 @@ type DownloadNodeInfo struct {
 	IsSameLocation bool
 }
 
-type DownloadConfig struct {
-	LocalIPFS   *ipfs.IPFS
-	LocalNodeID *int64
-	ExternalIP  string
-	GRPCPort    int
-	MQ          *mymq.Config
+type DownloadContext struct {
+	Distlock *distsvc.Service
 }
 
-func NewRepObjectIterator(objects []model.Object, objectRepData []models.ObjectRepData, coorCli *coormq.Client, distlock *distsvc.Service, downloadConfig DownloadConfig) *RepObjectIterator {
+func NewRepObjectIterator(objects []model.Object, objectRepData []models.ObjectRepData, downloadCtx *DownloadContext) *RepObjectIterator {
 	return &RepObjectIterator{
-		objects:        objects,
-		objectRepData:  objectRepData,
-		coorCli:        coorCli,
-		distlock:       distlock,
-		downloadConfig: downloadConfig,
+		objects:       objects,
+		objectRepData: objectRepData,
+		downloadCtx:   downloadCtx,
 	}
 }
 
 func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
 	if !i.inited {
 		i.inited = true
 
-		findCliLocResp, err := i.coorCli.FindClientLocation(coormq.NewFindClientLocation(i.downloadConfig.ExternalIP))
+		findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
 		if err != nil {
 			return nil, fmt.Errorf("finding client location: %w", err)
 		}
@@ -79,18 +71,18 @@ func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 		return nil, ErrNoMoreItem
 	}
 
-	item, err := i.doMove()
+	item, err := i.doMove(coorCli)
 	i.currentIndex++
 	return item, err
 }
 
-func (i *RepObjectIterator) doMove() (*IterDownloadingObject, error) {
+func (i *RepObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloadingObject, error) {
 	repData := i.objectRepData[i.currentIndex]
 	if len(repData.NodeIDs) == 0 {
 		return nil, fmt.Errorf("no node has this file %s", repData.FileHash)
 	}
 
-	getNodesResp, err := i.coorCli.GetNodes(coormq.NewGetNodes(repData.NodeIDs))
+	getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(repData.NodeIDs))
 	if err != nil {
 		return nil, fmt.Errorf("getting nodes: %w", err)
 	}
@@ -113,7 +105,7 @@ func (i *RepObjectIterator) doMove() (*IterDownloadingObject, error) {
 		logger.Infof("client and node %d are at the same location, use local ip\n", downloadNode.Node.NodeID)
 	}
 
-	reader, err := i.downloadObject(downloadNode.Node.NodeID, nodeIP, repData.FileHash)
+	reader, err := downloadFile(i.downloadCtx, downloadNode.Node.NodeID, nodeIP, repData.FileHash)
 	if err != nil {
 		return nil, fmt.Errorf("rep read failed, err: %w", err)
 	}
@@ -139,11 +131,11 @@ func (i *RepObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downl
 	return entries[rand.Intn(len(entries))]
 }
 
-func (i *RepObjectIterator) downloadObject(nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
-	if i.downloadConfig.LocalIPFS != nil {
+func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
+	if globals.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to download file")
 
-		reader, err := i.downloadFromLocalIPFS(fileHash)
+		reader, err := downloadFromLocalIPFS(fileHash)
 		if err == nil {
 			return reader, nil
 		}
@@ -151,43 +143,43 @@ func (i *RepObjectIterator) downloadObject(nodeID int64, nodeIP string, fileHash
 		logger.Warnf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
 	}
 
-	return i.downloadFromNode(nodeID, nodeIP, fileHash)
+	return downloadFromNode(ctx, nodeID, nodeIP, fileHash)
 }
 
-func (i *RepObjectIterator) downloadFromNode(nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
+func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
 	// 二次获取锁
 	mutex, err := reqbuilder.NewBuilder().
 		// 用于从IPFS下载文件
 		IPFS().ReadOneRep(nodeID, fileHash).
-		MutexLock(i.distlock)
+		MutexLock(ctx.Distlock)
 	if err != nil {
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 
 	// 连接grpc
-	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, i.downloadConfig.GRPCPort)
-	conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	agtCli, err := globals.AgentRPCPool.Acquire(nodeIP)
 	if err != nil {
-		return nil, fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
+		return nil, fmt.Errorf("new agent grpc client: %w", err)
 	}
 
-	// 下载文件
-	client := agentcaller.NewFileTransportClient(conn)
-	reader, err := mygrpc.GetFileAsStream(client, fileHash)
+	reader, err := agtCli.GetIPFSFile(fileHash)
 	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("request to get file failed, err: %w", err)
+		return nil, fmt.Errorf("getting ipfs file: %w", err)
 	}
 
 	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
-		conn.Close()
 		mutex.Unlock()
 	})
 	return reader, nil
 }
 
-func (i *RepObjectIterator) downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
-	reader, err := i.downloadConfig.LocalIPFS.OpenRead(fileHash)
+func downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
+	ipfsCli, err := globals.IPFSPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new ipfs client: %w", err)
+	}
+
+	reader, err := ipfsCli.OpenRead(fileHash)
 	if err != nil {
 		return nil, fmt.Errorf("read ipfs file failed, err: %w", err)
 	}

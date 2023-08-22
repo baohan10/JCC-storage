@@ -9,19 +9,14 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
+	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/common/utils/ipfs"
-	mygrpc "gitlink.org.cn/cloudream/storage-common/utils/grpc"
 
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
-	mymq "gitlink.org.cn/cloudream/storage-common/pkgs/mq"
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	agentcaller "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type UploadNodeInfo struct {
@@ -30,22 +25,15 @@ type UploadNodeInfo struct {
 }
 
 type CreateRepPackage struct {
-	userID       int64
-	bucketID     int64
-	name         string
-	objectIter   iterator.UploadingObjectIterator
-	redundancy   models.RepRedundancyInfo
-	uploadConfig UploadConfig
-
-	Result CreateRepPackageResult
+	userID     int64
+	bucketID   int64
+	name       string
+	objectIter iterator.UploadingObjectIterator
+	redundancy models.RepRedundancyInfo
 }
 
-type UploadConfig struct {
-	LocalIPFS   *ipfs.IPFS
-	LocalNodeID *int64
-	ExternalIP  string
-	GRPCPort    int
-	MQ          *mymq.Config
+type UpdatePackageContext struct {
+	Distlock *distsvc.Service
 }
 
 type CreateRepPackageResult struct {
@@ -60,26 +48,24 @@ type RepObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo, uploadConfig UploadConfig) *CreateRepPackage {
+func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo) *CreateRepPackage {
 	return &CreateRepPackage{
-		userID:       userID,
-		bucketID:     bucketID,
-		name:         name,
-		objectIter:   objIter,
-		redundancy:   redundancy,
-		uploadConfig: uploadConfig,
+		userID:     userID,
+		bucketID:   bucketID,
+		name:       name,
+		objectIter: objIter,
+		redundancy: redundancy,
 	}
 }
 
-func (t *CreateRepPackage) Execute(ctx TaskContext, complete CompleteFn) {
-	err := t.do(ctx)
-	t.objectIter.Close()
-	complete(err, CompleteOption{
-		RemovingDelay: time.Minute,
-	})
-}
+func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackageResult, error) {
+	defer t.objectIter.Close()
 
-func (t *CreateRepPackage) do(ctx TaskContext) error {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+
 	/*
 		// TODO2
 		reqBlder := reqbuilder.NewBuilder()
@@ -110,20 +96,20 @@ func (t *CreateRepPackage) do(ctx TaskContext) error {
 		}
 		defer mutex.Unlock()
 	*/
-	createPkgResp, err := ctx.Coordinator().CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
+	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
 		models.NewTypedRedundancyInfo(models.RedundancyRep, t.redundancy)))
 	if err != nil {
-		return fmt.Errorf("creating package: %w", err)
+		return nil, fmt.Errorf("creating package: %w", err)
 	}
 
-	getUserNodesResp, err := ctx.Coordinator().GetUserNodes(coormq.NewGetUserNodes(t.userID))
+	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
 	if err != nil {
-		return fmt.Errorf("getting user nodes: %w", err)
+		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := ctx.Coordinator().FindClientLocation(coormq.NewFindClientLocation(t.uploadConfig.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
 	if err != nil {
-		return fmt.Errorf("finding client location: %w", err)
+		return nil, fmt.Errorf("finding client location: %w", err)
 	}
 
 	nodeInfos := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
@@ -137,25 +123,30 @@ func (t *CreateRepPackage) do(ctx TaskContext) error {
 	// 防止上传的副本被清除
 	mutex2, err := reqbuilder.NewBuilder().
 		IPFS().CreateAnyRep(uploadNode.Node.NodeID).
-		MutexLock(ctx.DistLock())
+		MutexLock(ctx.Distlock)
 	if err != nil {
-		return fmt.Errorf("acquire locks failed, err: %w", err)
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer mutex2.Unlock()
 
-	rets, err := uploadAndUpdateRepPackage(ctx, createPkgResp.PackageID, t.objectIter, uploadNode, t.uploadConfig)
+	rets, err := uploadAndUpdateRepPackage(createPkgResp.PackageID, t.objectIter, uploadNode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	t.Result.PackageID = createPkgResp.PackageID
-	t.Result.ObjectResults = rets
-	return nil
+	return &CreateRepPackageResult{
+		PackageID:     createPkgResp.PackageID,
+		ObjectResults: rets,
+	}, nil
 }
 
-func uploadAndUpdateRepPackage(ctx TaskContext, packageID int64, objectIter iterator.UploadingObjectIterator, uploadNode UploadNodeInfo, uploadConfig UploadConfig) ([]RepObjectUploadResult, error) {
+func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObjectIterator, uploadNode UploadNodeInfo) ([]RepObjectUploadResult, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+
 	var uploadRets []RepObjectUploadResult
-	//上传文件夹
 	var adds []coormq.AddRepObjectInfo
 	for {
 		objInfo, err := objectIter.MoveNext()
@@ -166,7 +157,7 @@ func uploadAndUpdateRepPackage(ctx TaskContext, packageID int64, objectIter iter
 			return nil, fmt.Errorf("reading object: %w", err)
 		}
 
-		fileHash, uploadedNodeIDs, err := uploadObject(ctx, objInfo, uploadNode, uploadConfig)
+		fileHash, err := uploadFile(objInfo.File, uploadNode)
 		uploadRets = append(uploadRets, RepObjectUploadResult{
 			Info:     objInfo,
 			Error:    err,
@@ -176,10 +167,10 @@ func uploadAndUpdateRepPackage(ctx TaskContext, packageID int64, objectIter iter
 			return nil, fmt.Errorf("uploading object: %w", err)
 		}
 
-		adds = append(adds, coormq.NewAddRepObjectInfo(objInfo.Path, objInfo.Size, fileHash, uploadedNodeIDs))
+		adds = append(adds, coormq.NewAddRepObjectInfo(objInfo.Path, objInfo.Size, fileHash, []int64{uploadNode.Node.NodeID}))
 	}
 
-	_, err := ctx.Coordinator().UpdateRepPackage(coormq.NewUpdateRepPackage(packageID, adds, nil))
+	_, err = coorCli.UpdateRepPackage(coormq.NewUpdateRepPackage(packageID, adds, nil))
 	if err != nil {
 		return nil, fmt.Errorf("updating package: %w", err)
 	}
@@ -188,15 +179,15 @@ func uploadAndUpdateRepPackage(ctx TaskContext, packageID int64, objectIter iter
 }
 
 // 上传文件
-func uploadObject(ctx TaskContext, obj *iterator.IterUploadingObject, uploadNode UploadNodeInfo, uploadConfig UploadConfig) (string, []int64, error) {
+func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	// 本地有IPFS，则直接从本地IPFS上传
-	if uploadConfig.LocalIPFS != nil {
+	if globals.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to upload file")
 
 		// 只有本地IPFS不是存储系统中的一个节点，才需要Pin文件
-		fileHash, err := uploadToLocalIPFS(uploadConfig.LocalIPFS, obj.File, uploadNode.Node.NodeID, uploadConfig.LocalNodeID == nil, uploadConfig)
+		fileHash, err := uploadToLocalIPFS(file, uploadNode.Node.NodeID, globals.Local.NodeID == nil)
 		if err == nil {
-			return fileHash, []int64{*uploadConfig.LocalNodeID}, nil
+			return fileHash, nil
 
 		} else {
 			logger.Warnf("upload to local IPFS failed, so try to upload to node %d, err: %s", uploadNode.Node.NodeID, err.Error())
@@ -212,12 +203,12 @@ func uploadObject(ctx TaskContext, obj *iterator.IterUploadingObject, uploadNode
 		logger.Infof("client and node %d are at the same location, use local ip\n", uploadNode.Node.NodeID)
 	}
 
-	fileHash, err := uploadToNode(obj.File, nodeIP, uploadConfig)
+	fileHash, err := uploadToNode(file, nodeIP)
 	if err != nil {
-		return "", nil, fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
+		return "", fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
 	}
 
-	return fileHash, []int64{uploadNode.Node.NodeID}, nil
+	return fileHash, nil
 }
 
 // chooseUploadNode 选择一个上传文件的节点
@@ -232,86 +223,68 @@ func (t *CreateRepPackage) chooseUploadNode(nodes []UploadNodeInfo) UploadNodeIn
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func uploadToNode(file io.ReadCloser, nodeIP string, uploadConfig UploadConfig) (string, error) {
-	// 建立grpc连接，发送请求
-	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, uploadConfig.GRPCPort)
-	grpcCon, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func uploadToNode(file io.Reader, nodeIP string) (string, error) {
+	rpcCli, err := globals.AgentRPCPool.Acquire(nodeIP)
 	if err != nil {
-		return "", fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
+		return "", fmt.Errorf("new agent rpc client: %w", err)
 	}
-	defer grpcCon.Close()
+	defer rpcCli.Close()
 
-	client := agentcaller.NewFileTransportClient(grpcCon)
-	upload, err := mygrpc.SendFileAsStream(client)
-	if err != nil {
-		return "", fmt.Errorf("request to send file failed, err: %w", err)
-	}
-
-	// 发送文件数据
-	_, err = io.Copy(upload, file)
-	if err != nil {
-		// 发生错误则关闭连接
-		upload.Abort(io.ErrClosedPipe)
-		return "", fmt.Errorf("copy file date to upload stream failed, err: %w", err)
-	}
-
-	// 发送EOF消息，并获得FileHash
-	fileHash, err := upload.Finish()
-	if err != nil {
-		upload.Abort(io.ErrClosedPipe)
-		return "", fmt.Errorf("send EOF failed, err: %w", err)
-	}
-
-	return fileHash, nil
+	return rpcCli.SendIPFSFile(file)
 }
 
-func uploadToLocalIPFS(ipfs *ipfs.IPFS, file io.ReadCloser, nodeID int64, shouldPin bool, uploadConfig UploadConfig) (string, error) {
+func uploadToLocalIPFS(file io.Reader, nodeID int64, shouldPin bool) (string, error) {
+	ipfsCli, err := globals.IPFSPool.Acquire()
+	if err != nil {
+		return "", fmt.Errorf("new ipfs client: %w", err)
+	}
+	defer ipfsCli.Close()
+
 	// 从本地IPFS上传文件
-	writer, err := ipfs.CreateFile()
+	fileHash, err := ipfsCli.CreateFile(file)
 	if err != nil {
-		return "", fmt.Errorf("create IPFS file failed, err: %w", err)
-	}
-
-	_, err = io.Copy(writer, file)
-	if err != nil {
-		return "", fmt.Errorf("copy file data to IPFS failed, err: %w", err)
-	}
-
-	fileHash, err := writer.Finish()
-	if err != nil {
-		return "", fmt.Errorf("finish writing IPFS failed, err: %w", err)
+		return "", fmt.Errorf("creating ipfs file: %w", err)
 	}
 
 	if !shouldPin {
 		return fileHash, nil
 	}
 
-	// 然后让最近节点pin本地上传的文件
-	agentClient, err := agtmq.NewClient(nodeID, uploadConfig.MQ)
+	err = pinIPFSFile(nodeID, fileHash)
 	if err != nil {
-		return "", fmt.Errorf("create agent client to %d failed, err: %w", nodeID, err)
+		return "", err
 	}
-	defer agentClient.Close()
 
-	pinObjResp, err := agentClient.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
+	return fileHash, nil
+}
+
+func pinIPFSFile(nodeID int64, fileHash string) error {
+	agtCli, err := globals.AgentMQPool.Acquire(nodeID)
 	if err != nil {
-		return "", fmt.Errorf("start pinning object: %w", err)
+		return fmt.Errorf("new agent client: %w", err)
+	}
+	defer agtCli.Close()
+
+	// 然后让最近节点pin本地上传的文件
+	pinObjResp, err := agtCli.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
+	if err != nil {
+		return fmt.Errorf("start pinning object: %w", err)
 	}
 
 	for {
-		waitResp, err := agentClient.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
+		waitResp, err := agtCli.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
 		if err != nil {
-			return "", fmt.Errorf("waitting pinning object: %w", err)
+			return fmt.Errorf("waitting pinning object: %w", err)
 		}
 
 		if waitResp.IsComplete {
 			if waitResp.Error != "" {
-				return "", fmt.Errorf("agent pinning object: %s", waitResp.Error)
+				return fmt.Errorf("agent pinning object: %s", waitResp.Error)
 			}
 
 			break
 		}
 	}
 
-	return fileHash, nil
+	return nil
 }

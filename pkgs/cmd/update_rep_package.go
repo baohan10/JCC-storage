@@ -2,24 +2,21 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
 type UpdateRepPackage struct {
-	userID       int64
-	packageID    int64
-	objectIter   iterator.UploadingObjectIterator
-	uploadConfig UploadConfig
-
-	Result UpdateRepPackageResult
+	userID     int64
+	packageID  int64
+	objectIter iterator.UploadingObjectIterator
 }
 
 type UpdateNodeInfo struct {
@@ -31,24 +28,21 @@ type UpdateRepPackageResult struct {
 	ObjectResults []RepObjectUploadResult
 }
 
-func NewUpdateRepPackage(userID int64, packageID int64, objectIter iterator.UploadingObjectIterator, uploadConfig UploadConfig) *UpdateRepPackage {
+func NewUpdateRepPackage(userID int64, packageID int64, objectIter iterator.UploadingObjectIterator) *UpdateRepPackage {
 	return &UpdateRepPackage{
-		userID:       userID,
-		packageID:    packageID,
-		objectIter:   objectIter,
-		uploadConfig: uploadConfig,
+		userID:     userID,
+		packageID:  packageID,
+		objectIter: objectIter,
 	}
 }
 
-func (t *UpdateRepPackage) Execute(ctx TaskContext, complete CompleteFn) {
-	err := t.do(ctx)
-	t.objectIter.Close()
-	complete(err, CompleteOption{
-		RemovingDelay: time.Minute,
-	})
-}
+func (t *UpdateRepPackage) Execute(ctx *UpdatePackageContext) (*UpdateRepPackageResult, error) {
+	defer t.objectIter.Close()
 
-func (t *UpdateRepPackage) do(ctx TaskContext) error {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
 	/*
 		TODO2
 		reqBlder := reqbuilder.NewBuilder()
@@ -79,14 +73,14 @@ func (t *UpdateRepPackage) do(ctx TaskContext) error {
 		}
 		defer mutex.Unlock()
 	*/
-	getUserNodesResp, err := ctx.Coordinator().GetUserNodes(coormq.NewGetUserNodes(t.userID))
+	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
 	if err != nil {
-		return fmt.Errorf("getting user nodes: %w", err)
+		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := ctx.Coordinator().FindClientLocation(coormq.NewFindClientLocation(t.uploadConfig.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
 	if err != nil {
-		return fmt.Errorf("finding client location: %w", err)
+		return nil, fmt.Errorf("finding client location: %w", err)
 	}
 
 	nodeInfos := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UpdateNodeInfo {
@@ -108,19 +102,20 @@ func (t *UpdateRepPackage) do(ctx TaskContext) error {
 	// 防止上传的副本被清除
 	mutex2, err := reqbuilder.NewBuilder().
 		IPFS().CreateAnyRep(uploadNode.Node.NodeID).
-		MutexLock(ctx.DistLock())
+		MutexLock(ctx.Distlock)
 	if err != nil {
-		return fmt.Errorf("acquire locks failed, err: %w", err)
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer mutex2.Unlock()
 
-	rets, err := uploadAndUpdateRepPackage(ctx, t.packageID, t.objectIter, uploadNode.UploadNodeInfo, t.uploadConfig)
+	rets, err := uploadAndUpdateRepPackage(t.packageID, t.objectIter, uploadNode.UploadNodeInfo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	t.Result.ObjectResults = rets
-	return nil
+	return &UpdateRepPackageResult{
+		ObjectResults: rets,
+	}, nil
 }
 
 // chooseUploadNode 选择一个上传文件的节点
