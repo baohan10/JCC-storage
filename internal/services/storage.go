@@ -21,18 +21,18 @@ func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStora
 	return mq.ReplyOK(coormq.NewGetStorageInfoResp(stg.StorageID, stg.Name, stg.NodeID, stg.Directory, stg.State))
 }
 
-func (svc *Service) PackageMovedToStorage(msg *coormq.PackageMovedToStorage) (*coormq.PackageMovedToStorageResp, *mq.CodeMessage) {
+func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coormq.StoragePackageLoadedResp, *mq.CodeMessage) {
 	// TODO: 对于的storage中已经存在的文件，直接覆盖已有文件
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		return svc.db.StoragePackage().MovePackageTo(tx, msg.PackageID, msg.StorageID, msg.UserID)
+		return svc.db.StoragePackage().LoadPackage(tx, msg.PackageID, msg.StorageID, msg.UserID)
 	})
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			WithField("StorageID", msg.StorageID).
-			Warnf("user move package to storage failed, err: %s", err.Error())
-		return nil, mq.Failed(errorcode.OperationFailed, "user move package to storage failed")
+			Warnf("user load package to storage failed, err: %s", err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "user load package to storage failed")
 	}
 
-	return mq.ReplyOK(coormq.NewPackageMovedToStorageResp())
+	return mq.ReplyOK(coormq.NewStoragePackageLoadedResp())
 }
