@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-common/consts"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
@@ -60,7 +61,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	agentClient, err := agtmq.NewClient(t.NodeID, &config.Cfg().RabbitMQ)
+	agentClient, err := globals.AgentMQPool.Acquire(t.NodeID)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return

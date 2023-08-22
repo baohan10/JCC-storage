@@ -7,6 +7,7 @@ import (
 
 	distlocksvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db"
 	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
@@ -32,6 +33,8 @@ func main() {
 	if err != nil {
 		logger.Fatalf("new db failed, err: %s", err.Error())
 	}
+
+	globals.InitMQPool(&config.Cfg().RabbitMQ)
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)
