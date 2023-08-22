@@ -6,6 +6,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/jmoiron/sqlx v1.3.5
+	github.com/magefile/mage v1.15.0
 	github.com/samber/lo v1.36.0
 	github.com/smartystreets/goconvey v1.8.0
 	gitlink.org.cn/cloudream/common v0.0.0

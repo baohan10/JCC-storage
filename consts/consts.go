@@ -1,7 +1,8 @@
 package consts
 
 const (
-	IPFSStateOK = "OK"
+	IPFSStateOK          = "OK"
+	IPFSStateUnavailable = "Unavailable"
 
 	StorageDirectoryStateOK = "OK"
 

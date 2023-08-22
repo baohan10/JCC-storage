@@ -5,10 +5,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"gitlink.org.cn/cloudream/common/models"
+	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/utils/serder"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
@@ -20,6 +21,11 @@ type DownloadPackage struct {
 	outputPath string
 }
 
+type DownloadPackageContext struct {
+	Distlock     *distsvc.Service
+	ECPacketSize int64
+}
+
 func NewDownloadPackage(userID int64, packageID int64, outputPath string) *DownloadPackage {
 	return &DownloadPackage{
 		userID:     userID,
@@ -28,15 +34,14 @@ func NewDownloadPackage(userID int64, packageID int64, outputPath string) *Downl
 	}
 }
 
-func (t *DownloadPackage) Execute(ctx TaskContext, complete CompleteFn) {
-	err := t.do(ctx)
-	complete(err, CompleteOption{
-		RemovingDelay: time.Minute,
-	})
-}
+func (t *DownloadPackage) Execute(ctx *DownloadPackageContext) error {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
 
-func (t *DownloadPackage) do(ctx TaskContext) error {
-	getPkgResp, err := ctx.Coordinator().GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
+	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
 	if err != nil {
 
 		return fmt.Errorf("getting package: %w", err)
@@ -56,34 +61,43 @@ func (t *DownloadPackage) do(ctx TaskContext) error {
 	return t.writeObject(objIter)
 }
 
-func (t *DownloadPackage) downloadRep(ctx TaskContext) (iterator.DownloadingObjectIterator, error) {
-	getObjsResp, err := ctx.Coordinator().GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
+func (t *DownloadPackage) downloadRep(ctx *DownloadPackageContext) (iterator.DownloadingObjectIterator, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
+	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package objects: %w", err)
 	}
 
-	getObjRepDataResp, err := ctx.Coordinator().GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(t.packageID))
+	getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(t.packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package object rep data: %w", err)
 	}
 
-	iter := iterator.NewRepObjectIterator(getObjsResp.Objects, getObjRepDataResp.Data, ctx.Coordinator(), svc.distlock, myos.DownloadConfig{
-		LocalIPFS:  svc.ipfs,
-		ExternalIP: config.Cfg().ExternalIP,
-		GRPCPort:   config.Cfg().GRPCPort,
-		MQ:         &config.Cfg().RabbitMQ,
+	iter := iterator.NewRepObjectIterator(getObjsResp.Objects, getObjRepDataResp.Data, &iterator.DownloadContext{
+		Distlock: ctx.Distlock,
 	})
 
 	return iter, nil
 }
 
-func (t *DownloadPackage) downloadEC(ctx TaskContext, pkg model.Package) (iterator.DownloadingObjectIterator, error) {
-	getObjsResp, err := ctx.Coordinator().GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
+func (t *DownloadPackage) downloadEC(ctx *DownloadPackageContext, pkg model.Package) (iterator.DownloadingObjectIterator, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
+	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package objects: %w", err)
 	}
 
-	getObjECDataResp, err := ctx.Coordinator().GetPackageObjectECData(coormq.NewGetPackageObjectECData(t.packageID))
+	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(t.packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
@@ -93,16 +107,16 @@ func (t *DownloadPackage) downloadEC(ctx TaskContext, pkg model.Package) (iterat
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
-	getECResp, err := ctx.Coordinator().GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
 	if err != nil {
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, ctx.Coordinator(), svc.distlock, getECResp.Config, config.Cfg().ECPacketSize, myos.DownloadConfig{
-		LocalIPFS:  svc.ipfs,
-		ExternalIP: config.Cfg().ExternalIP,
-		GRPCPort:   config.Cfg().GRPCPort,
-		MQ:         &config.Cfg().RabbitMQ,
+	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, getECResp.Config, &iterator.ECDownloadContext{
+		DownloadContext: &iterator.DownloadContext{
+			Distlock: ctx.Distlock,
+		},
+		ECPacketSize: ctx.ECPacketSize,
 	})
 
 	return iter, nil

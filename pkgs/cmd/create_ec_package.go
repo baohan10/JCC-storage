@@ -1,41 +1,34 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	mygrpc "gitlink.org.cn/cloudream/storage-common/utils/grpc"
 
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	agentcaller "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type CreateECPackage struct {
-	userID       int64
-	bucketID     int64
-	name         string
-	objectIter   iterator.UploadingObjectIterator
-	redundancy   models.ECRedundancyInfo
-	ecPacketSize int64
-	uploadConfig UploadConfig
+	userID     int64
+	bucketID   int64
+	name       string
+	objectIter iterator.UploadingObjectIterator
+	redundancy models.ECRedundancyInfo
+}
 
-	Result CreateECPackageResult
+type UpdateECPackageContext struct {
+	*UpdatePackageContext
+	ECPacketSize int64
 }
 
 type CreateECPackageResult struct {
@@ -49,27 +42,24 @@ type ECObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo, ecPacketSize int64, uploadConfig UploadConfig) *CreateECPackage {
+func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo) *CreateECPackage {
 	return &CreateECPackage{
-		userID:       userID,
-		bucketID:     bucketID,
-		name:         name,
-		objectIter:   objIter,
-		redundancy:   redundancy,
-		ecPacketSize: ecPacketSize,
-		uploadConfig: uploadConfig,
+		userID:     userID,
+		bucketID:   bucketID,
+		name:       name,
+		objectIter: objIter,
+		redundancy: redundancy,
 	}
 }
 
-func (t *CreateECPackage) Execute(ctx TaskContext, complete CompleteFn) {
-	err := t.do(ctx)
-	t.objectIter.Close()
-	complete(err, CompleteOption{
-		RemovingDelay: time.Minute,
-	})
-}
+func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackageResult, error) {
+	defer t.objectIter.Close()
 
-func (t *CreateECPackage) do(ctx TaskContext) error {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+
 	// TODO2
 	/*
 		reqBlder := reqbuilder.NewBuilder()
@@ -101,20 +91,20 @@ func (t *CreateECPackage) do(ctx TaskContext) error {
 		defer mutex.Unlock()
 	*/
 
-	createPkgResp, err := ctx.Coordinator().CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
+	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
 		models.NewTypedRedundancyInfo(models.RedundancyRep, t.redundancy)))
 	if err != nil {
-		return fmt.Errorf("creating package: %w", err)
+		return nil, fmt.Errorf("creating package: %w", err)
 	}
 
-	getUserNodesResp, err := ctx.Coordinator().GetUserNodes(coormq.NewGetUserNodes(t.userID))
+	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
 	if err != nil {
-		return fmt.Errorf("getting user nodes: %w", err)
+		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := ctx.Coordinator().FindClientLocation(coormq.NewFindClientLocation(t.uploadConfig.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
 	if err != nil {
-		return fmt.Errorf("finding client location: %w", err)
+		return nil, fmt.Errorf("finding client location: %w", err)
 	}
 
 	uploadNodeInfos := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
@@ -124,9 +114,9 @@ func (t *CreateECPackage) do(ctx TaskContext) error {
 		}
 	})
 
-	getECResp, err := ctx.Coordinator().GetECConfig(coormq.NewGetECConfig(t.redundancy.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(t.redundancy.ECName))
 	if err != nil {
-		return fmt.Errorf("getting ec: %w", err)
+		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
 	/*
@@ -141,17 +131,23 @@ func (t *CreateECPackage) do(ctx TaskContext) error {
 		defer mutex2.Unlock()
 	*/
 
-	rets, err := uploadAndUpdateECPackage(ctx, createPkgResp.PackageID, t.objectIter, uploadNodeInfos, getECResp.Config, t.ecPacketSize, t.uploadConfig)
+	rets, err := uploadAndUpdateECPackage(ctx, createPkgResp.PackageID, t.objectIter, uploadNodeInfos, getECResp.Config)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	t.Result.PackageID = createPkgResp.PackageID
-	t.Result.ObjectResults = rets
-	return nil
+	return &CreateECPackageResult{
+		PackageID:     createPkgResp.PackageID,
+		ObjectResults: rets,
+	}, nil
 }
 
-func uploadAndUpdateECPackage(ctx TaskContext, packageID int64, objectIter iterator.UploadingObjectIterator, uploadNodes []UploadNodeInfo, ec model.Ec, ecPacketSize int64, uploadConfig UploadConfig) ([]ECObjectUploadResult, error) {
+func uploadAndUpdateECPackage(ctx *UpdateECPackageContext, packageID int64, objectIter iterator.UploadingObjectIterator, uploadNodes []UploadNodeInfo, ec model.Ec) ([]ECObjectUploadResult, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+
 	var uploadRets []ECObjectUploadResult
 	//上传文件夹
 	var adds []coormq.AddECObjectInfo
@@ -164,7 +160,7 @@ func uploadAndUpdateECPackage(ctx TaskContext, packageID int64, objectIter itera
 			return nil, fmt.Errorf("reading object: %w", err)
 		}
 
-		fileHashes, uploadedNodeIDs, err := uploadECObject(ctx, objInfo, uploadNodes, ec, ecPacketSize, uploadConfig)
+		fileHashes, uploadedNodeIDs, err := uploadECObject(ctx, objInfo, uploadNodes, ec)
 		uploadRets = append(uploadRets, ECObjectUploadResult{
 			Info:  objInfo,
 			Error: err,
@@ -176,7 +172,7 @@ func uploadAndUpdateECPackage(ctx TaskContext, packageID int64, objectIter itera
 		adds = append(adds, coormq.NewAddECObjectInfo(objInfo.Path, objInfo.Size, fileHashes, uploadedNodeIDs))
 	}
 
-	_, err := ctx.Coordinator().UpdateECPackage(coormq.NewUpdateECPackage(packageID, adds, nil))
+	_, err = coorCli.UpdateECPackage(coormq.NewUpdateECPackage(packageID, adds, nil))
 	if err != nil {
 		return nil, fmt.Errorf("updating package: %w", err)
 	}
@@ -185,7 +181,7 @@ func uploadAndUpdateECPackage(ctx TaskContext, packageID int64, objectIter itera
 }
 
 // 上传文件
-func uploadECObject(ctx TaskContext, obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ec model.Ec, ecPacketSize int64, uploadConfig UploadConfig) ([]string, []int64, error) {
+func uploadECObject(ctx *UpdateECPackageContext, obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ec model.Ec) ([]string, []int64, error) {
 	//生成纠删码的写入节点序列
 	nodes := make([]UploadNodeInfo, ec.EcN)
 	numNodes := len(uploadNodes)
@@ -194,7 +190,7 @@ func uploadECObject(ctx TaskContext, obj *iterator.IterUploadingObject, uploadNo
 		nodes[i] = uploadNodes[(startWriteNodeID+i)%numNodes]
 	}
 
-	hashs, err := ecWrite(obj.File, obj.Size, ec.EcK, ec.EcN, nodes, ecPacketSize, uploadConfig)
+	hashs, err := ecWrite(ctx, obj.File, obj.Size, ec.EcK, ec.EcN, nodes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("EcWrite failed, err: %w", err)
 	}
@@ -219,14 +215,13 @@ func (t *CreateECPackage) chooseUploadNode(nodes []UploadNodeInfo) UploadNodeInf
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func ecWrite(file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []UploadNodeInfo, ecPacketSize int64, uploadConfig UploadConfig) ([]string, error) {
-
+func ecWrite(ctx *UpdateECPackageContext, file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []UploadNodeInfo) ([]string, error) {
 	// TODO 需要参考RepWrite函数的代码逻辑，做好错误处理
 	//获取文件大小
 
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 	//计算每个块的packet数
-	numPacket := (fileSize + int64(ecK)*ecPacketSize - 1) / (int64(ecK) * ecPacketSize)
+	numPacket := (fileSize + int64(ecK)*ctx.ECPacketSize - 1) / (int64(ecK) * ctx.ECPacketSize)
 	//fmt.Println(numPacket)
 	//创建channel
 	loadBufs := make([]chan []byte, ecN)
@@ -239,7 +234,7 @@ func ecWrite(file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []Uploa
 	}
 	hashs := make([]string, ecN)
 	//正式开始写入
-	go load(file, loadBufs[:ecN], ecK, numPacket*int64(ecK), ecPacketSize) //从本地文件系统加载数据
+	go load(file, loadBufs[:ecN], ecK, numPacket*int64(ecK), ctx.ECPacketSize) //从本地文件系统加载数据
 	go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
 
 	var wg sync.WaitGroup
@@ -253,8 +248,18 @@ func ecWrite(file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []Uploa
 	}
 	defer mutex.Unlock()
 	*/
-	for i := 0; i < ecN; i++ {
-		go send(nodes[i], encodeBufs[i], numPacket, &wg, hashs, i, uploadConfig)
+	for idx := 0; idx < ecN; idx++ {
+		i := idx
+		reader := channelBytesReader{
+			channel:     encodeBufs[idx],
+			packetCount: numPacket,
+		}
+		go func() {
+			// TODO 处理错误
+			fileHash, _ := uploadFile(&reader, nodes[i])
+			hashs[i] = fileHash
+			wg.Done()
+		}()
 	}
 	wg.Wait()
 
@@ -310,115 +315,26 @@ func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int6
 	}
 }
 
-func send(node UploadNodeInfo, inBuf chan []byte, numPacket int64, wg *sync.WaitGroup, hashs []string, idx int, uploadConfig UploadConfig) error {
-	// TODO zkx 先直接复制client\internal\task\upload_rep_objects.go中的uploadToNode和uploadToLocalIPFS来替代这部分逻辑
-	// 方便之后异步化处理
-	// uploadToAgent的逻辑反了，而且中间步骤失败，就必须打印日志后停止后续操作
+type channelBytesReader struct {
+	channel     chan []byte
+	packetCount int64
+	readingData []byte
+}
 
-	uploadToAgent := true
-	if uploadConfig.LocalIPFS != nil { //使用IPFS传输
-		//创建IPFS文件
-		logger.Infof("try to use local IPFS to upload block")
-		writer, err := uploadConfig.LocalIPFS.CreateFile()
-		if err != nil {
-			uploadToAgent = false
-			fmt.Errorf("create IPFS file failed, err: %w", err)
+func (r *channelBytesReader) Read(buf []byte) (int, error) {
+	if len(r.readingData) == 0 {
+		if r.packetCount == 0 {
+			return 0, io.EOF
 		}
-		//逐packet写进ipfs
-		for i := 0; int64(i) < numPacket; i++ {
-			buf := <-inBuf
-			reader := bytes.NewReader(buf)
-			_, err = io.Copy(writer, reader)
-			if err != nil {
-				uploadToAgent = false
-				fmt.Errorf("copying block data to IPFS file failed, err: %w", err)
-			}
-		}
-		//finish, 获取哈希
-		fileHash, err := writer.Finish()
-		if err != nil {
-			logger.Warnf("upload block to local IPFS failed, so try to upload by agent, err: %s", err.Error())
-			uploadToAgent = false
-			fmt.Errorf("finish writing blcok to IPFS failed, err: %w", err)
-		}
-		hashs[idx] = fileHash
-		if err != nil {
-		}
-		nodeID := node.Node.NodeID
-		// 然后让最近节点pin本地上传的文件
-		agentClient, err := agtmq.NewClient(nodeID, uploadConfig.MQ)
-		if err != nil {
-			uploadToAgent = false
-			fmt.Errorf("create agent client to %d failed, err: %w", nodeID, err)
-		}
-		defer agentClient.Close()
 
-		pinObjResp, err := agentClient.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
-		if err != nil {
-			uploadToAgent = false
-			fmt.Errorf("start pinning object: %w", err)
-		}
-		for {
-			waitResp, err := agentClient.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
-			if err != nil {
-				uploadToAgent = false
-				fmt.Errorf("waitting pinning object: %w", err)
-			}
-			if waitResp.IsComplete {
-				if waitResp.Error != "" {
-					uploadToAgent = false
-					fmt.Errorf("agent pinning object: %s", waitResp.Error)
-				}
-				break
-			}
-		}
-		if uploadToAgent == false {
-			return nil
-		}
+		r.readingData = <-r.channel
+		r.packetCount--
 	}
-	//////////////////////////////通过Agent上传
-	if uploadToAgent == true {
-		// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-		nodeIP := node.Node.ExternalIP
-		if node.IsSameLocation {
-			nodeIP = node.Node.LocalIP
 
-			logger.Infof("client and node %d are at the same location, use local ip\n", node.Node.NodeID)
-		}
+	len := copy(buf, r.readingData)
+	r.readingData = r.readingData[:len]
 
-		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, uploadConfig.GRPCPort)
-		grpcCon, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
-		}
-		defer grpcCon.Close()
-
-		client := agentcaller.NewFileTransportClient(grpcCon)
-		upload, err := mygrpc.SendFileAsStream(client)
-		if err != nil {
-			return fmt.Errorf("request to send file failed, err: %w", err)
-		}
-		// 发送文件数据
-		for i := 0; int64(i) < numPacket; i++ {
-			buf := <-inBuf
-			reader := bytes.NewReader(buf)
-			_, err = io.Copy(upload, reader)
-			if err != nil {
-				// 发生错误则关闭连接
-				upload.Abort(io.ErrClosedPipe)
-				return fmt.Errorf("copy block date to upload stream failed, err: %w", err)
-			}
-		}
-		// 发送EOF消息，并获得FileHash
-		fileHash, err := upload.Finish()
-		if err != nil {
-			upload.Abort(io.ErrClosedPipe)
-			return fmt.Errorf("send EOF failed, err: %w", err)
-		}
-		hashs[idx] = fileHash
-		wg.Done()
-	}
-	return nil
+	return len, nil
 }
 
 func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *sync.WaitGroup) {

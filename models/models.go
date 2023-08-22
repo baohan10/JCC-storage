@@ -81,3 +81,9 @@ func NewObjectECData(blocks []ObjectBlockData) ObjectECData {
 		Blocks: blocks,
 	}
 }
+
+type LocalMachineInfo struct {
+	NodeID     *int64 `json:"nodeID"`
+	ExternalIP string `json:"externalIP"`
+	LocalIP    string `json:"localIP"`
+}

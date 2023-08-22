@@ -7,19 +7,12 @@ import (
 	"os"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
-	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	myio "gitlink.org.cn/cloudream/common/utils/io"
-	agentcaller "gitlink.org.cn/cloudream/storage-common/pkgs/proto"
-	mygrpc "gitlink.org.cn/cloudream/storage-common/utils/grpc"
 )
 
 type ECObjectIterator struct {
@@ -28,31 +21,36 @@ type ECObjectIterator struct {
 	currentIndex int
 	inited       bool
 
-	coorCli        *coormq.Client
-	distlock       *distsvc.Service
-	ec             model.Ec
-	ecPacketSize   int64
-	downloadConfig DownloadConfig
-	cliLocation    model.Location
+	ec          model.Ec
+	downloadCtx *ECDownloadContext
+	cliLocation model.Location
 }
 
-func NewECObjectIterator(objects []model.Object, objectECData []models.ObjectECData, coorCli *coormq.Client, distlock *distsvc.Service, ec model.Ec, ecPacketSize int64, downloadConfig DownloadConfig) *ECObjectIterator {
+type ECDownloadContext struct {
+	*DownloadContext
+	ECPacketSize int64
+}
+
+func NewECObjectIterator(objects []model.Object, objectECData []models.ObjectECData, ec model.Ec, downloadCtx *ECDownloadContext) *ECObjectIterator {
 	return &ECObjectIterator{
-		objects:        objects,
-		objectECData:   objectECData,
-		coorCli:        coorCli,
-		distlock:       distlock,
-		ec:             ec,
-		ecPacketSize:   ecPacketSize,
-		downloadConfig: downloadConfig,
+		objects:      objects,
+		objectECData: objectECData,
+		ec:           ec,
+		downloadCtx:  downloadCtx,
 	}
 }
 
 func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
 	if !i.inited {
 		i.inited = true
 
-		findCliLocResp, err := i.coorCli.FindClientLocation(coormq.NewFindClientLocation(i.downloadConfig.ExternalIP))
+		findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
 		if err != nil {
 			return nil, fmt.Errorf("finding client location: %w", err)
 		}
@@ -63,12 +61,12 @@ func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 		return nil, ErrNoMoreItem
 	}
 
-	item, err := i.doMove()
+	item, err := i.doMove(coorCli)
 	i.currentIndex++
 	return item, err
 }
 
-func (iter *ECObjectIterator) doMove() (*IterDownloadingObject, error) {
+func (iter *ECObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloadingObject, error) {
 	obj := iter.objects[iter.currentIndex]
 	ecData := iter.objectECData[iter.currentIndex]
 
@@ -82,7 +80,7 @@ func (iter *ECObjectIterator) doMove() (*IterDownloadingObject, error) {
 	for i := 0; i < ecK; i++ {
 		hashs[i] = blocks[i].FileHash
 
-		getNodesResp, err := iter.coorCli.GetNodes(coormq.NewGetNodes(blocks[i].NodeIDs))
+		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(blocks[i].NodeIDs))
 		if err != nil {
 			return nil, fmt.Errorf("getting nodes: %w", err)
 		}
@@ -140,25 +138,10 @@ func (i *ECObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downlo
 	return entries[rand.Intn(len(entries))]
 }
 
-func (i *ECObjectIterator) downloadObject(nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
-	if i.downloadConfig.LocalIPFS != nil {
-		logger.Infof("try to use local IPFS to download file")
-
-		reader, err := i.downloadFromLocalIPFS(fileHash)
-		if err == nil {
-			return reader, nil
-		}
-
-		logger.Warnf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
-	}
-
-	return i.downloadFromNode(nodeID, nodeIP, fileHash)
-}
-
 func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, hashs []string) (io.ReadCloser, error) {
 	// TODO zkx 先试用同步方式实现逻辑，做好错误处理。同时也方便下面直接使用uploadToNode和uploadToLocalIPFS来优化代码结构
 	//wg := sync.WaitGroup{}
-	numPacket := (fileSize + int64(ecK)*iter.ecPacketSize - 1) / (int64(ecK) * iter.ecPacketSize)
+	numPacket := (fileSize + int64(ecK)*iter.downloadCtx.ECPacketSize - 1) / (int64(ecK) * iter.downloadCtx.ECPacketSize)
 	getBufs := make([]chan []byte, ecN)
 	decodeBufs := make([]chan []byte, ecK)
 	for i := 0; i < ecN; i++ {
@@ -167,8 +150,19 @@ func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int,
 	for i := 0; i < ecK; i++ {
 		decodeBufs[i] = make(chan []byte)
 	}
-	for i := 0; i < len(blockIDs); i++ {
-		go iter.get(hashs[i], nodeIPs[i], getBufs[blockIDs[i]], numPacket)
+	for idx := 0; idx < len(blockIDs); idx++ {
+		i := idx
+		go func() {
+			// TODO 处理错误
+			file, _ := downloadFile(iter.downloadCtx.DownloadContext, nodeIDs[i], nodeIPs[i], hashs[i])
+
+			for p := int64(0); p < numPacket; p++ {
+				buf := make([]byte, iter.downloadCtx.ECPacketSize)
+				// TODO 处理错误
+				io.ReadFull(file, buf)
+				getBufs[blockIDs[i]] <- buf
+			}
+		}()
 	}
 	print(numPacket)
 	go decode(getBufs[:], decodeBufs[:], blockIDs, ecK, numPacket)
@@ -187,74 +181,6 @@ func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int,
 		w.Close()
 	}()
 	return r, nil
-}
-
-func (iter *ECObjectIterator) get(fileHash string, nodeIP string, getBuf chan []byte, numPacket int64) error {
-	downloadFromAgent := false
-	//使用本地IPFS获取
-	if iter.downloadConfig.LocalIPFS != nil {
-		logger.Infof("try to use local IPFS to download file")
-		//获取IPFS的reader
-		reader, err := iter.downloadFromLocalIPFS(fileHash)
-		if err != nil {
-			downloadFromAgent = true
-			fmt.Errorf("read ipfs block failed, err: %w", err)
-		}
-		defer reader.Close()
-		for i := 0; int64(i) < numPacket; i++ {
-			buf := make([]byte, iter.ecPacketSize)
-			_, err := io.ReadFull(reader, buf)
-			if err != nil {
-				downloadFromAgent = true
-				fmt.Errorf("read file falied, err:%w", err)
-			}
-			getBuf <- buf
-		}
-		if downloadFromAgent == false {
-			close(getBuf)
-			return nil
-		}
-	} else {
-		downloadFromAgent = true
-	}
-	//从agent获取
-	if downloadFromAgent == true {
-		/*// 二次获取锁
-		mutex, err := reqbuilder.NewBuilder().
-			// 用于从IPFS下载文件
-			IPFS().ReadOneRep(nodeID, fileHash).
-			MutexLock(svc.distlock)
-		if err != nil {
-			return fmt.Errorf("acquire locks failed, err: %w", err)
-		}
-		defer mutex.Unlock()
-		*/
-		// 连接grpc
-		grpcAddr := fmt.Sprintf("%s:%d", nodeIP, iter.downloadConfig.GRPCPort)
-		conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
-		}
-		// 下载文件
-		client := agentcaller.NewFileTransportClient(conn)
-		reader, err := mygrpc.GetFileAsStream(client, fileHash)
-		if err != nil {
-			conn.Close()
-			return fmt.Errorf("request to get file failed, err: %w", err)
-		}
-		for index := 0; int64(index) < numPacket; index++ {
-			buf := make([]byte, iter.ecPacketSize)
-			_, _ = reader.Read(buf)
-			fmt.Println(buf)
-			fmt.Println(numPacket, "\n")
-			getBuf <- buf
-		}
-		close(getBuf)
-		reader.Close()
-		return nil
-	}
-	return nil
-
 }
 
 func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
@@ -295,45 +221,4 @@ func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int
 	for i := 0; i < len(outBufs); i++ {
 		close(outBufs[i])
 	}
-}
-
-func (i *ECObjectIterator) downloadFromNode(nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
-	// 二次获取锁
-	mutex, err := reqbuilder.NewBuilder().
-		// 用于从IPFS下载文件
-		IPFS().ReadOneRep(nodeID, fileHash).
-		MutexLock(i.distlock)
-	if err != nil {
-		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-
-	// 连接grpc
-	grpcAddr := fmt.Sprintf("%s:%d", nodeIP, i.downloadConfig.GRPCPort)
-	conn, err := grpc.Dial(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, fmt.Errorf("connect to grpc server at %s failed, err: %w", grpcAddr, err)
-	}
-
-	// 下载文件
-	client := agentcaller.NewFileTransportClient(conn)
-	reader, err := mygrpc.GetFileAsStream(client, fileHash)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("request to get file failed, err: %w", err)
-	}
-
-	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
-		conn.Close()
-		mutex.Unlock()
-	})
-	return reader, nil
-}
-
-func (i *ECObjectIterator) downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
-	reader, err := i.downloadConfig.LocalIPFS.OpenRead(fileHash)
-	if err != nil {
-		return nil, fmt.Errorf("read ipfs file failed, err: %w", err)
-	}
-
-	return reader, nil
 }

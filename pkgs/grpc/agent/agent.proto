@@ -2,7 +2,7 @@
 syntax = "proto3";
 
 // 生成的go文件包
-option go_package = "../proto;proto";//grpc这里生效了
+option go_package = ".;agent";//grpc这里生效了
 
 
 enum FileDataPacketType {
@@ -15,16 +15,16 @@ message FileDataPacket {
     bytes Data = 2;
 }
 
-message SendResp {
+message SendIPFSFileResp {
     string FileHash = 1;
 }
 
-message GetReq {
+message GetIPFSFileReq {
     string FileHash = 1;
 }
 
-service FileTransport {
-    rpc SendFile(stream FileDataPacket)returns(SendResp){}
-    rpc GetFile(GetReq)returns(stream FileDataPacket){}
+service Agent {
+    rpc SendIPFSFile(stream FileDataPacket)returns(SendIPFSFileResp){}
+    rpc GetIPFSFile(GetIPFSFileReq)returns(stream FileDataPacket){}
 }
 
