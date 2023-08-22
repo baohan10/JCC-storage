@@ -50,9 +50,9 @@ func (db *BucketDB) IsAvailable(ctx SQLContext, bucketID int64, userID int64) (b
 func (*BucketDB) GetUserBucket(ctx SQLContext, userID int64, bucketID int64) (model.Bucket, error) {
 	var ret model.Bucket
 	err := sqlx.Get(ctx, &ret,
-		"select Bucket.* from UserBucket, Bucket where UserID = ? and "+
-			"UserBucket.BucketID = Bucket.BucketID and "+
-			"Bucket.BucketID = ?", userID, bucketID)
+		"select Bucket.* from UserBucket, Bucket where UserID = ? and"+
+			" UserBucket.BucketID = Bucket.BucketID and"+
+			" Bucket.BucketID = ?", userID, bucketID)
 	return ret, err
 }
 

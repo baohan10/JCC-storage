@@ -80,9 +80,9 @@ func (*CacheDB) DeleteNodeAll(ctx SQLContext, nodeID int64) error {
 func (*CacheDB) FindCachingFileUserNodes(ctx SQLContext, userID int64, fileHash string) ([]model.Node, error) {
 	var x []model.Node
 	err := sqlx.Select(ctx, &x,
-		"select Node.* from Cache, UserNode, Node where "+
-			"Cache.FileHash=? and Cache.NodeID = UserNode.NodeID and "+
-			"UserNode.UserID = ? and UserNode.NodeID = Node.NodeID", fileHash, userID)
+		"select Node.* from Cache, UserNode, Node where"+
+			" Cache.FileHash=? and Cache.NodeID = UserNode.NodeID and"+
+			" UserNode.UserID = ? and UserNode.NodeID = Node.NodeID", fileHash, userID)
 	return x, err
 }
 

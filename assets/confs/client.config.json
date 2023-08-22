@@ -1,10 +1,13 @@
 {
-    "grpcPort": 5010,
+    "local": {
+        "localIP": "127.0.0.1",
+        "externalIP": "127.0.0.1"
+    },
+    "agentGRPC": {
+        "port": 5010
+    },
     "ecPacketSize": 10,
-    "ipfsPort": 10,
     "maxRepCount": 10,
-    "localIP": "127.0.0.1",
-    "externalIP": "127.0.0.1",
     "logger": {
         "output": "stdout",
         "level": "debug"

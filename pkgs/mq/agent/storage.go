@@ -7,9 +7,9 @@ import (
 )
 
 type StorageService interface {
-	StartStorageMovePackage(msg *StartStorageMovePackage) (*StartStorageMovePackageResp, *mq.CodeMessage)
+	StartStorageLoadPackage(msg *StartStorageLoadPackage) (*StartStorageLoadPackageResp, *mq.CodeMessage)
 
-	WaitStorageMovePackage(msg *WaitStorageMovePackage) (*WaitStorageMovePackageResp, *mq.CodeMessage)
+	WaitStorageLoadPackage(msg *WaitStorageLoadPackage) (*WaitStorageLoadPackageResp, *mq.CodeMessage)
 
 	StorageCheck(msg *StorageCheck) (*StorageCheckResp, *mq.CodeMessage)
 
@@ -19,59 +19,59 @@ type StorageService interface {
 }
 
 // 启动调度Package的任务
-var _ = Register(StorageService.StartStorageMovePackage)
+var _ = Register(StorageService.StartStorageLoadPackage)
 
-type StartStorageMovePackage struct {
+type StartStorageLoadPackage struct {
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 	StorageID int64 `json:"storageID"`
 }
-type StartStorageMovePackageResp struct {
+type StartStorageLoadPackageResp struct {
 	TaskID string `json:"taskID"`
 }
 
-func NewStartStorageMovePackage(userID int64, packageID int64, storageID int64) StartStorageMovePackage {
-	return StartStorageMovePackage{
+func NewStartStorageLoadPackage(userID int64, packageID int64, storageID int64) StartStorageLoadPackage {
+	return StartStorageLoadPackage{
 		UserID:    userID,
 		PackageID: packageID,
 		StorageID: storageID,
 	}
 }
-func NewStartStorageMovePackageResp(taskID string) StartStorageMovePackageResp {
-	return StartStorageMovePackageResp{
+func NewStartStorageLoadPackageResp(taskID string) StartStorageLoadPackageResp {
+	return StartStorageLoadPackageResp{
 		TaskID: taskID,
 	}
 }
-func (client *Client) StartStorageMovePackage(msg StartStorageMovePackage, opts ...mq.RequestOption) (*StartStorageMovePackageResp, error) {
-	return mq.Request[StartStorageMovePackageResp](client.rabbitCli, msg, opts...)
+func (client *Client) StartStorageLoadPackage(msg StartStorageLoadPackage, opts ...mq.RequestOption) (*StartStorageLoadPackageResp, error) {
+	return mq.Request[StartStorageLoadPackageResp](client.rabbitCli, msg, opts...)
 }
 
 // 等待调度Package的任务
-var _ = Register(StorageService.WaitStorageMovePackage)
+var _ = Register(StorageService.WaitStorageLoadPackage)
 
-type WaitStorageMovePackage struct {
+type WaitStorageLoadPackage struct {
 	TaskID        string `json:"taskID"`
 	WaitTimeoutMs int64  `json:"waitTimeout"`
 }
-type WaitStorageMovePackageResp struct {
+type WaitStorageLoadPackageResp struct {
 	IsComplete bool   `json:"isComplete"`
 	Error      string `json:"error"`
 }
 
-func NewWaitStorageMovePackage(taskID string, waitTimeoutMs int64) WaitStorageMovePackage {
-	return WaitStorageMovePackage{
+func NewWaitStorageLoadPackage(taskID string, waitTimeoutMs int64) WaitStorageLoadPackage {
+	return WaitStorageLoadPackage{
 		TaskID:        taskID,
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitStorageMovePackageResp(isComplete bool, err string) WaitStorageMovePackageResp {
-	return WaitStorageMovePackageResp{
+func NewWaitStorageLoadPackageResp(isComplete bool, err string) WaitStorageLoadPackageResp {
+	return WaitStorageLoadPackageResp{
 		IsComplete: isComplete,
 		Error:      err,
 	}
 }
-func (client *Client) WaitStorageMovePackage(msg WaitStorageMovePackage, opts ...mq.RequestOption) (*WaitStorageMovePackageResp, error) {
-	return mq.Request[WaitStorageMovePackageResp](client.rabbitCli, msg, opts...)
+func (client *Client) WaitStorageLoadPackage(msg WaitStorageLoadPackage, opts ...mq.RequestOption) (*WaitStorageLoadPackageResp, error) {
+	return mq.Request[WaitStorageLoadPackageResp](client.rabbitCli, msg, opts...)
 }
 
 // 检查Storage

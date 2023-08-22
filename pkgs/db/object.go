@@ -273,3 +273,8 @@ func (*ObjectDB) BatchDelete(ctx SQLContext, ids []int64) error {
 	_, err := ctx.Exec("delete from Object where ObjectID in (?)", ids)
 	return err
 }
+
+func (*ObjectDB) DeleteInPackage(ctx SQLContext, packageID int64) error {
+	_, err := ctx.Exec("delete from Object where PackageID = ?", packageID)
+	return err
+}

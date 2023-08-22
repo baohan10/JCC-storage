@@ -28,13 +28,18 @@ func (db *ObjectBlockDB) DeleteObjectAll(ctx SQLContext, objectID int64) error {
 	return err
 }
 
+func (db *ObjectBlockDB) DeleteInPackage(ctx SQLContext, packageID int64) error {
+	_, err := ctx.Exec("delete ObjectBlock from ObjectBlock inner join Object on ObjectBlock.ObjectID = Object.ObjectID where PackageID = ?", packageID)
+	return err
+}
+
 func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (int, error) {
 	var cnt int
 	err := sqlx.Get(ctx, &cnt,
-		"select count(FileHash) from ObjectBlock, Object, Package where FileHash = ? and "+
-			"ObjectBlock.ObjectID = Object.ObjectID and "+
-			"Object.PackageID = Package.PackageID and "+
-			"Package.State = ?", fileHash, consts.PackageStateNormal)
+		"select count(FileHash) from ObjectBlock, Object, Package where FileHash = ? and"+
+			" ObjectBlock.ObjectID = Object.ObjectID and"+
+			" Object.PackageID = Package.PackageID and"+
+			" Package.State = ?", fileHash, consts.PackageStateNormal)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
@@ -66,8 +71,8 @@ func (db *ObjectBlockDB) GetBatchBlocksNodes(ctx SQLContext, hashs [][]string) (
 		for j, h := range hs {
 			var x []model.Node
 			err = sqlx.Select(ctx, &x,
-				"select Node.* from Cache, Node where "+
-					"Cache.FileHash=? and Cache.NodeID = Node.NodeID and Cache.State=?", h, consts.CacheStatePinned)
+				"select Node.* from Cache, Node where"+
+					" Cache.FileHash=? and Cache.NodeID = Node.NodeID and Cache.State=?", h, consts.CacheStatePinned)
 			xx := make([]int64, len(x))
 			for ii := 0; ii < len(x); ii++ {
 				xx[ii] = x[ii].NodeID
@@ -97,9 +102,9 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 
 		err := sqlx.Select(ctx,
 			&tmpRets,
-			"select ObjectBlock.Index, ObjectBlock.FileHash, group_concat(NodeID) as NodeIDs from ObjectBlock "+
-				"left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
-				"where ObjectID = ? group by ObjectBlock.Index, ObjectBlock.FileHash",
+			"select ObjectBlock.Index, ObjectBlock.FileHash, group_concat(NodeID) as NodeIDs from ObjectBlock"+
+				" left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
+				" where ObjectID = ? group by ObjectBlock.Index, ObjectBlock.FileHash",
 			objID,
 		)
 		if err != nil {

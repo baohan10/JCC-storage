@@ -39,5 +39,5 @@ func (p *Pool) Acquire(ip string) (*PoolClient, error) {
 }
 
 func (p *Pool) Release(cli *PoolClient) {
-	cli.Close()
+	cli.Client.Close()
 }
