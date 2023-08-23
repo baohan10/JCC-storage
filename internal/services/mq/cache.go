@@ -10,23 +10,24 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-agent/internal/task"
+	mytask "gitlink.org.cn/cloudream/storage-agent/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/consts"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
 )
 
-func (svc *Service) CheckIPFS(msg *agtmq.CheckIPFS) (*agtmq.CheckIPFSResp, *mq.CodeMessage) {
+func (svc *Service) CheckCache(msg *agtmq.CheckCache) (*agtmq.CheckCacheResp, *mq.CodeMessage) {
 	ipfsCli, err := globals.IPFSPool.Acquire()
 	if err != nil {
 		logger.Warnf("new ipfs client: %s", err.Error())
-		return mq.ReplyFailed[agtmq.CheckIPFSResp](errorcode.OperationFailed, "new ipfs client failed")
+		return mq.ReplyFailed[agtmq.CheckCacheResp](errorcode.OperationFailed, "new ipfs client failed")
 	}
 	defer ipfsCli.Close()
 
 	filesMap, err := ipfsCli.GetPinnedFiles()
 	if err != nil {
 		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
-		return mq.ReplyFailed[agtmq.CheckIPFSResp](errorcode.OperationFailed, "get pinned files from ipfs failed")
+		return mq.ReplyFailed[agtmq.CheckCacheResp](errorcode.OperationFailed, "get pinned files from ipfs failed")
 	}
 
 	// TODO 根据锁定清单过滤被锁定的文件的记录
@@ -37,7 +38,7 @@ func (svc *Service) CheckIPFS(msg *agtmq.CheckIPFS) (*agtmq.CheckIPFSResp, *mq.C
 	}
 }
 
-func (svc *Service) checkIncrement(msg *agtmq.CheckIPFS, filesMap map[string]shell.PinInfo, ipfsCli *ipfs.PoolClient) (*agtmq.CheckIPFSResp, *mq.CodeMessage) {
+func (svc *Service) checkIncrement(msg *agtmq.CheckCache, filesMap map[string]shell.PinInfo, ipfsCli *ipfs.PoolClient) (*agtmq.CheckCacheResp, *mq.CodeMessage) {
 	var entries []agtmq.CheckIPFSRespEntry
 	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
@@ -61,7 +62,7 @@ func (svc *Service) checkIncrement(msg *agtmq.CheckIPFS, filesMap map[string]she
 
 			} else if cache.State == consts.CacheStateTemp {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
-					entries = append(entries, agtmq.NewCheckIPFSRespEntry(cache.FileHash, agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP))
+					entries = append(entries, agtmq.NewCheckCacheRespEntry(cache.FileHash, agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP))
 				}
 			}
 		}
@@ -69,10 +70,10 @@ func (svc *Service) checkIncrement(msg *agtmq.CheckIPFS, filesMap map[string]she
 
 	// 增量情况下，不需要对filesMap中没检查的记录进行处理
 
-	return mq.ReplyOK(agtmq.NewCheckIPFSResp(entries))
+	return mq.ReplyOK(agtmq.NewCheckCacheResp(entries))
 }
 
-func (svc *Service) checkComplete(msg *agtmq.CheckIPFS, filesMap map[string]shell.PinInfo, ipfsCli *ipfs.PoolClient) (*agtmq.CheckIPFSResp, *mq.CodeMessage) {
+func (svc *Service) checkComplete(msg *agtmq.CheckCache, filesMap map[string]shell.PinInfo, ipfsCli *ipfs.PoolClient) (*agtmq.CheckCacheResp, *mq.CodeMessage) {
 	var entries []agtmq.CheckIPFSRespEntry
 	for _, cache := range msg.Caches {
 		_, ok := filesMap[cache.FileHash]
@@ -96,7 +97,7 @@ func (svc *Service) checkComplete(msg *agtmq.CheckIPFS, filesMap map[string]shel
 
 			} else if cache.State == consts.CacheStateTemp {
 				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
-					entries = append(entries, agtmq.NewCheckIPFSRespEntry(cache.FileHash, agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP))
+					entries = append(entries, agtmq.NewCheckCacheRespEntry(cache.FileHash, agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP))
 				}
 			}
 		}
@@ -109,8 +110,44 @@ func (svc *Service) checkComplete(msg *agtmq.CheckIPFS, filesMap map[string]shel
 		if err != nil {
 			logger.WithField("FileHash", hash).Warnf("unpin file failed, err: %s", err.Error())
 		}
-		entries = append(entries, agtmq.NewCheckIPFSRespEntry(hash, agtmq.CHECK_IPFS_RESP_OP_CREATE_TEMP))
+		entries = append(entries, agtmq.NewCheckCacheRespEntry(hash, agtmq.CHECK_IPFS_RESP_OP_CREATE_TEMP))
 	}
 
-	return mq.ReplyOK(agtmq.NewCheckIPFSResp(entries))
+	return mq.ReplyOK(agtmq.NewCheckCacheResp(entries))
+}
+
+func (svc *Service) StartCacheMovePackage(msg *agtmq.StartCacheMovePackage) (*agtmq.StartCacheMovePackageResp, *mq.CodeMessage) {
+	tsk := svc.taskManager.StartNew(mytask.NewCacheMovePackage(msg.UserID, msg.PackageID))
+	return mq.ReplyOK(agtmq.NewStartCacheMovePackageResp(tsk.ID()))
+}
+
+func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtmq.WaitCacheMovePackageResp, *mq.CodeMessage) {
+	tsk := svc.taskManager.FindByID(msg.TaskID)
+	if tsk == nil {
+		return mq.ReplyFailed[agtmq.WaitCacheMovePackageResp](errorcode.TaskNotFound, "task not found")
+	}
+
+	if msg.WaitTimeoutMs == 0 {
+		tsk.Wait()
+
+		errMsg := ""
+		if tsk.Error() != nil {
+			errMsg = tsk.Error().Error()
+		}
+
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg))
+
+	} else {
+		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
+
+			errMsg := ""
+			if tsk.Error() != nil {
+				errMsg = tsk.Error().Error()
+			}
+
+			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg))
+		}
+
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, ""))
+	}
 }
