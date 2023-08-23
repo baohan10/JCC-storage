@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/storage-common/globals"
 )
 
 type IPFSRead struct {
@@ -61,7 +62,19 @@ func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
 	}
 	defer outputFile.Close()
 
-	rd, err := ctx.ipfs.OpenRead(t.FileHash)
+	ipfsCli, err := globals.IPFSPool.Acquire()
+	if err != nil {
+		err := fmt.Errorf("new ipfs client: %w", err)
+		log.Warn(err.Error())
+
+		complete(err, CompleteOption{
+			RemovingDelay: time.Minute,
+		})
+		return
+	}
+	defer ipfsCli.Close()
+
+	rd, err := ipfsCli.OpenRead(t.FileHash)
 	if err != nil {
 		err := fmt.Errorf("read ipfs file failed, err: %w", err)
 		log.WithField("FileHash", t.FileHash).Warn(err.Error())

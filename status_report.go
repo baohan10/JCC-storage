@@ -7,13 +7,12 @@ import (
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
 	"gitlink.org.cn/cloudream/storage-common/consts"
-	coorcli "gitlink.org.cn/cloudream/storage-common/pkgs/mq/client/coordinator"
-	coormsg "gitlink.org.cn/cloudream/storage-common/pkgs/mq/message/coordinator"
+	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 	"gitlink.org.cn/cloudream/storage-common/utils"
 )
 
 func reportStatus(wg *sync.WaitGroup) {
-	coorCli, err := coorcli.NewClient(&config.Cfg().RabbitMQ)
+	coorCli, err := coormq.NewClient(&config.Cfg().RabbitMQ)
 	if err != nil {
 		wg.Done()
 		log.Error("new coordinator client failed, err: %w", err)
@@ -56,7 +55,7 @@ func reportStatus(wg *sync.WaitGroup) {
 
 		//发送心跳
 		// TODO 由于数据结构未定，暂时不发送真实数据
-		coorCli.AgentStatusReport(coormsg.NewAgentStatusReportBody(config.Cfg().ID, []int64{}, []int{}, ipfsStatus, localDirStatus))
+		coorCli.AgentStatusReport(coormq.NewAgentStatusReportBody(config.Cfg().ID, []int64{}, []int{}, ipfsStatus, localDirStatus))
 
 		time.Sleep(time.Minute * 5)
 	}
