@@ -10,7 +10,7 @@ type Service interface {
 
 	StorageService
 
-	IPFSService
+	CacheService
 
 	AgentService
 }

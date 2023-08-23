@@ -17,6 +17,7 @@ type DB struct {
 type SQLContext interface {
 	sqlx.Queryer
 	sqlx.Execer
+	sqlx.Ext
 }
 
 func NewDB(cfg *config.Config) (*DB, error) {
