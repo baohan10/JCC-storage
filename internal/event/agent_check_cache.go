@@ -133,7 +133,7 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	}
 	defer agentClient.Close()
 
-	checkResp, err := agentClient.CheckIPFS(agtmq.NewCheckIPFS(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agentClient.CheckCache(agtmq.NewCheckCache(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("checking ipfs: %s", err.Error())
 		return
