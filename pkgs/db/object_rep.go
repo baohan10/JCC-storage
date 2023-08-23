@@ -51,13 +51,18 @@ func (db *ObjectRepDB) Delete(ctx SQLContext, objectID int64) error {
 	return err
 }
 
+func (db *ObjectRepDB) DeleteInPackage(ctx SQLContext, packageID int64) error {
+	_, err := ctx.Exec("delete ObjectRep from ObjectRep inner join Object on ObjectRep.ObjectID = Object.ObjectID where PackageID = ?", packageID)
+	return err
+}
+
 func (db *ObjectRepDB) GetFileMaxRepCount(ctx SQLContext, fileHash string) (int, error) {
 	var maxRepCnt *int
 	err := sqlx.Get(ctx, &maxRepCnt,
-		"select max(RepCount) from ObjectRep, Object, Package where FileHash = ? and "+
-			"ObjectRep.ObjectID = Object.ObjectID and "+
-			"Object.PackageID = Package.PackageID and "+
-			"Package.State = ?", fileHash, consts.PackageStateNormal)
+		"select json_extract(Redundancy, '$.info.repCount') from ObjectRep, Object, Package where FileHash = ? and"+
+			" ObjectRep.ObjectID = Object.ObjectID and"+
+			" Object.PackageID = Package.PackageID and"+
+			" Package.State = ?", fileHash, consts.PackageStateNormal)
 
 	if err == sql.ErrNoRows {
 		return 0, nil
@@ -83,10 +88,10 @@ func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) (
 
 	err := sqlx.Select(ctx,
 		&tmpRets,
-		"select Object.ObjectID, ObjectRep.FileHash, group_concat(NodeID) as NodeIDs from Object "+
-			"left join ObjectRep on Object.ObjectID = ObjectRep.ObjectID "+
-			"left join Cache on ObjectRep.FileHash = Cache.FileHash"+
-			"where PackageID = ? group by Object.ObjectID order by Object.ObjectID asc",
+		"select Object.ObjectID, ObjectRep.FileHash, group_concat(NodeID) as NodeIDs from Object"+
+			" left join ObjectRep on Object.ObjectID = ObjectRep.ObjectID"+
+			" left join Cache on ObjectRep.FileHash = Cache.FileHash"+
+			" where PackageID = ? group by Object.ObjectID order by Object.ObjectID asc",
 		packageID,
 	)
 	if err != nil {

@@ -16,6 +16,8 @@ import (
 )
 
 type ECObjectIterator struct {
+	OnClosing func()
+
 	objects      []model.Object
 	objectECData []models.ObjectECData
 	currentIndex int
@@ -41,6 +43,7 @@ func NewECObjectIterator(objects []model.Object, objectECData []models.ObjectECD
 }
 
 func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
+	// TODO 加锁
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -123,7 +126,9 @@ func (iter *ECObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloadi
 }
 
 func (i *ECObjectIterator) Close() {
-
+	if i.OnClosing != nil {
+		i.OnClosing()
+	}
 }
 
 // chooseDownloadNode 选择一个下载节点

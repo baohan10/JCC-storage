@@ -70,10 +70,10 @@ func (db *PackageDB) IsAvailable(ctx SQLContext, userID int64, packageID int64) 
 func (db *PackageDB) GetUserPackage(ctx SQLContext, userID int64, packageID int64) (model.Package, error) {
 	var ret model.Package
 	err := sqlx.Get(ctx, &ret,
-		"select Package.* from Package, UserBucket where "+
-			"Package.PackageID = ? and "+
-			"Package.BucketID = UserBucket.BucketID and "+
-			"UserBucket.UserID = ?",
+		"select Package.* from Package, UserBucket where"+
+			" Package.PackageID = ? and"+
+			" Package.BucketID = UserBucket.BucketID and"+
+			" UserBucket.UserID = ?",
 		packageID, userID)
 	return ret, err
 }
@@ -129,16 +129,19 @@ func (db *PackageDB) SoftDelete(ctx SQLContext, packageID int64) error {
 	}
 
 	if obj.Redundancy.Type == models.RedundancyRep {
-		// TODO2
-		//err = db.ObjectRep().Delete(ctx, objectID)
-		//if err != nil {
-		//	return fmt.Errorf("delete from object rep failed, err: %w", err)
-		//}
+		err = db.ObjectRep().DeleteInPackage(ctx, packageID)
+		if err != nil {
+			return fmt.Errorf("delete from object rep failed, err: %w", err)
+		}
 	} else {
-		//err = db.ObjectBlock().Delete(ctx, objectID)
-		//if err != nil {
-		//	return fmt.Errorf("delete from object rep failed, err: %w", err)
-		//}
+		err = db.ObjectBlock().DeleteInPackage(ctx, packageID)
+		if err != nil {
+			return fmt.Errorf("delete from object rep failed, err: %w", err)
+		}
+	}
+
+	if err := db.Object().DeleteInPackage(ctx, packageID); err != nil {
+		return fmt.Errorf("deleting objects in package: %w", err)
 	}
 
 	_, err = db.StoragePackage().SetAllPackageDeleted(ctx, packageID)

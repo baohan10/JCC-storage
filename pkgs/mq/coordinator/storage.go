@@ -8,7 +8,7 @@ import (
 type StorageService interface {
 	GetStorageInfo(msg *GetStorageInfo) (*GetStorageInfoResp, *mq.CodeMessage)
 
-	PackageMovedToStorage(msg *PackageMovedToStorage) (*PackageMovedToStorageResp, *mq.CodeMessage)
+	StoragePackageLoaded(msg *StoragePackageLoaded) (*StoragePackageLoadedResp, *mq.CodeMessage)
 }
 
 // 获取Storage信息
@@ -44,25 +44,25 @@ func (client *Client) GetStorageInfo(msg GetStorageInfo) (*GetStorageInfoResp, e
 }
 
 // 提交调度记录
-var _ = Register(StorageService.PackageMovedToStorage)
+var _ = Register(StorageService.StoragePackageLoaded)
 
-type PackageMovedToStorage struct {
+type StoragePackageLoaded struct {
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 	StorageID int64 `json:"storageID"`
 }
-type PackageMovedToStorageResp struct{}
+type StoragePackageLoadedResp struct{}
 
-func NewPackageMovedToStorage(userID int64, packageID int64, stgID int64) PackageMovedToStorage {
-	return PackageMovedToStorage{
+func NewStoragePackageLoaded(userID int64, packageID int64, stgID int64) StoragePackageLoaded {
+	return StoragePackageLoaded{
 		UserID:    userID,
 		PackageID: packageID,
 		StorageID: stgID,
 	}
 }
-func NewPackageMovedToStorageResp() PackageMovedToStorageResp {
-	return PackageMovedToStorageResp{}
+func NewStoragePackageLoadedResp() StoragePackageLoadedResp {
+	return StoragePackageLoadedResp{}
 }
-func (client *Client) PackageMovedToStorage(msg PackageMovedToStorage) (*PackageMovedToStorageResp, error) {
-	return mq.Request[PackageMovedToStorageResp](client.rabbitCli, msg)
+func (client *Client) StoragePackageLoaded(msg StoragePackageLoaded) (*StoragePackageLoadedResp, error) {
+	return mq.Request[StoragePackageLoadedResp](client.rabbitCli, msg)
 }

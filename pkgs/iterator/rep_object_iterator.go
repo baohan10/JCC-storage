@@ -6,19 +6,21 @@ import (
 	"math/rand"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/pkgs/distlock/reqbuilder"
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
 )
 
 type DownloadingObjectIterator = Iterator[*IterDownloadingObject]
 
 type RepObjectIterator struct {
+	OnClosing func()
+
 	objects       []model.Object
 	objectRepData []models.ObjectRepData
 	currentIndex  int
@@ -51,6 +53,7 @@ func NewRepObjectIterator(objects []model.Object, objectRepData []models.ObjectR
 }
 
 func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
+	// TODO 加锁
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -116,7 +119,9 @@ func (i *RepObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloading
 }
 
 func (i *RepObjectIterator) Close() {
-
+	if i.OnClosing != nil {
+		i.OnClosing()
+	}
 }
 
 // chooseDownloadNode 选择一个下载节点
@@ -135,7 +140,7 @@ func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash st
 	if globals.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to download file")
 
-		reader, err := downloadFromLocalIPFS(fileHash)
+		reader, err := downloadFromLocalIPFS(ctx, fileHash)
 		if err == nil {
 			return reader, nil
 		}
@@ -173,7 +178,22 @@ func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, fileHas
 	return reader, nil
 }
 
-func downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
+func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser, error) {
+	onClosed := func() {}
+	if globals.Local.NodeID != nil {
+		// 二次获取锁
+		mutex, err := reqbuilder.NewBuilder().
+			// 用于从IPFS下载文件
+			IPFS().ReadOneRep(*globals.Local.NodeID, fileHash).
+			MutexLock(ctx.Distlock)
+		if err != nil {
+			return nil, fmt.Errorf("acquire locks failed, err: %w", err)
+		}
+		onClosed = func() {
+			mutex.Unlock()
+		}
+	}
+
 	ipfsCli, err := globals.IPFSPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new ipfs client: %w", err)
@@ -184,5 +204,8 @@ func downloadFromLocalIPFS(fileHash string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("read ipfs file failed, err: %w", err)
 	}
 
+	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
+		onClosed()
+	})
 	return reader, nil
 }

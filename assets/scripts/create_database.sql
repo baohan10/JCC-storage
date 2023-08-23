@@ -106,7 +106,7 @@ create table Package (
 create table Object (
   ObjectID int not null auto_increment primary key comment '对象ID',
   PackageID int not null comment '包ID',
-  Path varchar(1000) not null comment '对象路径',
+  Path varchar(500) not null comment '对象路径',
   Size bigint not null comment '对象大小(Byte)',
   UNIQUE KEY PackagePath (PackageID, Path)
 ) comment = '对象表';
@@ -118,9 +118,9 @@ create table ObjectRep (
 
 create table ObjectBlock (
   ObjectID int not null comment '对象ID',
-  Index int not null comment '编码块在条带内的排序',
+  `Index` int not null comment '编码块在条带内的排序',
   FileHash varchar(100) not null comment '编码块哈希值',
-  primary key(ObjectID, Index)
+  primary key(ObjectID, `Index`)
 ) comment = '对象编码块表';
 
 create table Cache (

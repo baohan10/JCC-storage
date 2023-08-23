@@ -11,6 +11,8 @@ type Service interface {
 
 	BucketService
 
+	CacheService
+
 	CommonService
 
 	NodeService

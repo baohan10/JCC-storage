@@ -34,7 +34,7 @@ func (*StoragePackageDB) GetAllByStorageID(ctx SQLContext, storageID int64) ([]m
 	return ret, err
 }
 
-func (*StoragePackageDB) MovePackageTo(ctx SQLContext, packageID int64, storageID int64, userID int64) error {
+func (*StoragePackageDB) LoadPackage(ctx SQLContext, packageID int64, storageID int64, userID int64) error {
 	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", packageID, storageID, userID, consts.StoragePackageStateNormal)
 	return err
 }
@@ -108,8 +108,8 @@ func (*StoragePackageDB) Delete(ctx SQLContext, storageID int64, packageID int64
 func (*StoragePackageDB) FindPackageStorages(ctx SQLContext, packageID int64) ([]model.Storage, error) {
 	var ret []model.Storage
 	err := sqlx.Select(ctx, &ret,
-		"select Storage.* from StoragePackage, Storage where PackageID = ? and "+
-			"StoragePackage.StorageID = Storage.StorageID",
+		"select Storage.* from StoragePackage, Storage where PackageID = ? and"+
+			" StoragePackage.StorageID = Storage.StorageID",
 		packageID,
 	)
 	return ret, err

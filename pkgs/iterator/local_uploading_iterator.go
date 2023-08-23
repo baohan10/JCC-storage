@@ -52,7 +52,7 @@ func (i *LocalUploadingIterator) doMove() (*IterUploadingObject, error) {
 	}
 
 	return &IterUploadingObject{
-		Path: strings.TrimPrefix(filepath.ToSlash(path), i.pathRoot),
+		Path: strings.TrimPrefix(filepath.ToSlash(path), i.pathRoot+"/"),
 		Size: info.Size(),
 		File: file,
 	}, nil

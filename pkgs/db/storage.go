@@ -31,10 +31,10 @@ func (db *StorageDB) BatchGetAllStorageIDs(ctx SQLContext, start int, count int)
 func (db *StorageDB) IsAvailable(ctx SQLContext, userID int64, storageID int64) (bool, error) {
 	var stgID int64
 	err := sqlx.Get(ctx, &stgID,
-		"select Storage.StorageID from Storage, UserStorage where "+
-			"Storage.StorageID = ? and "+
-			"Storage.StorageID = UserStorage.StorageID and "+
-			"UserStorage.UserID = ?",
+		"select Storage.StorageID from Storage, UserStorage where"+
+			" Storage.StorageID = ? and"+
+			" Storage.StorageID = UserStorage.StorageID and"+
+			" UserStorage.UserID = ?",
 		storageID, userID)
 
 	if err == sql.ErrNoRows {

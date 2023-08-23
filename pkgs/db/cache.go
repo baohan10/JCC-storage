@@ -50,6 +50,26 @@ func (*CacheDB) CreatePinned(ctx SQLContext, fileHash string, nodeID int64, prio
 	return err
 }
 
+func (*CacheDB) BatchCreatePinned(ctx SQLContext, fileHashes []string, nodeID int64, priority int) error {
+	var caches []model.Cache
+	var nowTime = time.Now()
+	for _, hash := range fileHashes {
+		caches = append(caches, model.Cache{
+			FileHash:  hash,
+			NodeID:    nodeID,
+			State:     consts.CacheStatePinned,
+			CacheTime: nowTime,
+			Priority:  priority,
+		})
+	}
+
+	_, err := sqlx.NamedExec(ctx, "insert into Cache(FileHash,NodeID,State,CacheTime,Priority) values(:FileHash,:NodeID,:State,:CacheTime,:Priority)"+
+		" on duplicate key update State=values(State), CacheTime=values(CacheTime), Priority=values(Priority)",
+		caches,
+	)
+	return err
+}
+
 // Create 创建一条Temp状态的缓存记录，如果已存在则不产生效果
 func (*CacheDB) CreateTemp(ctx SQLContext, fileHash string, nodeID int64) error {
 	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?)", fileHash, nodeID, consts.CacheStateTemp, time.Now())
@@ -80,9 +100,9 @@ func (*CacheDB) DeleteNodeAll(ctx SQLContext, nodeID int64) error {
 func (*CacheDB) FindCachingFileUserNodes(ctx SQLContext, userID int64, fileHash string) ([]model.Node, error) {
 	var x []model.Node
 	err := sqlx.Select(ctx, &x,
-		"select Node.* from Cache, UserNode, Node where "+
-			"Cache.FileHash=? and Cache.NodeID = UserNode.NodeID and "+
-			"UserNode.UserID = ? and UserNode.NodeID = Node.NodeID", fileHash, userID)
+		"select Node.* from Cache, UserNode, Node where"+
+			" Cache.FileHash=? and Cache.NodeID = UserNode.NodeID and"+
+			" UserNode.UserID = ? and UserNode.NodeID = Node.NodeID", fileHash, userID)
 	return x, err
 }
 

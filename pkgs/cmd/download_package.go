@@ -133,7 +133,14 @@ func (t *DownloadPackage) writeObject(objIter iterator.DownloadingObjectIterator
 		}
 		defer objInfo.File.Close()
 
-		outputFile, err := os.Create(filepath.Join(t.outputPath, objInfo.Object.Path))
+		fullPath := filepath.Join(t.outputPath, objInfo.Object.Path)
+
+		dirPath := filepath.Dir(fullPath)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return fmt.Errorf("creating object dir: %w", err)
+		}
+
+		outputFile, err := os.Create(fullPath)
 		if err != nil {
 			return fmt.Errorf("creating object file: %w", err)
 		}

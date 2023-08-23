@@ -1,10 +1,15 @@
 {
     "id": 1,
-    "grpcListenAddress": "127.0.0.1:5010",
-    "grpcPort": 5010,
+    "local": {
+        "nodeID": 1,
+        "localIP": "127.0.0.1",
+        "externalIP": "127.0.0.1"
+    },
+    "grpc": {
+        "ip": "127.0.0.1",
+        "port": 5010
+    },
     "ecPacketSize": 10,
-    "localIP": "127.0.0.1",
-    "externalIP": "127.0.0.1",
     "storageBaseDir": ".",
     "tempFileLifetime": 3600,
     "logger": {

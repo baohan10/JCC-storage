@@ -13,6 +13,7 @@ import (
 
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
@@ -60,36 +61,25 @@ func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackage
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
-	// TODO2
-	/*
-		reqBlder := reqbuilder.NewBuilder()
-		for _, uploadObject := range t.Objects {
-			reqBlder.Metadata().
-				// 用于防止创建了多个同名对象
-				Object().CreateOne(t.bucketID, uploadObject.ObjectName)
-		}
-
-		// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
-		if t.uploadConfig.LocalNodeID != nil {
-			reqBlder.IPFS().CreateAnyRep(*t.uploadConfig.LocalNodeID)
-		}
-
-		mutex, err := reqBlder.
-			Metadata().
-			// 用于判断用户是否有桶的权限
-			UserBucket().ReadOne(t.userID, t.bucketID).
-			// 用于查询可用的上传节点
-			Node().ReadAny().
-			// 用于设置Rep配置
-			ObjectRep().CreateAny().
-			// 用于创建Cache记录
-			Cache().CreateAny().
-			MutexLock(ctx.DistLock())
-		if err != nil {
-			return fmt.Errorf("acquire locks failed, err: %w", err)
-		}
-		defer mutex.Unlock()
-	*/
+	mutex, err := reqbuilder.NewBuilder().
+		Metadata().
+		// 用于判断用户是否有桶的权限
+		UserBucket().ReadOne(t.userID, t.bucketID).
+		// 用于查询可用的上传节点
+		Node().ReadAny().
+		// 用于创建包信息
+		Package().CreateOne(t.bucketID, t.name).
+		// 用于创建包中的文件的信息
+		Object().CreateAny().
+		// 用于设置EC配置
+		ObjectBlock().CreateAny().
+		// 用于创建Cache记录
+		Cache().CreateAny().
+		MutexLock(ctx.Distlock)
+	if err != nil {
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer mutex.Unlock()
 
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
 		models.NewTypedRedundancyInfo(models.RedundancyRep, t.redundancy)))
@@ -119,17 +109,25 @@ func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackage
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	/*
-		TODO2
-		// 防止上传的副本被清除
-		mutex2, err := reqbuilder.NewBuilder().
-			IPFS().CreateAnyRep(uploadNode.Node.NodeID).
-			MutexLock(ctx.DistLock())
-		if err != nil {
-			return fmt.Errorf("acquire locks failed, err: %w", err)
+	// 给上传节点的IPFS加锁
+	ipfsReqBlder := reqbuilder.NewBuilder()
+	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
+	if globals.Local.NodeID != nil {
+		ipfsReqBlder.IPFS().CreateAnyRep(*globals.Local.NodeID)
+	}
+	for _, node := range uploadNodeInfos {
+		if globals.Local.NodeID != nil && node.Node.NodeID == *globals.Local.NodeID {
+			continue
 		}
-		defer mutex2.Unlock()
-	*/
+
+		ipfsReqBlder.IPFS().CreateAnyRep(node.Node.NodeID)
+	}
+	// 防止上传的副本被清除
+	ipfsMutex, err := ipfsReqBlder.MutexLock(ctx.Distlock)
+	if err != nil {
+		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
+	}
+	defer ipfsMutex.Unlock()
 
 	rets, err := uploadAndUpdateECPackage(ctx, createPkgResp.PackageID, t.objectIter, uploadNodeInfos, getECResp.Config)
 	if err != nil {
@@ -239,15 +237,7 @@ func ecWrite(ctx *UpdateECPackageContext, file io.ReadCloser, fileSize int64, ec
 
 	var wg sync.WaitGroup
 	wg.Add(ecN)
-	/*mutex, err := reqbuilder.NewBuilder().
-		// 防止上传的副本被清除
-		IPFS().CreateAnyRep(node.ID).
-		MutexLock(svc.distlock)
-	if err != nil {
-		return fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-	defer mutex.Unlock()
-	*/
+
 	for idx := 0; idx < ecN; idx++ {
 		i := idx
 		reader := channelBytesReader{
