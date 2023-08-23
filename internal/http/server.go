@@ -39,8 +39,12 @@ func (s *Server) Serve() error {
 
 func (s *Server) initRouters() {
 	s.engine.GET("/object/download", s.ObjectSvc().Download)
+
 	s.engine.POST("/package/upload", s.PackageSvc().Upload)
 	s.engine.POST("/package/delete", s.PackageSvc().Delete)
 
 	s.engine.POST("/storage/loadPackage", s.StorageSvc().LoadPackage)
+	s.engine.POST("/storage/createPackage", s.StorageSvc().CreatePackage)
+
+	s.engine.POST("/cache/movePackage", s.CacheSvc().MovePackage)
 }
