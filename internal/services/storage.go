@@ -30,7 +30,6 @@ func (svc *StorageService) WaitStorageLoadPackage(taskID string, waitTimeout tim
 		return true, tsk.Error()
 	}
 	return false, nil
-
 }
 
 func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, storageID int64) error {
