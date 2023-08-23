@@ -2,6 +2,8 @@ package services
 
 import (
 	"fmt"
+
+	"gitlink.org.cn/cloudream/storage-common/globals"
 )
 
 type ScannerService struct {
@@ -13,7 +15,13 @@ func (svc *Service) ScannerSvc() *ScannerService {
 }
 
 func (svc *ScannerService) PostEvent(event any, isEmergency bool, dontMerge bool) error {
-	err := svc.scanner.PostEvent(event, isEmergency, dontMerge)
+	scCli, err := globals.ScannerMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new scacnner client: %w", err)
+	}
+	defer scCli.Close()
+
+	err = scCli.PostEvent(event, isEmergency, dontMerge)
 	if err != nil {
 		return fmt.Errorf("request to scanner failed, err: %w", err)
 	}

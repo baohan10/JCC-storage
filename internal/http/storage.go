@@ -19,35 +19,35 @@ func (s *Server) StorageSvc() *StorageService {
 	}
 }
 
-type StorageMovePackageReq struct {
+type StorageLoadPackageReq struct {
 	UserID    *int64 `json:"userID" binding:"required"`
 	PackageID *int64 `json:"packageID" binding:"required"`
 	StorageID *int64 `json:"storageID" binding:"required"`
 }
 
-func (s *StorageService) MovePackage(ctx *gin.Context) {
-	log := logger.WithField("HTTP", "Storage.MovePackage")
+func (s *StorageService) LoadPackage(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Storage.LoadPackage")
 
-	var req StorageMovePackageReq
+	var req StorageLoadPackageReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	taskID, err := s.svc.StorageSvc().StartStorageMovePackage(*req.UserID, *req.PackageID, *req.StorageID)
+	taskID, err := s.svc.StorageSvc().StartStorageLoadPackage(*req.UserID, *req.PackageID, *req.StorageID)
 	if err != nil {
-		log.Warnf("start storage move package: %s", err.Error())
-		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage move package failed"))
+		log.Warnf("start storage load package: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage load package failed"))
 		return
 	}
 
 	for {
-		complete, err := s.svc.StorageSvc().WaitStorageMovePackage(taskID, time.Second*10)
+		complete, err := s.svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
 		if complete {
 			if err != nil {
-				log.Warnf("moving complete with: %s", err.Error())
-				ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage move package failed"))
+				log.Warnf("loading complete with: %s", err.Error())
+				ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage load package failed"))
 				return
 			}
 
@@ -56,8 +56,8 @@ func (s *StorageService) MovePackage(ctx *gin.Context) {
 		}
 
 		if err != nil {
-			log.Warnf("wait moving: %s", err.Error())
-			ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage move package failed"))
+			log.Warnf("wait loadding: %s", err.Error())
+			ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage load package failed"))
 			return
 		}
 	}

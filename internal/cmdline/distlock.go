@@ -6,8 +6,8 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/common/pkgs/distlock/lockprovider"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/lockprovider"
 )
 
 func DistLockLock(ctx CommandContext, lockData []string) error {
@@ -22,7 +22,7 @@ func DistLockLock(ctx CommandContext, lockData []string) error {
 		req.Locks = append(req.Locks, l)
 	}
 
-	reqID, err := ctx.Cmdline.DistLock.Acquire(req, service.AcquireOption{
+	reqID, err := ctx.Cmdline.Svc.DistLock.Acquire(req, service.AcquireOption{
 		RetryTimeMs: 5000,
 	})
 	if err != nil {
@@ -62,7 +62,7 @@ func parseOneLock(lockData string) (distlock.Lock, error) {
 }
 
 func DistLockUnlock(ctx CommandContext, reqID string) error {
-	return ctx.Cmdline.DistLock.Release(reqID)
+	return ctx.Cmdline.Svc.DistLock.Release(reqID)
 }
 
 func init() {
