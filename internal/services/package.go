@@ -219,30 +219,30 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	return nil
 }
 
-func (svc *PackageService) GetCacheNodesByPackage(userID int64, packageID int64) ([]int64, string, error) {
+func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) ([]int64, string, error) {
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, "", fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer coorCli.Close()
 
-	resp, err := coorCli.GetCacheNodesByPackage(coormq.NewGetCacheNodesByPackage(userID, packageID))
+	resp, err := coorCli.GetPackageCachedNodes(coormq.NewGetPackageCachedNodes(userID, packageID))
 	if err != nil {
-		return nil, "", fmt.Errorf("get node by package: %w", err)
+		return nil, "", fmt.Errorf("get package cached nodes: %w", err)
 	}
 	return resp.NodeIDs, resp.RedundancyType, nil
 }
 
-func (svc *PackageService) GetStorageNodesByPackage(userID int64, packageID int64) ([]int64, error) {
+func (svc *PackageService) GetLoadedNodes(userID int64, packageID int64) ([]int64, error) {
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer coorCli.Close()
 
-	resp, err := coorCli.GetStorageNodesByPackage(coormq.NewGetStorageNodesByPackage(userID, packageID))
+	resp, err := coorCli.GetPackageLoadedNodes(coormq.NewGetPackageLoadedNodes(userID, packageID))
 	if err != nil {
-		return nil, fmt.Errorf("get node by package: %w", err)
+		return nil, fmt.Errorf("get package loaded nodes: %w", err)
 	}
 	return resp.NodeIDs, nil
 }

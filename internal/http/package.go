@@ -172,65 +172,65 @@ func (s *PackageService) Delete(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, OK(nil))
 }
 
-type PackageGetCacheNodeIDs struct {
+type GetCachedNodesReq struct {
 	UserID    *int64 `json:"userID" binding:"required"`
 	PackageID *int64 `json:"packageID" binding:"required"`
 }
-type GetCacheNodesByPackageResp struct {
+type GetCachedNodesResp struct {
 	NodeIDs       []int64 `json:"nodeIDs"`
 	RedunancyType string  `json:"redunancyType,string"`
 }
 
-func (s *PackageService) GetCacheNodeIDs(ctx *gin.Context) {
-	log := logger.WithField("HTTP", "Package.GetCacheNodeIDs")
+func (s *PackageService) GetCachedNodes(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.GetCachedNodes")
 
-	var req PackageGetCacheNodeIDs
+	var req GetCachedNodesReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	nodeIDs, redunancyType, err := s.svc.PackageSvc().GetCacheNodesByPackage(*req.UserID, *req.PackageID)
+	nodeIDs, redunancyType, err := s.svc.PackageSvc().GetCachedNodes(*req.UserID, *req.PackageID)
 	if err != nil {
-		log.Warnf("get cache nodes by packageID failed: %s", err.Error())
-		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get cache nodes by packageID failed"))
+		log.Warnf("get package cached nodes failed: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package cached nodes failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(GetCacheNodesByPackageResp{
+	ctx.JSON(http.StatusOK, OK(GetCachedNodesResp{
 		NodeIDs:       nodeIDs,
 		RedunancyType: redunancyType,
 	}))
 }
 
-type PackageGetStorageNodeIDs struct {
+type GetLoadedNodesReq struct {
 	UserID    *int64 `json:"userID" binding:"required"`
 	PackageID *int64 `json:"packageID" binding:"required"`
 }
 
-type GetStorageNodesByPackageResp struct {
+type GetLoadedNodesResp struct {
 	NodeIDs []int64 `json:"nodeIDs"`
 }
 
-func (s *PackageService) GetStorageNodeIDs(ctx *gin.Context) {
-	log := logger.WithField("HTTP", "Package.GetStorageNodeIDs")
+func (s *PackageService) GetLoadedNodes(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.GetLoadedNodes")
 
-	var req PackageGetStorageNodeIDs
+	var req GetLoadedNodesReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	nodeIDs, err := s.svc.PackageSvc().GetStorageNodesByPackage(*req.UserID, *req.PackageID)
+	nodeIDs, err := s.svc.PackageSvc().GetLoadedNodes(*req.UserID, *req.PackageID)
 	if err != nil {
-		log.Warnf("get storage nodes by packageID failed: %s", err.Error())
-		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get storage nodes by packageID failed"))
+		log.Warnf("get package loaded nodes failed: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package loaded nodes failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(GetStorageNodesByPackageResp{
+	ctx.JSON(http.StatusOK, OK(GetLoadedNodesResp{
 		NodeIDs: nodeIDs,
 	}))
 }
