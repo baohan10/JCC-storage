@@ -6,7 +6,6 @@ import (
 
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/utils/serder"
-	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	mytask "gitlink.org.cn/cloudream/storage-client/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtcmd "gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
@@ -118,11 +117,8 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	iter := iterator.NewECObjectIterator(objects, getObjECDataResp.Data, getECResp.Config, &iterator.ECDownloadContext{
-		DownloadContext: &iterator.DownloadContext{
-			Distlock: svc.DistLock,
-		},
-		ECPacketSize: config.Cfg().ECPacketSize,
+	iter := iterator.NewECObjectIterator(objects, getObjECDataResp.Data, ecRed, getECResp.Config, &iterator.DownloadContext{
+		Distlock: svc.DistLock,
 	})
 
 	return iter, nil
