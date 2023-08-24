@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/common/utils/serder"
 	mytask "gitlink.org.cn/cloudream/storage-client/internal/task"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	agtcmd "gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
@@ -60,7 +59,7 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 		return nil, fmt.Errorf("getting package objects: %w", err)
 	}
 
-	if getPkgResp.Redundancy.Type == models.RedundancyRep {
+	if getPkgResp.Redundancy.IsRepInfo() {
 		iter, err := svc.downloadRepPackage(packageID, getObjsResp.Objects, coorCli)
 
 		if err != nil {
@@ -107,17 +106,17 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
 
-	var ecRed models.ECRedundancyInfo
-	if err := serder.AnyToAny(pkg.Redundancy.Info, &ecRed); err != nil {
+	var ecInfo models.ECRedundancyInfo
+	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
-	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecInfo.ECName))
 	if err != nil {
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	iter := iterator.NewECObjectIterator(objects, getObjECDataResp.Data, ecRed, getECResp.Config, &iterator.DownloadContext{
+	iter := iterator.NewECObjectIterator(objects, getObjECDataResp.Data, ecInfo, getECResp.Config, &iterator.DownloadContext{
 		Distlock: svc.DistLock,
 	})
 
