@@ -8,7 +8,6 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage-agent/internal/config"
@@ -196,7 +195,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 
 	objIter := iterator.NewUploadingObjectIterator(fullPath, uploadFilePathes)
 
-	if msg.Redundancy.Type == models.RedundancyRep {
+	if msg.Redundancy.IsRepInfo() {
 		repInfo, err := msg.Redundancy.ToRepInfo()
 		if err != nil {
 			logger.Warnf("getting rep redundancy info: %s", err.Error())
