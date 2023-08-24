@@ -18,6 +18,10 @@ type PackageService interface {
 	UpdateECPackage(msg *UpdateECPackage) (*UpdateECPackageResp, *mq.CodeMessage)
 
 	DeletePackage(msg *DeletePackage) (*DeletePackageResp, *mq.CodeMessage)
+
+	GetCacheNodesByPackage(msg *GetCacheNodesByPackage) (*GetCacheNodesByPackageResp, *mq.CodeMessage)
+
+	GetStorageNodesByPackage(msg *GetStorageNodesByPackage) (*GetStorageNodesByPackageResp, *mq.CodeMessage)
 }
 
 // 获取Package基本信息
@@ -198,4 +202,64 @@ func NewDeletePackageResp() DeletePackageResp {
 }
 func (client *Client) DeletePackage(msg DeletePackage) (*DeletePackageResp, error) {
 	return mq.Request[DeletePackageResp](client.rabbitCli, msg)
+}
+
+// 根据PackageID获取object分布情况
+var _ = Register(PackageService.GetCacheNodesByPackage)
+
+type GetCacheNodesByPackage struct {
+	UserID    int64 `json:"userID"`
+	PackageID int64 `json:"packageID"`
+}
+
+type GetCacheNodesByPackageResp struct {
+	NodeIDs        []int64 `json:"nodeIDs"`
+	RedundancyType string  `json:"redundancyType"`
+}
+
+func NewGetCacheNodesByPackage(userID int64, packageID int64) GetCacheNodesByPackage {
+	return GetCacheNodesByPackage{
+		UserID:    userID,
+		PackageID: packageID,
+	}
+}
+
+func NewGetCacheNodesByPackageResp(nodeIDs []int64, redundancyType string) GetCacheNodesByPackageResp {
+	return GetCacheNodesByPackageResp{
+		NodeIDs:        nodeIDs,
+		RedundancyType: redundancyType,
+	}
+}
+
+func (client *Client) GetCacheNodesByPackage(msg GetCacheNodesByPackage) (*GetCacheNodesByPackageResp, error) {
+	return mq.Request[GetCacheNodesByPackageResp](client.rabbitCli, msg)
+}
+
+// 根据PackageID获取storage分布情况
+var _ = Register(PackageService.GetStorageNodesByPackage)
+
+type GetStorageNodesByPackage struct {
+	UserID    int64 `json:"userID"`
+	PackageID int64 `json:"packageID"`
+}
+
+type GetStorageNodesByPackageResp struct {
+	NodeIDs []int64 `json:"nodeIDs"`
+}
+
+func NewGetStorageNodesByPackage(userID int64, packageID int64) GetStorageNodesByPackage {
+	return GetStorageNodesByPackage{
+		UserID:    userID,
+		PackageID: packageID,
+	}
+}
+
+func NewGetStorageNodesByPackageResp(nodeIDs []int64) GetStorageNodesByPackageResp {
+	return GetStorageNodesByPackageResp{
+		NodeIDs: nodeIDs,
+	}
+}
+
+func (client *Client) GetStorageNodesByPackage(msg GetStorageNodesByPackage) (*GetStorageNodesByPackageResp, error) {
+	return mq.Request[GetStorageNodesByPackageResp](client.rabbitCli, msg)
 }
