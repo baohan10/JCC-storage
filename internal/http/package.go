@@ -171,3 +171,66 @@ func (s *PackageService) Delete(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, OK(nil))
 }
+
+type PackageGetCacheNodeIDs struct {
+	UserID    *int64 `json:"userID" binding:"required"`
+	PackageID *int64 `json:"packageID" binding:"required"`
+}
+type GetCacheNodesByPackageResp struct {
+	NodeIDs       []int64 `json:"nodeIDs"`
+	RedunancyType string  `json:"redunancyType,string"`
+}
+
+func (s *PackageService) GetCacheNodeIDs(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.GetCacheNodeIDs")
+
+	var req PackageGetCacheNodeIDs
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	nodeIDs, redunancyType, err := s.svc.PackageSvc().GetCacheNodesByPackage(*req.UserID, *req.PackageID)
+	if err != nil {
+		log.Warnf("get cache nodes by packageID failed: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get cache nodes by packageID failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(GetCacheNodesByPackageResp{
+		NodeIDs:       nodeIDs,
+		RedunancyType: redunancyType,
+	}))
+}
+
+type PackageGetStorageNodeIDs struct {
+	UserID    *int64 `json:"userID" binding:"required"`
+	PackageID *int64 `json:"packageID" binding:"required"`
+}
+
+type GetStorageNodesByPackageResp struct {
+	NodeIDs []int64 `json:"nodeIDs"`
+}
+
+func (s *PackageService) GetStorageNodeIDs(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.GetStorageNodeIDs")
+
+	var req PackageGetStorageNodeIDs
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	nodeIDs, err := s.svc.PackageSvc().GetStorageNodesByPackage(*req.UserID, *req.PackageID)
+	if err != nil {
+		log.Warnf("get storage nodes by packageID failed: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get storage nodes by packageID failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(GetStorageNodesByPackageResp{
+		NodeIDs: nodeIDs,
+	}))
+}
