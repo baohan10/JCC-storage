@@ -273,6 +273,25 @@ func PackageDeletePackage(ctx CommandContext, packageID int64) error {
 	return nil
 }
 
+func PackageGetCacheNodesByPackage(ctx CommandContext, packageID int64, userID int64) error {
+	nodeIDs, redunancyType, err := ctx.Cmdline.Svc.PackageSvc().GetCacheNodesByPackage(userID, packageID)
+	fmt.Printf("nodeIDs: %v\n", nodeIDs)
+	fmt.Printf("redunancyType: %v\n", redunancyType)
+	if err != nil {
+		return fmt.Errorf("get cache nodes by packageID %d failed, err: %w", packageID, err)
+	}
+	return nil
+}
+
+func PackageGetStorageNodesByPackage(ctx CommandContext, packageID int64, userID int64) error {
+	nodeIDs, err := ctx.Cmdline.Svc.PackageSvc().GetStorageNodesByPackage(userID, packageID)
+	fmt.Printf("nodeIDs: %v\n", nodeIDs)
+	if err != nil {
+		return fmt.Errorf("get storage nodes by packageID %d failed, err: %w", packageID, err)
+	}
+	return nil
+}
+
 func init() {
 	commands.MustAdd(PackageListBucketPackages, "pkg", "ls")
 
@@ -287,4 +306,8 @@ func init() {
 	commands.MustAdd(PackageUpdateRepPackage, "pkg", "update", "ec")
 
 	commands.MustAdd(PackageDeletePackage, "pkg", "delete")
+
+	commands.MustAdd(PackageGetCacheNodesByPackage, "pkg", "cache", "nodes")
+
+	commands.MustAdd(PackageGetStorageNodesByPackage, "pkg", "storage", "nodes")
 }

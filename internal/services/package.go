@@ -218,3 +218,31 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 
 	return nil
 }
+
+func (svc *PackageService) GetCacheNodesByPackage(userID int64, packageID int64) ([]int64, string, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, "", fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
+	resp, err := coorCli.GetCacheNodesByPackage(coormq.NewGetCacheNodesByPackage(userID, packageID))
+	if err != nil {
+		return nil, "", fmt.Errorf("get node by package: %w", err)
+	}
+	return resp.NodeIDs, resp.RedundancyType, nil
+}
+
+func (svc *PackageService) GetStorageNodesByPackage(userID int64, packageID int64) ([]int64, error) {
+	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer coorCli.Close()
+
+	resp, err := coorCli.GetStorageNodesByPackage(coormq.NewGetStorageNodesByPackage(userID, packageID))
+	if err != nil {
+		return nil, fmt.Errorf("get node by package: %w", err)
+	}
+	return resp.NodeIDs, nil
+}
