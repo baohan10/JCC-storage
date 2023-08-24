@@ -5,7 +5,6 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/common/utils/serder"
 
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
@@ -32,7 +31,7 @@ func NewUpdateECPackage(userID int64, packageID int64, objIter iterator.Uploadin
 	}
 }
 
-func (t *UpdateECPackage) Execute(ctx *UpdateECPackageContext) (*UpdateECPackageResult, error) {
+func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageResult, error) {
 	defer t.objectIter.Close()
 
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
@@ -80,12 +79,12 @@ func (t *UpdateECPackage) Execute(ctx *UpdateECPackageContext) (*UpdateECPackage
 		}
 	})
 
-	var ecRed models.ECRedundancyInfo
-	if err := serder.AnyToAny(getPkgResp.Package.Redundancy.Info, &ecRed); err != nil {
+	var ecInfo models.ECRedundancyInfo
+	if ecInfo, err = getPkgResp.Package.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
-	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecInfo.ECName))
 	if err != nil {
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
@@ -110,7 +109,7 @@ func (t *UpdateECPackage) Execute(ctx *UpdateECPackageContext) (*UpdateECPackage
 	}
 	defer ipfsMutex.Unlock()
 
-	rets, err := uploadAndUpdateECPackage(ctx, t.packageID, t.objectIter, nodeInfos, getECResp.Config)
+	rets, err := uploadAndUpdateECPackage(t.packageID, t.objectIter, nodeInfos, ecInfo, getECResp.Config)
 	if err != nil {
 		return nil, err
 	}

@@ -128,7 +128,7 @@ func (db *PackageDB) SoftDelete(ctx SQLContext, packageID int64) error {
 		return fmt.Errorf("change package state failed, err: %w", err)
 	}
 
-	if obj.Redundancy.Type == models.RedundancyRep {
+	if obj.Redundancy.IsRepInfo() {
 		err = db.ObjectRep().DeleteInPackage(ctx, packageID)
 		if err != nil {
 			return fmt.Errorf("delete from object rep failed, err: %w", err)

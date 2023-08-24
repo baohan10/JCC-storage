@@ -92,7 +92,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 	defer mutex.Unlock()
 
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
-		models.NewTypedRedundancyInfo(models.RedundancyRep, t.redundancy)))
+		models.NewTypedRedundancyInfo(t.redundancy)))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
 	}
