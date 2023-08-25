@@ -1,5 +1,7 @@
 package models
 
+import "gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+
 /// TODO 将分散在各处的公共结构体定义集中到这里来
 
 type RedundancyData interface{}
@@ -59,25 +61,27 @@ func NewEc(id int, name string, ecK int, ecN int) EC {
 }
 
 type ObjectRepData struct {
-	ObjectID int64   `json:"objectID"`
-	FileHash string  `json:"fileHash"`
-	NodeIDs  []int64 `json:"nodeIDs"`
+	Object   model.Object `json:"object"`
+	FileHash string       `json:"fileHash"`
+	NodeIDs  []int64      `json:"nodeIDs"`
 }
 
-func NewObjectRepData(objectID int64, fileHash string, nodeIDs []int64) ObjectRepData {
+func NewObjectRepData(object model.Object, fileHash string, nodeIDs []int64) ObjectRepData {
 	return ObjectRepData{
-		ObjectID: objectID,
+		Object:   object,
 		FileHash: fileHash,
 		NodeIDs:  nodeIDs,
 	}
 }
 
 type ObjectECData struct {
+	Object model.Object      `json:"object"`
 	Blocks []ObjectBlockData `json:"blocks"`
 }
 
-func NewObjectECData(blocks []ObjectBlockData) ObjectECData {
+func NewObjectECData(object model.Object, blocks []ObjectBlockData) ObjectECData {
 	return ObjectECData{
+		Object: object,
 		Blocks: blocks,
 	}
 }

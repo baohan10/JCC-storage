@@ -19,9 +19,9 @@ type PackageService interface {
 
 	DeletePackage(msg *DeletePackage) (*DeletePackageResp, *mq.CodeMessage)
 
-	GetCacheNodesByPackage(msg *GetCacheNodesByPackage) (*GetCacheNodesByPackageResp, *mq.CodeMessage)
+	GetPackageCachedNodes(msg *GetPackageCachedNodes) (*GetPackageCachedNodesResp, *mq.CodeMessage)
 
-	GetStorageNodesByPackage(msg *GetStorageNodesByPackage) (*GetStorageNodesByPackageResp, *mq.CodeMessage)
+	GetPackageLoadedNodes(msg *GetPackageLoadedNodes) (*GetPackageLoadedNodesResp, *mq.CodeMessage)
 }
 
 // 获取Package基本信息
@@ -205,61 +205,69 @@ func (client *Client) DeletePackage(msg DeletePackage) (*DeletePackageResp, erro
 }
 
 // 根据PackageID获取object分布情况
-var _ = Register(PackageService.GetCacheNodesByPackage)
+var _ = Register(PackageService.GetPackageCachedNodes)
 
-type GetCacheNodesByPackage struct {
+type GetPackageCachedNodes struct {
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
 
-type GetCacheNodesByPackageResp struct {
-	NodeIDs        []int64 `json:"nodeIDs"`
-	RedundancyType string  `json:"redundancyType"`
+type PackageCachedNodeInfo struct {
+	NodeID      int64 `json:"nodeID"`
+	FileSize    int64 `json:"fileSize"`
+	ObjectCount int64 `json:"objectCount"`
 }
 
-func NewGetCacheNodesByPackage(userID int64, packageID int64) GetCacheNodesByPackage {
-	return GetCacheNodesByPackage{
+type GetPackageCachedNodesResp struct {
+	models.PackageCachingInfo
+}
+
+func NewGetPackageCachedNodes(userID int64, packageID int64) GetPackageCachedNodes {
+	return GetPackageCachedNodes{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
 
-func NewGetCacheNodesByPackageResp(nodeIDs []int64, redundancyType string) GetCacheNodesByPackageResp {
-	return GetCacheNodesByPackageResp{
-		NodeIDs:        nodeIDs,
-		RedundancyType: redundancyType,
+func NewGetPackageCachedNodesResp(nodeInfos []models.NodePackageCachingInfo, packageSize int64, redunancyType string) GetPackageCachedNodesResp {
+	return GetPackageCachedNodesResp{
+		PackageCachingInfo: models.PackageCachingInfo{
+			NodeInfos:     nodeInfos,
+			PackageSize:   packageSize,
+			RedunancyType: redunancyType,
+		},
 	}
 }
 
-func (client *Client) GetCacheNodesByPackage(msg GetCacheNodesByPackage) (*GetCacheNodesByPackageResp, error) {
-	return mq.Request[GetCacheNodesByPackageResp](client.rabbitCli, msg)
+func (client *Client) GetPackageCachedNodes(msg GetPackageCachedNodes) (*GetPackageCachedNodesResp, error) {
+	return mq.Request[GetPackageCachedNodesResp](client.rabbitCli, msg)
 }
 
 // 根据PackageID获取storage分布情况
-var _ = Register(PackageService.GetStorageNodesByPackage)
+var _ = Register(PackageService.GetPackageLoadedNodes)
 
-type GetStorageNodesByPackage struct {
+type GetPackageLoadedNodes struct {
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
 
-type GetStorageNodesByPackageResp struct {
+type GetPackageLoadedNodesResp struct {
 	NodeIDs []int64 `json:"nodeIDs"`
 }
 
-func NewGetStorageNodesByPackage(userID int64, packageID int64) GetStorageNodesByPackage {
-	return GetStorageNodesByPackage{
+func NewGetPackageLoadedNodes(userID int64, packageID int64) GetPackageLoadedNodes {
+	return GetPackageLoadedNodes{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
 
-func NewGetStorageNodesByPackageResp(nodeIDs []int64) GetStorageNodesByPackageResp {
-	return GetStorageNodesByPackageResp{
+func NewGetPackageLoadedNodesResp(nodeIDs []int64) GetPackageLoadedNodesResp {
+	return GetPackageLoadedNodesResp{
 		NodeIDs: nodeIDs,
 	}
 }
 
-func (client *Client) GetStorageNodesByPackage(msg GetStorageNodesByPackage) (*GetStorageNodesByPackageResp, error) {
-	return mq.Request[GetStorageNodesByPackageResp](client.rabbitCli, msg)
+func (client *Client) GetPackageLoadedNodes(msg GetPackageLoadedNodes) (*GetPackageLoadedNodesResp, error) {
+	return mq.Request[GetPackageLoadedNodesResp](client.rabbitCli, msg)
 }

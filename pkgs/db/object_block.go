@@ -85,15 +85,15 @@ func (db *ObjectBlockDB) GetBatchBlocksNodes(ctx SQLContext, hashs [][]string) (
 }
 
 func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]models.ObjectECData, error) {
-	var objectIDs []int64
-	err := sqlx.Select(ctx, &objectIDs, "select ObjectID from Object where PackageID = ? order by ObjectID asc", packageID)
+	var objs []model.Object
+	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
 	if err != nil {
 		return nil, fmt.Errorf("query objectIDs: %w", err)
 	}
 
-	rets := make([]models.ObjectECData, 0, len(objectIDs))
+	rets := make([]models.ObjectECData, 0, len(objs))
 
-	for _, objID := range objectIDs {
+	for _, obj := range objs {
 		var tmpRets []struct {
 			Index    int     `db:"Index"`
 			FileHash string  `db:"FileHash"`
@@ -105,7 +105,7 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 			"select ObjectBlock.Index, ObjectBlock.FileHash, group_concat(NodeID) as NodeIDs from ObjectBlock"+
 				" left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
 				" where ObjectID = ? group by ObjectBlock.Index, ObjectBlock.FileHash",
-			objID,
+			obj.ObjectID,
 		)
 		if err != nil {
 			return nil, err
@@ -124,7 +124,7 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 			blocks = append(blocks, block)
 		}
 
-		rets = append(rets, models.NewObjectECData(blocks))
+		rets = append(rets, models.NewObjectECData(obj, blocks))
 	}
 
 	return rets, nil

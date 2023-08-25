@@ -81,14 +81,14 @@ func (db *ObjectRepDB) GetFileMaxRepCount(ctx SQLContext, fileHash string) (int,
 
 func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]models.ObjectRepData, error) {
 	var tmpRets []struct {
-		ObjectID int64   `db:"ObjectID"`
+		model.Object
 		FileHash *string `db:"FileHash"`
 		NodeIDs  *string `db:"NodeIDs"`
 	}
 
 	err := sqlx.Select(ctx,
 		&tmpRets,
-		"select Object.ObjectID, ObjectRep.FileHash, group_concat(NodeID) as NodeIDs from Object"+
+		"select Object.*, ObjectRep.FileHash, group_concat(NodeID) as NodeIDs from Object"+
 			" left join ObjectRep on Object.ObjectID = ObjectRep.ObjectID"+
 			" left join Cache on ObjectRep.FileHash = Cache.FileHash"+
 			" where PackageID = ? group by Object.ObjectID order by Object.ObjectID asc",
@@ -97,11 +97,10 @@ func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) (
 	if err != nil {
 		return nil, err
 	}
-
 	rets := make([]models.ObjectRepData, 0, len(tmpRets))
 	for _, tmp := range tmpRets {
 		var repData models.ObjectRepData
-		repData.ObjectID = tmp.ObjectID
+		repData.Object = tmp.Object
 
 		if tmp.FileHash != nil {
 			repData.FileHash = *tmp.FileHash
