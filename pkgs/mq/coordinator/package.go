@@ -212,9 +212,14 @@ type GetPackageCachedNodes struct {
 	PackageID int64 `json:"packageID"`
 }
 
+type PackageCachedNodeInfo struct {
+	NodeID      int64 `json:"nodeID"`
+	FileSize    int64 `json:"fileSize"`
+	ObjectCount int64 `json:"objectCount"`
+}
+
 type GetPackageCachedNodesResp struct {
-	NodeIDs        []int64 `json:"nodeIDs"`
-	RedundancyType string  `json:"redundancyType"`
+	models.PackageCachingInfo
 }
 
 func NewGetPackageCachedNodes(userID int64, packageID int64) GetPackageCachedNodes {
@@ -224,10 +229,13 @@ func NewGetPackageCachedNodes(userID int64, packageID int64) GetPackageCachedNod
 	}
 }
 
-func NewGetPackageCachedNodesResp(nodeIDs []int64, redundancyType string) GetPackageCachedNodesResp {
+func NewGetPackageCachedNodesResp(nodeInfos []models.NodePackageCachingInfo, packageSize int64, redunancyType string) GetPackageCachedNodesResp {
 	return GetPackageCachedNodesResp{
-		NodeIDs:        nodeIDs,
-		RedundancyType: redundancyType,
+		PackageCachingInfo: models.PackageCachingInfo{
+			NodeInfos:     nodeInfos,
+			PackageSize:   packageSize,
+			RedunancyType: redunancyType,
+		},
 	}
 }
 
