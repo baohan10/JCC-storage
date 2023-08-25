@@ -219,18 +219,24 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	return nil
 }
 
-func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) ([]int64, string, error) {
+func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (models.PackageCachingInfo, error) {
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
-		return nil, "", fmt.Errorf("new coordinator client: %w", err)
+		return models.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer coorCli.Close()
 
 	resp, err := coorCli.GetPackageCachedNodes(coormq.NewGetPackageCachedNodes(userID, packageID))
 	if err != nil {
-		return nil, "", fmt.Errorf("get package cached nodes: %w", err)
+		return models.PackageCachingInfo{}, fmt.Errorf("get package cached nodes: %w", err)
 	}
-	return resp.NodeIDs, resp.RedundancyType, nil
+
+	tmp := models.PackageCachingInfo{
+		NodeInfos:     resp.NodeInfos,
+		PackageSize:   resp.PackageSize,
+		RedunancyType: resp.RedunancyType,
+	}
+	return tmp, nil
 }
 
 func (svc *PackageService) GetLoadedNodes(userID int64, packageID int64) ([]int64, error) {

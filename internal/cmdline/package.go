@@ -274,9 +274,8 @@ func PackageDeletePackage(ctx CommandContext, packageID int64) error {
 }
 
 func PackageGetCachedNodes(ctx CommandContext, packageID int64, userID int64) error {
-	nodeIDs, redunancyType, err := ctx.Cmdline.Svc.PackageSvc().GetCachedNodes(userID, packageID)
-	fmt.Printf("nodeIDs: %v\n", nodeIDs)
-	fmt.Printf("redunancyType: %v\n", redunancyType)
+	resp, err := ctx.Cmdline.Svc.PackageSvc().GetCachedNodes(userID, packageID)
+	fmt.Printf("resp: %v\n", resp)
 	if err != nil {
 		return fmt.Errorf("get package %d cached nodes failed, err: %w", packageID, err)
 	}

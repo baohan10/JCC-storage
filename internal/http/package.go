@@ -177,8 +177,7 @@ type GetCachedNodesReq struct {
 	PackageID *int64 `json:"packageID" binding:"required"`
 }
 type GetCachedNodesResp struct {
-	NodeIDs       []int64 `json:"nodeIDs"`
-	RedunancyType string  `json:"redunancyType,string"`
+	models.PackageCachingInfo
 }
 
 func (s *PackageService) GetCachedNodes(ctx *gin.Context) {
@@ -191,17 +190,14 @@ func (s *PackageService) GetCachedNodes(ctx *gin.Context) {
 		return
 	}
 
-	nodeIDs, redunancyType, err := s.svc.PackageSvc().GetCachedNodes(*req.UserID, *req.PackageID)
+	resp, err := s.svc.PackageSvc().GetCachedNodes(*req.UserID, *req.PackageID)
 	if err != nil {
 		log.Warnf("get package cached nodes failed: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package cached nodes failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(GetCachedNodesResp{
-		NodeIDs:       nodeIDs,
-		RedunancyType: redunancyType,
-	}))
+	ctx.JSON(http.StatusOK, OK(resp))
 }
 
 type GetLoadedNodesReq struct {
