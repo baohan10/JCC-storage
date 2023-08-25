@@ -9,6 +9,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/common/models"
+	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 )
 
@@ -190,7 +191,7 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, models.NewECRedundancyInfo(ecName))
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, models.NewECRedundancyInfo(ecName, config.Cfg().ECPacketSize))
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)

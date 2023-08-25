@@ -3,7 +3,6 @@ package task
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/storage-client/internal/config"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 )
@@ -23,11 +22,8 @@ func NewUpdateECPackage(userID int64, packageID int64, objectIter iterator.Uploa
 }
 
 func (t *UpdateECPackage) Execute(ctx TaskContext, complete CompleteFn) {
-	ret, err := t.cmd.Execute(&cmd.UpdateECPackageContext{
-		UpdatePackageContext: &cmd.UpdatePackageContext{
-			Distlock: ctx.distlock,
-		},
-		ECPacketSize: config.Cfg().ECPacketSize,
+	ret, err := t.cmd.Execute(&cmd.UpdatePackageContext{
+		Distlock: ctx.distlock,
 	})
 
 	t.Result = ret

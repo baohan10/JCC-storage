@@ -9,7 +9,6 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
 )
 
@@ -49,11 +48,12 @@ func (s *PackageService) Upload(ctx *gin.Context) {
 		return
 	}
 
-	switch req.Info.Redundancy.Type {
-	case models.RedundancyRep:
+	if req.Info.Redundancy.IsRepInfo() {
 		s.uploadRep(ctx, &req)
 		return
-	case models.RedundancyEC:
+	}
+
+	if req.Info.Redundancy.IsECInfo() {
 		s.uploadEC(ctx, &req)
 		return
 	}
@@ -64,8 +64,9 @@ func (s *PackageService) Upload(ctx *gin.Context) {
 func (s *PackageService) uploadRep(ctx *gin.Context, req *PackageUploadReq) {
 	log := logger.WithField("HTTP", "Package.Upload")
 
+	var err error
 	var repInfo models.RepRedundancyInfo
-	if err := serder.AnyToAny(req.Info.Redundancy.Info, &repInfo); err != nil {
+	if repInfo, err = req.Info.Redundancy.ToRepInfo(); err != nil {
 		log.Warnf("parsing rep redundancy config: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
 		return
@@ -107,8 +108,9 @@ func (s *PackageService) uploadRep(ctx *gin.Context, req *PackageUploadReq) {
 func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 	log := logger.WithField("HTTP", "Package.Upload")
 
+	var err error
 	var ecInfo models.ECRedundancyInfo
-	if err := serder.AnyToAny(req.Info.Redundancy.Info, &ecInfo); err != nil {
+	if ecInfo, err = req.Info.Redundancy.ToECInfo(); err != nil {
 		log.Warnf("parsing ec redundancy config: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
 		return
