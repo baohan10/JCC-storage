@@ -27,11 +27,6 @@ type CreateECPackage struct {
 	redundancy models.ECRedundancyInfo
 }
 
-type UpdateECPackageContext struct {
-	*UpdatePackageContext
-	ECPacketSize int64
-}
-
 type CreateECPackageResult struct {
 	PackageID     int64
 	ObjectResults []ECObjectUploadResult
@@ -53,7 +48,7 @@ func NewCreateECPackage(userID int64, bucketID int64, name string, objIter itera
 	}
 }
 
-func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackageResult, error) {
+func (t *CreateECPackage) Execute(ctx *UpdatePackageContext) (*CreateECPackageResult, error) {
 	defer t.objectIter.Close()
 
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
@@ -82,7 +77,7 @@ func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackage
 	defer mutex.Unlock()
 
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
-		models.NewTypedRedundancyInfo(models.RedundancyRep, t.redundancy)))
+		models.NewTypedRedundancyInfo(t.redundancy)))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
 	}
@@ -129,7 +124,7 @@ func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackage
 	}
 	defer ipfsMutex.Unlock()
 
-	rets, err := uploadAndUpdateECPackage(ctx, createPkgResp.PackageID, t.objectIter, uploadNodeInfos, getECResp.Config)
+	rets, err := uploadAndUpdateECPackage(createPkgResp.PackageID, t.objectIter, uploadNodeInfos, t.redundancy, getECResp.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +135,7 @@ func (t *CreateECPackage) Execute(ctx *UpdateECPackageContext) (*CreateECPackage
 	}, nil
 }
 
-func uploadAndUpdateECPackage(ctx *UpdateECPackageContext, packageID int64, objectIter iterator.UploadingObjectIterator, uploadNodes []UploadNodeInfo, ec model.Ec) ([]ECObjectUploadResult, error) {
+func uploadAndUpdateECPackage(packageID int64, objectIter iterator.UploadingObjectIterator, uploadNodes []UploadNodeInfo, ecInfo models.ECRedundancyInfo, ec model.Ec) ([]ECObjectUploadResult, error) {
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -158,7 +153,7 @@ func uploadAndUpdateECPackage(ctx *UpdateECPackageContext, packageID int64, obje
 			return nil, fmt.Errorf("reading object: %w", err)
 		}
 
-		fileHashes, uploadedNodeIDs, err := uploadECObject(ctx, objInfo, uploadNodes, ec)
+		fileHashes, uploadedNodeIDs, err := uploadECObject(objInfo, uploadNodes, ecInfo, ec)
 		uploadRets = append(uploadRets, ECObjectUploadResult{
 			Info:  objInfo,
 			Error: err,
@@ -179,7 +174,7 @@ func uploadAndUpdateECPackage(ctx *UpdateECPackageContext, packageID int64, obje
 }
 
 // 上传文件
-func uploadECObject(ctx *UpdateECPackageContext, obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ec model.Ec) ([]string, []int64, error) {
+func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ecInfo models.ECRedundancyInfo, ec model.Ec) ([]string, []int64, error) {
 	//生成纠删码的写入节点序列
 	nodes := make([]UploadNodeInfo, ec.EcN)
 	numNodes := len(uploadNodes)
@@ -188,7 +183,7 @@ func uploadECObject(ctx *UpdateECPackageContext, obj *iterator.IterUploadingObje
 		nodes[i] = uploadNodes[(startWriteNodeID+i)%numNodes]
 	}
 
-	hashs, err := ecWrite(ctx, obj.File, obj.Size, ec.EcK, ec.EcN, nodes)
+	hashs, err := ecWrite(obj.File, obj.Size, ecInfo.PacketSize, ec.EcK, ec.EcN, nodes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("EcWrite failed, err: %w", err)
 	}
@@ -213,13 +208,13 @@ func (t *CreateECPackage) chooseUploadNode(nodes []UploadNodeInfo) UploadNodeInf
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func ecWrite(ctx *UpdateECPackageContext, file io.ReadCloser, fileSize int64, ecK int, ecN int, nodes []UploadNodeInfo) ([]string, error) {
+func ecWrite(file io.ReadCloser, fileSize int64, packetSize int64, ecK int, ecN int, nodes []UploadNodeInfo) ([]string, error) {
 	// TODO 需要参考RepWrite函数的代码逻辑，做好错误处理
 	//获取文件大小
 
 	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
 	//计算每个块的packet数
-	numPacket := (fileSize + int64(ecK)*ctx.ECPacketSize - 1) / (int64(ecK) * ctx.ECPacketSize)
+	numPacket := (fileSize + int64(ecK)*packetSize - 1) / (int64(ecK) * packetSize)
 	//fmt.Println(numPacket)
 	//创建channel
 	loadBufs := make([]chan []byte, ecN)
@@ -232,7 +227,7 @@ func ecWrite(ctx *UpdateECPackageContext, file io.ReadCloser, fileSize int64, ec
 	}
 	hashs := make([]string, ecN)
 	//正式开始写入
-	go load(file, loadBufs[:ecN], ecK, numPacket*int64(ecK), ctx.ECPacketSize) //从本地文件系统加载数据
+	go load(file, loadBufs[:ecN], ecK, numPacket*int64(ecK), packetSize) //从本地文件系统加载数据
 	go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
 
 	var wg sync.WaitGroup

@@ -7,9 +7,10 @@ import (
 	"os"
 
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage-common/globals"
-	"gitlink.org.cn/cloudream/storage-common/models"
+	stgmodels "gitlink.org.cn/cloudream/storage-common/models"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
@@ -19,24 +20,21 @@ type ECObjectIterator struct {
 	OnClosing func()
 
 	objects      []model.Object
-	objectECData []models.ObjectECData
+	objectECData []stgmodels.ObjectECData
 	currentIndex int
 	inited       bool
 
+	ecInfo      models.ECRedundancyInfo
 	ec          model.Ec
-	downloadCtx *ECDownloadContext
+	downloadCtx *DownloadContext
 	cliLocation model.Location
 }
 
-type ECDownloadContext struct {
-	*DownloadContext
-	ECPacketSize int64
-}
-
-func NewECObjectIterator(objects []model.Object, objectECData []models.ObjectECData, ec model.Ec, downloadCtx *ECDownloadContext) *ECObjectIterator {
+func NewECObjectIterator(objects []model.Object, objectECData []stgmodels.ObjectECData, ecInfo models.ECRedundancyInfo, ec model.Ec, downloadCtx *DownloadContext) *ECObjectIterator {
 	return &ECObjectIterator{
 		objects:      objects,
 		objectECData: objectECData,
+		ecInfo:       ecInfo,
 		ec:           ec,
 		downloadCtx:  downloadCtx,
 	}
@@ -146,7 +144,7 @@ func (i *ECObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downlo
 func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, hashs []string) (io.ReadCloser, error) {
 	// TODO zkx 先试用同步方式实现逻辑，做好错误处理。同时也方便下面直接使用uploadToNode和uploadToLocalIPFS来优化代码结构
 	//wg := sync.WaitGroup{}
-	numPacket := (fileSize + int64(ecK)*iter.downloadCtx.ECPacketSize - 1) / (int64(ecK) * iter.downloadCtx.ECPacketSize)
+	numPacket := (fileSize + int64(ecK)*iter.ecInfo.PacketSize - 1) / (int64(ecK) * iter.ecInfo.PacketSize)
 	getBufs := make([]chan []byte, ecN)
 	decodeBufs := make([]chan []byte, ecK)
 	for i := 0; i < ecN; i++ {
@@ -159,10 +157,10 @@ func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int,
 		i := idx
 		go func() {
 			// TODO 处理错误
-			file, _ := downloadFile(iter.downloadCtx.DownloadContext, nodeIDs[i], nodeIPs[i], hashs[i])
+			file, _ := downloadFile(iter.downloadCtx, nodeIDs[i], nodeIPs[i], hashs[i])
 
 			for p := int64(0); p < numPacket; p++ {
-				buf := make([]byte, iter.downloadCtx.ECPacketSize)
+				buf := make([]byte, iter.ecInfo.PacketSize)
 				// TODO 处理错误
 				io.ReadFull(file, buf)
 				getBufs[blockIDs[i]] <- buf

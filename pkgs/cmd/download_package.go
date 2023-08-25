@@ -8,7 +8,6 @@ import (
 
 	"gitlink.org.cn/cloudream/common/models"
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
-	"gitlink.org.cn/cloudream/common/utils/serder"
 	"gitlink.org.cn/cloudream/storage-common/globals"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
@@ -22,8 +21,7 @@ type DownloadPackage struct {
 }
 
 type DownloadPackageContext struct {
-	Distlock     *distsvc.Service
-	ECPacketSize int64
+	Distlock *distsvc.Service
 }
 
 func NewDownloadPackage(userID int64, packageID int64, outputPath string) *DownloadPackage {
@@ -48,7 +46,7 @@ func (t *DownloadPackage) Execute(ctx *DownloadPackageContext) error {
 	}
 
 	var objIter iterator.DownloadingObjectIterator
-	if getPkgResp.Redundancy.Type == models.RedundancyRep {
+	if getPkgResp.Redundancy.IsRepInfo() {
 		objIter, err = t.downloadRep(ctx)
 	} else {
 		objIter, err = t.downloadEC(ctx, getPkgResp.Package)
@@ -102,21 +100,18 @@ func (t *DownloadPackage) downloadEC(ctx *DownloadPackageContext, pkg model.Pack
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
 
-	var ecRed models.ECRedundancyInfo
-	if err := serder.AnyToAny(pkg.Redundancy.Info, &ecRed); err != nil {
+	var ecInfo models.ECRedundancyInfo
+	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
 
-	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecRed.ECName))
+	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecInfo.ECName))
 	if err != nil {
 		return nil, fmt.Errorf("getting ec: %w", err)
 	}
 
-	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, getECResp.Config, &iterator.ECDownloadContext{
-		DownloadContext: &iterator.DownloadContext{
-			Distlock: ctx.Distlock,
-		},
-		ECPacketSize: ctx.ECPacketSize,
+	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, ecInfo, getECResp.Config, &iterator.DownloadContext{
+		Distlock: ctx.Distlock,
 	})
 
 	return iter, nil
