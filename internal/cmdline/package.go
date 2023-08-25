@@ -273,21 +273,20 @@ func PackageDeletePackage(ctx CommandContext, packageID int64) error {
 	return nil
 }
 
-func PackageGetCacheNodesByPackage(ctx CommandContext, packageID int64, userID int64) error {
-	nodeIDs, redunancyType, err := ctx.Cmdline.Svc.PackageSvc().GetCacheNodesByPackage(userID, packageID)
-	fmt.Printf("nodeIDs: %v\n", nodeIDs)
-	fmt.Printf("redunancyType: %v\n", redunancyType)
+func PackageGetCachedNodes(ctx CommandContext, packageID int64, userID int64) error {
+	resp, err := ctx.Cmdline.Svc.PackageSvc().GetCachedNodes(userID, packageID)
+	fmt.Printf("resp: %v\n", resp)
 	if err != nil {
-		return fmt.Errorf("get cache nodes by packageID %d failed, err: %w", packageID, err)
+		return fmt.Errorf("get package %d cached nodes failed, err: %w", packageID, err)
 	}
 	return nil
 }
 
-func PackageGetStorageNodesByPackage(ctx CommandContext, packageID int64, userID int64) error {
-	nodeIDs, err := ctx.Cmdline.Svc.PackageSvc().GetStorageNodesByPackage(userID, packageID)
+func PackageGetLoadedNodes(ctx CommandContext, packageID int64, userID int64) error {
+	nodeIDs, err := ctx.Cmdline.Svc.PackageSvc().GetLoadedNodes(userID, packageID)
 	fmt.Printf("nodeIDs: %v\n", nodeIDs)
 	if err != nil {
-		return fmt.Errorf("get storage nodes by packageID %d failed, err: %w", packageID, err)
+		return fmt.Errorf("get package %d loaded nodes failed, err: %w", packageID, err)
 	}
 	return nil
 }
@@ -307,7 +306,7 @@ func init() {
 
 	commands.MustAdd(PackageDeletePackage, "pkg", "delete")
 
-	commands.MustAdd(PackageGetCacheNodesByPackage, "pkg", "cache", "nodes")
+	commands.MustAdd(PackageGetCachedNodes, "pkg", "cached")
 
-	commands.MustAdd(PackageGetStorageNodesByPackage, "pkg", "storage", "nodes")
+	commands.MustAdd(PackageGetLoadedNodes, "pkg", "loaded")
 }

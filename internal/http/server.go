@@ -42,8 +42,8 @@ func (s *Server) initRouters() {
 
 	s.engine.POST("/package/upload", s.PackageSvc().Upload)
 	s.engine.POST("/package/delete", s.PackageSvc().Delete)
-	s.engine.GET("/package/getCacheNodeIDs", s.PackageSvc().GetCacheNodeIDs)
-	s.engine.GET("/package/getStorageNodeIDs", s.PackageSvc().GetStorageNodeIDs)
+	s.engine.GET("/package/getCachedNodes", s.PackageSvc().GetCachedNodes)
+	s.engine.GET("/package/getLoadedNodes", s.PackageSvc().GetLoadedNodes)
 
 	s.engine.POST("/storage/loadPackage", s.StorageSvc().LoadPackage)
 	s.engine.POST("/storage/createPackage", s.StorageSvc().CreatePackage)
