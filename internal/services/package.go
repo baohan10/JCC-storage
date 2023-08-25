@@ -213,10 +213,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 		return nil, mq.Failed(errorcode.OperationFailed, "get package failed")
 	}
 
-	// uniqueNodeIDs := make(map[int64]bool)
-	// var nodeIDs []int64
 	var packageSize int64
-
 	nodeInfoMap := make(map[int64]*models.NodePackageCachingInfo)
 	if pkg.Redundancy.IsRepInfo() {
 		// 备份方式为rep
