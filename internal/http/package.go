@@ -197,7 +197,7 @@ func (s *PackageService) GetCachedNodes(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(resp))
+	ctx.JSON(http.StatusOK, OK(GetCachedNodesResp{resp}))
 }
 
 type GetLoadedNodesReq struct {
