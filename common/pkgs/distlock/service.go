@@ -4,7 +4,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/trie"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/lockprovider"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
 type Service = service.Service

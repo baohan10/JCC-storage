@@ -2,11 +2,11 @@ package globals
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
-	agtrpc "gitlink.org.cn/cloudream/storage-common/pkgs/grpc/agent"
-	stgmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
+	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
+	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
+	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
+	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 )
 
 var AgentMQPool *agtmq.Pool

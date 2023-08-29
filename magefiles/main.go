@@ -8,7 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/magefile/mage/sh"
+	"gitlink.org.cn/cloudream/common/magefiles"
+
 	cp "github.com/otiai10/copy"
 )
 
@@ -70,7 +71,7 @@ func Bin() error {
 }
 
 func Scripts() error {
-	scriptsDir := "./storage-common/assets/scripts"
+	scriptsDir := "./common/assets/scripts"
 
 	info, err := os.Stat(scriptsDir)
 	if errors.Is(err, os.ErrNotExist) || !info.IsDir() {
@@ -88,7 +89,7 @@ func Scripts() error {
 }
 
 func Confs() error {
-	confDir := "./storage-common/assets/confs"
+	confDir := "./common/assets/confs"
 
 	info, err := os.Stat(confDir)
 	if errors.Is(err, os.ErrNotExist) || !info.IsDir() {
@@ -106,47 +107,37 @@ func Confs() error {
 }
 
 func Agent() error {
-	os.Chdir("./storage-agent")
-	defer os.Chdir("..")
-
-	return sh.RunV("mage", makeBuildMageArgeuments()...)
+	return magefiles.Build(magefiles.BuildArgs{
+		OutputName: "agent",
+		OutputDir:  "agent",
+		AssetsDir:  "assets",
+		EntryFile:"agent/main.go",
+	})
 }
 
 func Client() error {
-	os.Chdir("./storage-client")
-	defer os.Chdir("..")
-
-	return sh.RunV("mage", makeBuildMageArgeuments()...)
+	return magefiles.Build(magefiles.BuildArgs{
+		OutputName: "client",
+		OutputDir:  "client",
+		AssetsDir:  "assets",
+		EntryFile:"client/main.go",
+	})
 }
 
 func Coordinator() error {
-	os.Chdir("./storage-coordinator")
-	defer os.Chdir("..")
-
-	return sh.RunV("mage", makeBuildMageArgeuments()...)
+	return magefiles.Build(magefiles.BuildArgs{
+		OutputName: "coordinator",
+		OutputDir:  "coordinator",
+		AssetsDir:  "assets",
+		EntryFile:"coordinator/main.go",
+	})
 }
 
 func Scanner() error {
-	os.Chdir("./storage-scanner")
-	defer os.Chdir("..")
-
-	return sh.RunV("mage", makeBuildMageArgeuments()...)
-}
-
-func makeBuildMageArgeuments() []string {
-	var args []string
-
-	if Global.OS != "" {
-		args = append(args, Global.OS)
-	}
-
-	if Global.Arch != "" {
-		args = append(args, Global.Arch)
-	}
-
-	args = append(args, "buildroot", "../build")
-
-	args = append(args, "build")
-
-	return args
+	return magefiles.Build(magefiles.BuildArgs{
+		OutputName: "scanner",
+		OutputDir:  "scanner",
+		AssetsDir:  "assets",
+		EntryFile:"scanner/main.go",
+	})
 }

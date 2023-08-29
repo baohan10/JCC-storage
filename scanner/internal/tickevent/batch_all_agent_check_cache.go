@@ -3,8 +3,8 @@ package tickevent
 import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
 
 const AGENT_CHECK_CACHE_BATCH_SIZE = 2

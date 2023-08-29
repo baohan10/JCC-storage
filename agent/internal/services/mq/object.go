@@ -6,8 +6,8 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	"gitlink.org.cn/cloudream/storage-agent/internal/task"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	"gitlink.org.cn/cloudream/storage/agent/internal/task"
+	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 )
 
 func (svc *Service) StartPinningObject(msg *agtmq.StartPinningObject) (*agtmq.StartPinningObjectResp, *mq.CodeMessage) {

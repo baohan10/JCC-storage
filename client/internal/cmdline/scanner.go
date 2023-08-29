@@ -5,7 +5,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/cmdtrie"
 	myreflect "gitlink.org.cn/cloudream/common/utils/reflect"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 var parseScannerEventCmdTrie cmdtrie.StaticCommandTrie[any] = cmdtrie.NewStaticCommandTrie[any]()

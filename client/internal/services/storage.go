@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/storage-client/internal/task"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/client/internal/task"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type StorageService struct {

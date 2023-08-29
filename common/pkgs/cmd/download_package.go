@@ -8,10 +8,10 @@ import (
 
 	"gitlink.org.cn/cloudream/common/models"
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type DownloadPackage struct {

@@ -5,8 +5,8 @@ import (
 
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
 type CreateECPackageResult = cmd.CreateECPackageResult

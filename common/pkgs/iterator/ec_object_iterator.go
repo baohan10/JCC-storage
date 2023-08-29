@@ -9,11 +9,11 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	stgmodels "gitlink.org.cn/cloudream/storage-common/models"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/ec"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type ECObjectIterator struct {

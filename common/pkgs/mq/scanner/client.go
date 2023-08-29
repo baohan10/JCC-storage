@@ -2,7 +2,7 @@ package scanner
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	stgmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq"
+	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
 )
 
 type Client struct {

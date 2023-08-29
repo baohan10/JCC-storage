@@ -3,8 +3,8 @@ package task
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
 type UpdateECPackageResult = cmd.UpdateECPackageResult

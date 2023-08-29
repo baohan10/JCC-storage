@@ -1,7 +1,7 @@
 package mq
 
 import (
-	"gitlink.org.cn/cloudream/storage-agent/internal/task"
+	"gitlink.org.cn/cloudream/storage/agent/internal/task"
 )
 
 type Service struct {

@@ -1,8 +1,8 @@
 package services
 
 import (
-	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
-	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
+	mydb "gitlink.org.cn/cloudream/storage/common/pkgs/db"
+	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 )
 
 type Service struct {

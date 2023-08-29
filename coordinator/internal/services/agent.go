@@ -1,7 +1,7 @@
 package services
 
 import (
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 func (service *Service) TempCacheReport(msg *coormq.TempCacheReport) {

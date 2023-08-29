@@ -3,7 +3,7 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-client/internal/services"
+	"gitlink.org.cn/cloudream/storage/client/internal/services"
 )
 
 type Server struct {

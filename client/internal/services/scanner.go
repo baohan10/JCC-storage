@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/storage-common/globals"
+	"gitlink.org.cn/cloudream/storage/common/globals"
 )
 
 type ScannerService struct {

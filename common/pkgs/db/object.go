@@ -5,8 +5,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type ObjectDB struct {

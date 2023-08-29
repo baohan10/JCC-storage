@@ -1,7 +1,7 @@
 package globals
 
 import (
-	stgmodels "gitlink.org.cn/cloudream/storage-common/models"
+	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
 )
 
 var Local *stgmodels.LocalMachineInfo

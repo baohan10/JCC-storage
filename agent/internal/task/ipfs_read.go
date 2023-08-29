@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/globals"
+	"gitlink.org.cn/cloudream/storage/common/globals"
 )
 
 type IPFSRead struct {

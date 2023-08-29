@@ -8,12 +8,12 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	"gitlink.org.cn/cloudream/storage-agent/internal/config"
-	"gitlink.org.cn/cloudream/storage-agent/internal/task"
-	mytask "gitlink.org.cn/cloudream/storage-agent/internal/task"
-	"gitlink.org.cn/cloudream/storage-common/consts"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	"gitlink.org.cn/cloudream/storage/agent/internal/config"
+	"gitlink.org.cn/cloudream/storage/agent/internal/task"
+	mytask "gitlink.org.cn/cloudream/storage/agent/internal/task"
+	"gitlink.org.cn/cloudream/storage/common/consts"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 )
 
 func (svc *Service) CheckCache(msg *agtmq.CheckCache) (*agtmq.CheckCacheResp, *mq.CodeMessage) {

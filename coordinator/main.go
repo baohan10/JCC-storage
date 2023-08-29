@@ -5,11 +5,11 @@ import (
 	"os"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
-	"gitlink.org.cn/cloudream/storage-coordinator/internal/config"
-	"gitlink.org.cn/cloudream/storage-coordinator/internal/services"
+	mydb "gitlink.org.cn/cloudream/storage/common/pkgs/db"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
+	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
+	"gitlink.org.cn/cloudream/storage/coordinator/internal/config"
+	"gitlink.org.cn/cloudream/storage/coordinator/internal/services"
 )
 
 func main() {

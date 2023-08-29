@@ -3,8 +3,8 @@ package event
 import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 type CheckPackage struct {

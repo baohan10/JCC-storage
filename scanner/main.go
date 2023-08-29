@@ -6,14 +6,14 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock"
-	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/services"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/tickevent"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
+	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/config"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/services"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/tickevent"
 )
 
 func main() {

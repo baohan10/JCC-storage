@@ -10,14 +10,14 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	"gitlink.org.cn/cloudream/storage-agent/internal/config"
-	mytask "gitlink.org.cn/cloudream/storage-agent/internal/task"
-	"gitlink.org.cn/cloudream/storage-common/consts"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	"gitlink.org.cn/cloudream/storage-common/utils"
+	"gitlink.org.cn/cloudream/storage/agent/internal/config"
+	mytask "gitlink.org.cn/cloudream/storage/agent/internal/task"
+	"gitlink.org.cn/cloudream/storage/common/consts"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
+	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/common/utils"
 )
 
 func (svc *Service) StartStorageLoadPackage(msg *agtmq.StartStorageLoadPackage) (*agtmq.StartStorageLoadPackageResp, *mq.CodeMessage) {

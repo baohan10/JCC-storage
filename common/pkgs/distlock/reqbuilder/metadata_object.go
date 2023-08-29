@@ -2,7 +2,7 @@ package reqbuilder
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/lockprovider"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
 // TODO 可以考虑增加基于PackageID的锁，让访问不同Package的Object的操作能并行

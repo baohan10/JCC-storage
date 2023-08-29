@@ -7,8 +7,8 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {

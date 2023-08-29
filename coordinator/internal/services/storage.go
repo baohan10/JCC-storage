@@ -8,7 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStorageInfoResp, *mq.CodeMessage) {

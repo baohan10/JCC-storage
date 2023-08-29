@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/models"
-	mytask "gitlink.org.cn/cloudream/storage-client/internal/task"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	agtcmd "gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	mytask "gitlink.org.cn/cloudream/storage/client/internal/task"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	agtcmd "gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type PackageService struct {

@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type CacheMovePackage struct {

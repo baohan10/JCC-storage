@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/lockprovider"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
 type StorageLockReqBuilder struct {

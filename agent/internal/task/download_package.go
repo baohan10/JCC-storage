@@ -3,7 +3,7 @@ package task
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/storage-common/pkgs/cmd"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 )
 
 type DownloadPackage struct {

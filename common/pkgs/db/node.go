@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type NodeDB struct {

@@ -6,8 +6,8 @@ import (
 
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	agentserver "gitlink.org.cn/cloudream/storage-common/pkgs/grpc/agent"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	agentserver "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 )
 
 type Service struct {

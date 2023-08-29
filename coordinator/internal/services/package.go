@@ -10,8 +10,8 @@ import (
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	coormq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/coordinator"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 func (svc *Service) GetPackage(msg *coormq.GetPackage) (*coormq.GetPackageResp, *mq.CodeMessage) {

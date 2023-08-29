@@ -2,7 +2,7 @@ package agent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	mymq "gitlink.org.cn/cloudream/storage-common/pkgs/mq"
+	mymq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
 )
 
 type Service interface {

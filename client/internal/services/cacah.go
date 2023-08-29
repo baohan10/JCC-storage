@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	agtmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/agent"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 )
 
 type CacheService struct {

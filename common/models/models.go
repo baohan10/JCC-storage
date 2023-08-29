@@ -1,6 +1,6 @@
 package models
 
-import "gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+import "gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 
 /// TODO 将分散在各处的公共结构体定义集中到这里来
 

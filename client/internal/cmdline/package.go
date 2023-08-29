@@ -9,8 +9,8 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/storage-client/internal/config"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/iterator"
+	"gitlink.org.cn/cloudream/storage/client/internal/config"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
 func PackageListBucketPackages(ctx CommandContext, bucketID int64) error {

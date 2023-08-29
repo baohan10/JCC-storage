@@ -2,9 +2,9 @@ package services
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	scmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
+	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
 
 func (svc *Service) PostEvent(msg *scmq.PostEvent) {

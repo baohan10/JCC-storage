@@ -5,9 +5,9 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	c "gitlink.org.cn/cloudream/common/utils/config"
-	stgmodels "gitlink.org.cn/cloudream/storage-common/models"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/grpc"
-	stgmq "gitlink.org.cn/cloudream/storage-common/pkgs/mq"
+	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/grpc"
+	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
 )
 
 type Config struct {

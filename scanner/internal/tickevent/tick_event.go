@@ -2,8 +2,8 @@ package tickevent
 
 import (
 	tickevent "gitlink.org.cn/cloudream/common/pkgs/tickevent"
-	mydb "gitlink.org.cn/cloudream/storage-common/pkgs/db"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/event"
+	mydb "gitlink.org.cn/cloudream/storage/common/pkgs/db"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
 
 type ExecuteArgs struct {

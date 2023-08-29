@@ -7,12 +7,12 @@ import (
 	_ "google.golang.org/grpc/balancer/grpclb"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage-client/internal/cmdline"
-	"gitlink.org.cn/cloudream/storage-client/internal/config"
-	"gitlink.org.cn/cloudream/storage-client/internal/services"
-	"gitlink.org.cn/cloudream/storage-client/internal/task"
-	"gitlink.org.cn/cloudream/storage-common/globals"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock"
+	"gitlink.org.cn/cloudream/storage/client/internal/cmdline"
+	"gitlink.org.cn/cloudream/storage/client/internal/config"
+	"gitlink.org.cn/cloudream/storage/client/internal/services"
+	"gitlink.org.cn/cloudream/storage/client/internal/task"
+	"gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 )
 
 func main() {

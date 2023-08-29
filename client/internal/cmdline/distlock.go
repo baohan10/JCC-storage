@@ -7,7 +7,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock/service"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/lockprovider"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
 func DistLockLock(ctx CommandContext, lockData []string) error {

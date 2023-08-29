@@ -8,12 +8,12 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
-	"gitlink.org.cn/cloudream/storage-common/consts"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/storage-scanner/internal/config"
+	"gitlink.org.cn/cloudream/storage/common/consts"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/config"
 
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 type CheckRepCount struct {

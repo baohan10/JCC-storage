@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	scevt "gitlink.org.cn/cloudream/storage-common/pkgs/mq/scanner/event"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 type EventService interface {

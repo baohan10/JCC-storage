@@ -3,7 +3,7 @@ package coordinator
 import (
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	"gitlink.org.cn/cloudream/storage-common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type PackageService interface {

@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"gitlink.org.cn/cloudream/common/pkgs/cmdtrie"
-	"gitlink.org.cn/cloudream/storage-client/internal/services"
+	"gitlink.org.cn/cloudream/storage/client/internal/services"
 )
 
 type CommandContext struct {
