@@ -1,0 +1,39 @@
+{
+    "id": 1,
+    "local": {
+        "nodeID": 1,
+        "localIP": "127.0.0.1",
+        "externalIP": "127.0.0.1"
+    },
+    "grpc": {
+        "ip": "127.0.0.1",
+        "port": 5010
+    },
+    "ecPacketSize": 10,
+    "storageBaseDir": ".",
+    "tempFileLifetime": 3600,
+    "logger": {
+        "output": "file",
+        "outputFileName": "agent",
+        "outputDirectory": "log",
+        "level": "debug"
+    },
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "cloudream",
+        "password": "123456",
+        "vhost": "/"
+    },
+    "ipfs": {
+        "port": 5001
+    },
+    "distlock": {
+        "etcdAddress": "127.0.0.1:2379",
+        "etcdUsername": "",
+        "etcdPassword": "",
+        "etcdLockAcquireTimeoutMs": 5000,
+        "etcdLockLeaseTimeSec": 5,
+        "lockRequestLeaseTimeSec": 5,
+        "submitLockRequestWithoutLease": true
+    }
+}
