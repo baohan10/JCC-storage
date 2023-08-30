@@ -11,6 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
+	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
@@ -94,7 +95,7 @@ func (svc *Service) UpdateRepPackage(msg *coormq.UpdateRepPackage) (*coormq.Upda
 		affectFileHashes = append(affectFileHashes, add.FileHash)
 	}
 
-	err = svc.scanner.PostEvent(scevt.NewCheckRepCount(affectFileHashes), true, true)
+	err = svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewCheckRepCount(affectFileHashes), true, true))
 	if err != nil {
 		logger.Warnf("post event to scanner failed, but this will not affect creating, err: %s", err.Error())
 	}
@@ -170,7 +171,7 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 	// 不追求及时、准确
 	if len(stgs) == 0 {
 		// 如果没有被引用，直接投递CheckPackage的任务
-		err := svc.scanner.PostEvent(scevt.NewCheckPackage([]int64{msg.PackageID}), false, false)
+		err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewCheckPackage([]int64{msg.PackageID}), false, false))
 		if err != nil {
 			logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
 		}
@@ -179,7 +180,7 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 	} else {
 		// 有引用则让Agent去检查StoragePackage
 		for _, stg := range stgs {
-			err := svc.scanner.PostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []int64{msg.PackageID}), false, false)
+			err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []int64{msg.PackageID}), false, false))
 			if err != nil {
 				logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
 			}

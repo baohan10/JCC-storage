@@ -17,24 +17,19 @@ const (
 	BuildDir = "./build"
 )
 
-var Global = struct {
-	OS   string
-	Arch string
-}{}
-
 // [配置项]设置编译平台为windows
 func Win() {
-	Global.OS = "win"
+	magefiles.Global.OS = "win"
 }
 
 // [配置项]设置编译平台为linux
 func Linux() {
-	Global.OS = "linux"
+	magefiles.Global.OS = "linux"
 }
 
 // [配置项]设置编译架构为amd64
 func AMD64() {
-	Global.Arch = "amd64"
+	magefiles.Global.Arch = "amd64"
 }
 
 func All() error {
