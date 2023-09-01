@@ -105,7 +105,7 @@ func (i *RepObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloading
 	if downloadNode.IsSameLocation {
 		nodeIP = downloadNode.Node.LocalIP
 
-		logger.Infof("client and node %d are at the same location, use local ip\n", downloadNode.Node.NodeID)
+		logger.Infof("client and node %d are at the same location, use local ip", downloadNode.Node.NodeID)
 	}
 
 	reader, err := downloadFile(i.downloadCtx, downloadNode.Node.NodeID, nodeIP, repData.FileHash)

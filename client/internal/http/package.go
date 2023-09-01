@@ -8,8 +8,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/models"
+	"gitlink.org.cn/cloudream/common/pkgs/iterator"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
+
+	stgiter "gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
 type PackageService struct {
@@ -72,7 +74,7 @@ func (s *PackageService) uploadRep(ctx *gin.Context, req *PackageUploadReq) {
 		return
 	}
 
-	objIter := iterator.NewHTTPObjectIterator(req.Files)
+	objIter := mapMultiPartFileToUploadingObject(req.Files)
 
 	taskID, err := s.svc.PackageSvc().StartCreatingRepPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, repInfo)
 
@@ -116,7 +118,7 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 		return
 	}
 
-	objIter := iterator.NewHTTPObjectIterator(req.Files)
+	objIter := mapMultiPartFileToUploadingObject(req.Files)
 
 	taskID, err := s.svc.PackageSvc().StartCreatingECPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, ecInfo)
 
@@ -231,4 +233,22 @@ func (s *PackageService) GetLoadedNodes(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, OK(GetLoadedNodesResp{
 		NodeIDs: nodeIDs,
 	}))
+}
+
+func mapMultiPartFileToUploadingObject(files []*multipart.FileHeader) stgiter.UploadingObjectIterator {
+	return iterator.Map[*multipart.FileHeader](
+		iterator.Array(files...),
+		func(file *multipart.FileHeader) (*stgiter.IterUploadingObject, error) {
+			stream, err := file.Open()
+			if err != nil {
+				return nil, err
+			}
+
+			return &stgiter.IterUploadingObject{
+				Path: file.Filename,
+				Size: file.Size,
+				File: stream,
+			}, nil
+		},
+	)
 }

@@ -55,24 +55,32 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int6
 		if err != nil {
 			return err
 		}
-		defer objInfo.File.Close()
 
-		fullPath := filepath.Join(outputDir, objInfo.Object.Path)
+		err = func() error {
+			defer objInfo.File.Close()
 
-		dirPath := filepath.Dir(fullPath)
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
-			return fmt.Errorf("creating object dir: %w", err)
-		}
+			fullPath := filepath.Join(outputDir, objInfo.Object.Path)
 
-		outputFile, err := os.Create(fullPath)
+			dirPath := filepath.Dir(fullPath)
+			if err := os.MkdirAll(dirPath, 0755); err != nil {
+				return fmt.Errorf("creating object dir: %w", err)
+			}
+
+			outputFile, err := os.Create(fullPath)
+			if err != nil {
+				return fmt.Errorf("creating object file: %w", err)
+			}
+			defer outputFile.Close()
+
+			_, err = io.Copy(outputFile, objInfo.File)
+			if err != nil {
+				return fmt.Errorf("copy object data to local file failed, err: %w", err)
+			}
+
+			return nil
+		}()
 		if err != nil {
-			return fmt.Errorf("creating object file: %w", err)
-		}
-		defer outputFile.Close()
-
-		_, err = io.Copy(outputFile, objInfo.File)
-		if err != nil {
-			return fmt.Errorf("copy object data to local file failed, err: %w", err)
+			return err
 		}
 	}
 
