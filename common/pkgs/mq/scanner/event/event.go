@@ -5,21 +5,11 @@ import (
 	"gitlink.org.cn/cloudream/common/utils/serder"
 )
 
-var typeResolver = serder.NewTypeNameResolver(true)
+type Event interface{}
 
-var serderOption = serder.TypedSerderOption{
-	TypeResolver:  &typeResolver,
-	TypeFieldName: "@type",
-}
-
-func MapToMessage(m map[string]any) (any, error) {
-	return serder.TypedMapToObject(m, serderOption)
-}
-
-func MessageToMap(msg any) (map[string]any, error) {
-	return serder.ObjectToTypedMap(msg, serderOption)
-}
+var eventUnionEles = serder.NewTypeNameResolver(true)
+var EventTypeUnino = serder.NewTypeUnion[Event]("@type", eventUnionEles)
 
 func Register[T any]() {
-	typeResolver.Register(myreflect.TypeOf[T]())
+	eventUnionEles.Register(myreflect.TypeOf[T]())
 }

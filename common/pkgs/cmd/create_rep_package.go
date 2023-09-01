@@ -152,17 +152,24 @@ func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObj
 			return nil, fmt.Errorf("reading object: %w", err)
 		}
 
-		fileHash, err := uploadFile(objInfo.File, uploadNode)
-		uploadRets = append(uploadRets, RepObjectUploadResult{
-			Info:     objInfo,
-			Error:    err,
-			FileHash: fileHash,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("uploading object: %w", err)
-		}
+		err = func() error {
+			defer objInfo.File.Close()
+			fileHash, err := uploadFile(objInfo.File, uploadNode)
+			uploadRets = append(uploadRets, RepObjectUploadResult{
+				Info:     objInfo,
+				Error:    err,
+				FileHash: fileHash,
+			})
+			if err != nil {
+				return fmt.Errorf("uploading object: %w", err)
+			}
 
-		adds = append(adds, coormq.NewAddRepObjectInfo(objInfo.Path, objInfo.Size, fileHash, []int64{uploadNode.Node.NodeID}))
+			adds = append(adds, coormq.NewAddRepObjectInfo(objInfo.Path, objInfo.Size, fileHash, []int64{uploadNode.Node.NodeID}))
+			return nil
+		}()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	_, err = coorCli.UpdateRepPackage(coormq.NewUpdateRepPackage(packageID, adds, nil))
@@ -195,7 +202,7 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	if uploadNode.IsSameLocation {
 		nodeIP = uploadNode.Node.LocalIP
 
-		logger.Infof("client and node %d are at the same location, use local ip\n", uploadNode.Node.NodeID)
+		logger.Infof("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
 	}
 
 	fileHash, err := uploadToNode(file, nodeIP)

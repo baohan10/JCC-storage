@@ -8,6 +8,7 @@ import (
 	event "gitlink.org.cn/cloudream/common/pkgs/event"
 	"gitlink.org.cn/cloudream/common/pkgs/typedispatcher"
 	mydb "gitlink.org.cn/cloudream/storage/common/pkgs/db"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 type ExecuteArgs struct {
@@ -32,7 +33,7 @@ func NewExecutor(db *mydb.DB, distLock *distlocksvc.Service) Executor {
 
 var msgDispatcher = typedispatcher.NewTypeDispatcher[Event]()
 
-func FromMessage(msg any) (Event, error) {
+func FromMessage(msg scevt.Event) (Event, error) {
 	event, ok := msgDispatcher.Dispatch(msg)
 	if !ok {
 		return nil, fmt.Errorf("unknow event message type: %s", reflect.TypeOf(msg).Name())

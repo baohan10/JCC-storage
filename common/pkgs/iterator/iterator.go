@@ -1,12 +1,9 @@
 package iterator
 
 import (
-	"errors"
+	"gitlink.org.cn/cloudream/common/pkgs/iterator"
 )
 
-var ErrNoMoreItem = errors.New("no more item")
+var ErrNoMoreItem = iterator.ErrNoMoreItem
 
-type Iterator[T any] interface {
-	MoveNext() (T, error)
-	Close()
-}
+type Iterator[T any] iterator.Iterator[T]

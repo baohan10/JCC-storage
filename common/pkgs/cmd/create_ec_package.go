@@ -152,17 +152,24 @@ func uploadAndUpdateECPackage(packageID int64, objectIter iterator.UploadingObje
 		if err != nil {
 			return nil, fmt.Errorf("reading object: %w", err)
 		}
+		err = func() error {
+			defer objInfo.File.Close()
 
-		fileHashes, uploadedNodeIDs, err := uploadECObject(objInfo, uploadNodes, ecInfo, ec)
-		uploadRets = append(uploadRets, ECObjectUploadResult{
-			Info:  objInfo,
-			Error: err,
-		})
+			fileHashes, uploadedNodeIDs, err := uploadECObject(objInfo, uploadNodes, ecInfo, ec)
+			uploadRets = append(uploadRets, ECObjectUploadResult{
+				Info:  objInfo,
+				Error: err,
+			})
+			if err != nil {
+				return fmt.Errorf("uploading object: %w", err)
+			}
+
+			adds = append(adds, coormq.NewAddECObjectInfo(objInfo.Path, objInfo.Size, fileHashes, uploadedNodeIDs))
+			return nil
+		}()
 		if err != nil {
-			return nil, fmt.Errorf("uploading object: %w", err)
+			return nil, err
 		}
-
-		adds = append(adds, coormq.NewAddECObjectInfo(objInfo.Path, objInfo.Size, fileHashes, uploadedNodeIDs))
 	}
 
 	_, err = coorCli.UpdateECPackage(coormq.NewUpdateECPackage(packageID, adds, nil))

@@ -104,7 +104,7 @@ func (iter *ECObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloadi
 		nodeIPs[i] = nds[i].Node.ExternalIP
 		if nds[i].IsSameLocation {
 			nodeIPs[i] = nds[i].Node.LocalIP
-			logger.Infof("client and node %d are at the same location, use local ip\n", nds[i].Node.NodeID)
+			logger.Infof("client and node %d are at the same location, use local ip", nds[i].Node.NodeID)
 		}
 	}
 
