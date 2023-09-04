@@ -23,9 +23,7 @@
         "etcdAddress": "127.0.0.1:2379",
         "etcdUsername": "",
         "etcdPassword": "",
-        "etcdLockAcquireTimeoutMs": 5000,
         "etcdLockLeaseTimeSec": 5,
-        "lockRequestLeaseTimeSec": 5,
         "submitLockRequestWithoutLease": true
     }
 }
