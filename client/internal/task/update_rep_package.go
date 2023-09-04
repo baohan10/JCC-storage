@@ -3,6 +3,7 @@ package task
 import (
 	"time"
 
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -21,7 +22,7 @@ func NewUpdateRepPackage(userID int64, packageID int64, objectIter iterator.Uplo
 	}
 }
 
-func (t *UpdateRepPackage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *UpdateRepPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	ret, err := t.cmd.Execute(&cmd.UpdatePackageContext{
 		Distlock: ctx.distlock,
 	})

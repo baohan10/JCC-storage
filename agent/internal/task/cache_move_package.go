@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -23,7 +24,7 @@ func NewCacheMovePackage(userID int64, packageID int64) *CacheMovePackage {
 	}
 }
 
-func (t *CacheMovePackage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *CacheMovePackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	err := t.do(ctx)
 	complete(err, CompleteOption{
 		RemovingDelay: time.Minute,

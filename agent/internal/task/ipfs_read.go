@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/globals"
 )
 
@@ -32,7 +33,7 @@ func (t *IPFSRead) Compare(other *Task) bool {
 	return t.FileHash == tsk.FileHash && t.LocalPath == tsk.LocalPath
 }
 
-func (t *IPFSRead) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *IPFSRead) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	log := logger.WithType[IPFSRead]("Task")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 	defer log.Debugf("end")

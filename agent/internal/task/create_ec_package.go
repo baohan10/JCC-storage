@@ -5,6 +5,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -23,7 +24,7 @@ func NewCreateECPackage(userID int64, bucketID int64, name string, objIter itera
 	}
 }
 
-func (t *CreateECPackage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *CreateECPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	log := logger.WithType[CreateECPackage]("Task")
 	log.Debugf("begin")
 	defer log.Debugf("end")
