@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/models"
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -22,7 +23,7 @@ func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iter
 	}
 }
 
-func (t *CreateRepPackage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *CreateRepPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	ret, err := t.cmd.Execute(&cmd.UpdatePackageContext{
 		Distlock: ctx.distlock,
 	})

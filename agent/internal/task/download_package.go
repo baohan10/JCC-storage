@@ -3,6 +3,7 @@ package task
 import (
 	"time"
 
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 )
 
@@ -15,7 +16,7 @@ func NewDownloadPackage(userID int64, packageID int64, outputPath string) *Downl
 		cmd: cmd.NewDownloadPackage(userID, packageID, outputPath),
 	}
 }
-func (t *DownloadPackage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *DownloadPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	err := t.cmd.Execute(&cmd.DownloadPackageContext{
 		Distlock: ctx.distlock,
 	})

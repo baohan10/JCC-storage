@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/globals"
 )
 
@@ -27,7 +28,7 @@ func (t *IPFSPin) Compare(other *Task) bool {
 	return t.FileHash == tsk.FileHash
 }
 
-func (t *IPFSPin) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *IPFSPin) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	log := logger.WithType[IPFSPin]("Task")
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 	defer log.Debugf("end")

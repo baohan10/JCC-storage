@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -24,7 +25,7 @@ func NewStorageLoadPackage(userID int64, packageID int64, storageID int64) *Stor
 	}
 }
 
-func (t *StorageLoadPackage) Execute(ctx TaskContext, complete CompleteFn) {
+func (t *StorageLoadPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	err := t.do(ctx)
 	complete(err, CompleteOption{
 		RemovingDelay: time.Minute,
