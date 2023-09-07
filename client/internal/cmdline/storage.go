@@ -31,7 +31,7 @@ func StorageLoadPackage(ctx CommandContext, packageID int64, storageID int64) er
 
 func StorageCreateRepPackage(ctx CommandContext, bucketID int64, name string, storageID int64, path string, repCount int) error {
 	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageCreatePackage(0, bucketID, name, storageID, path,
-		models.NewTypedRepRedundancyInfo(repCount))
+		models.NewTypedRepRedundancyInfo(repCount), nil)
 	if err != nil {
 		return fmt.Errorf("start storage uploading rep package: %w", err)
 	}

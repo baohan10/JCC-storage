@@ -30,10 +30,11 @@ type PackageUploadReq struct {
 }
 
 type PackageUploadInfo struct {
-	UserID     *int64                     `json:"userID" binding:"required"`
-	BucketID   *int64                     `json:"bucketID" binding:"required"`
-	Name       string                     `json:"name" binding:"required"`
-	Redundancy models.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	UserID       *int64                     `json:"userID" binding:"required"`
+	BucketID     *int64                     `json:"bucketID" binding:"required"`
+	Name         string                     `json:"name" binding:"required"`
+	Redundancy   models.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 
 type PackageUploadResp struct {
@@ -76,7 +77,7 @@ func (s *PackageService) uploadRep(ctx *gin.Context, req *PackageUploadReq) {
 
 	objIter := mapMultiPartFileToUploadingObject(req.Files)
 
-	taskID, err := s.svc.PackageSvc().StartCreatingRepPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, repInfo)
+	taskID, err := s.svc.PackageSvc().StartCreatingRepPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, repInfo, req.Info.NodeAffinity)
 
 	if err != nil {
 		log.Warnf("start uploading rep package task: %s", err.Error())
@@ -120,7 +121,7 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 
 	objIter := mapMultiPartFileToUploadingObject(req.Files)
 
-	taskID, err := s.svc.PackageSvc().StartCreatingECPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, ecInfo)
+	taskID, err := s.svc.PackageSvc().StartCreatingECPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, ecInfo, req.Info.NodeAffinity)
 
 	if err != nil {
 		log.Warnf("start uploading ec package task: %s", err.Error())

@@ -203,7 +203,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 			return nil, mq.Failed(errorcode.OperationFailed, "get rep redundancy info failed")
 		}
 
-		tsk := svc.taskManager.StartNew(mytask.NewCreateRepPackage(msg.UserID, msg.BucketID, msg.Name, objIter, repInfo))
+		tsk := svc.taskManager.StartNew(mytask.NewCreateRepPackage(msg.UserID, msg.BucketID, msg.Name, objIter, repInfo, msg.NodeAffinity))
 		return mq.ReplyOK(agtmq.NewStartStorageCreatePackageResp(tsk.ID()))
 	}
 
@@ -214,7 +214,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 		return nil, mq.Failed(errorcode.OperationFailed, "get ec redundancy info failed")
 	}
 
-	tsk := svc.taskManager.StartNew(mytask.NewCreateECPackage(msg.UserID, msg.BucketID, msg.Name, objIter, ecInfo))
+	tsk := svc.taskManager.StartNew(mytask.NewCreateECPackage(msg.UserID, msg.BucketID, msg.Name, objIter, ecInfo, msg.NodeAffinity))
 	return mq.ReplyOK(agtmq.NewStartStorageCreatePackageResp(tsk.ID()))
 }
 

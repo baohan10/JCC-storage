@@ -127,25 +127,27 @@ func (client *Client) StorageCheck(msg StorageCheck, opts ...mq.RequestOption) (
 var _ = Register(StorageService.StartStorageCreatePackage)
 
 type StartStorageCreatePackage struct {
-	UserID     int64                      `json:"userID"`
-	BucketID   int64                      `json:"bucketID"`
-	Name       string                     `json:"name"`
-	StorageID  int64                      `json:"storageID"`
-	Path       string                     `json:"path"`
-	Redundancy models.TypedRedundancyInfo `json:"redundancy"`
+	UserID       int64                      `json:"userID"`
+	BucketID     int64                      `json:"bucketID"`
+	Name         string                     `json:"name"`
+	StorageID    int64                      `json:"storageID"`
+	Path         string                     `json:"path"`
+	Redundancy   models.TypedRedundancyInfo `json:"redundancy"`
+	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 type StartStorageCreatePackageResp struct {
 	TaskID string `json:"taskID"`
 }
 
-func NewStartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo) StartStorageCreatePackage {
+func NewStartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo, nodeAffinity *int64) StartStorageCreatePackage {
 	return StartStorageCreatePackage{
-		UserID:     userID,
-		BucketID:   bucketID,
-		Name:       name,
-		StorageID:  storageID,
-		Path:       path,
-		Redundancy: redundancy,
+		UserID:       userID,
+		BucketID:     bucketID,
+		Name:         name,
+		StorageID:    storageID,
+		Path:         path,
+		Redundancy:   redundancy,
+		NodeAffinity: nodeAffinity,
 	}
 }
 func NewStartStorageCreatePackageResp(taskID string) StartStorageCreatePackageResp {
