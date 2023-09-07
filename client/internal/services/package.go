@@ -123,8 +123,8 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 	return iter, nil
 }
 
-func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo models.RepRedundancyInfo) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewCreateRepPackage(userID, bucketID, name, objIter, repInfo))
+func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo models.RepRedundancyInfo, nodeAffinity *int64) (string, error) {
+	tsk := svc.TaskMgr.StartNew(mytask.NewCreateRepPackage(userID, bucketID, name, objIter, repInfo, nodeAffinity))
 	return tsk.ID(), nil
 }
 
@@ -151,8 +151,8 @@ func (svc *PackageService) WaitUpdatingRepPackage(taskID string, waitTimeout tim
 	return false, nil, nil
 }
 
-func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo models.ECRedundancyInfo) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewCreateECPackage(userID, bucketID, name, objIter, ecInfo))
+func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo models.ECRedundancyInfo, nodeAffinity *int64) (string, error) {
+	tsk := svc.TaskMgr.StartNew(mytask.NewCreateECPackage(userID, bucketID, name, objIter, ecInfo, nodeAffinity))
 	return tsk.ID(), nil
 }
 

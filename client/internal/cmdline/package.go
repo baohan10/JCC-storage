@@ -87,7 +87,7 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int6
 	return nil
 }
 
-func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64, name string, repCount int) error {
+func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64, name string, repCount int, nodeAffinity []int64) error {
 	rootPath = filepath.Clean(rootPath)
 
 	var uploadFilePathes []string
@@ -106,8 +106,13 @@ func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
+	var nodeAff *int64
+	if len(nodeAffinity) > 0 {
+		nodeAff = &nodeAffinity[0]
+	}
+
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingRepPackage(0, bucketID, name, objIter, models.NewRepRedundancyInfo(repCount))
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingRepPackage(0, bucketID, name, objIter, models.NewRepRedundancyInfo(repCount), nodeAff)
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
@@ -181,7 +186,7 @@ func PackageUpdateRepPackage(ctx CommandContext, packageID int64, rootPath strin
 	}
 }
 
-func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string) error {
+func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string, nodeAffinity []int64) error {
 	var uploadFilePathes []string
 	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
 		if err != nil {
@@ -198,8 +203,13 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
+	var nodeAff *int64
+	if len(nodeAffinity) > 0 {
+		nodeAff = &nodeAffinity[0]
+	}
+
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, models.NewECRedundancyInfo(ecName, config.Cfg().ECPacketSize))
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, models.NewECRedundancyInfo(ecName, config.Cfg().ECPacketSize), nodeAff)
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)

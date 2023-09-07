@@ -17,9 +17,9 @@ type CreateRepPackage struct {
 	Result *CreateRepPackageResult
 }
 
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo) *CreateRepPackage {
+func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
 	return &CreateRepPackage{
-		cmd: *cmd.NewCreateRepPackage(userID, bucketID, name, objIter, redundancy),
+		cmd: *cmd.NewCreateRepPackage(userID, bucketID, name, objIter, redundancy, nodeAffinity),
 	}
 }
 

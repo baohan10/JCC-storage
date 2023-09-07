@@ -25,11 +25,12 @@ type UploadNodeInfo struct {
 }
 
 type CreateRepPackage struct {
-	userID     int64
-	bucketID   int64
-	name       string
-	objectIter iterator.UploadingObjectIterator
-	redundancy models.RepRedundancyInfo
+	userID       int64
+	bucketID     int64
+	name         string
+	objectIter   iterator.UploadingObjectIterator
+	redundancy   models.RepRedundancyInfo
+	nodeAffinity *int64
 }
 
 type UpdatePackageContext struct {
@@ -48,13 +49,14 @@ type RepObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo) *CreateRepPackage {
+func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
 	return &CreateRepPackage{
-		userID:     userID,
-		bucketID:   bucketID,
-		name:       name,
-		objectIter: objIter,
-		redundancy: redundancy,
+		userID:       userID,
+		bucketID:     bucketID,
+		name:         name,
+		objectIter:   objIter,
+		redundancy:   redundancy,
+		nodeAffinity: nodeAffinity,
 	}
 }
 
@@ -113,7 +115,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 			IsSameLocation: node.LocationID == findCliLocResp.Location.LocationID,
 		}
 	})
-	uploadNode := t.chooseUploadNode(nodeInfos)
+	uploadNode := t.chooseUploadNode(nodeInfos, t.nodeAffinity)
 
 	// 防止上传的副本被清除
 	ipfsMutex, err := reqbuilder.NewBuilder().
@@ -214,9 +216,17 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 }
 
 // chooseUploadNode 选择一个上传文件的节点
-// 1. 从与当前客户端相同地域的节点中随机选一个
-// 2. 没有用的话从所有节点中随机选一个
-func (t *CreateRepPackage) chooseUploadNode(nodes []UploadNodeInfo) UploadNodeInfo {
+// 1. 选择设置了亲和性的节点
+// 2. 从与当前客户端相同地域的节点中随机选一个
+// 3. 没有用的话从所有节点中随机选一个
+func (t *CreateRepPackage) chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity *int64) UploadNodeInfo {
+	if nodeAffinity != nil {
+		aff, ok := lo.Find(nodes, func(node UploadNodeInfo) bool { return node.Node.NodeID == *nodeAffinity })
+		if ok {
+			return aff
+		}
+	}
+
 	sameLocationNodes := lo.Filter(nodes, func(e UploadNodeInfo, i int) bool { return e.IsSameLocation })
 	if len(sameLocationNodes) > 0 {
 		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]

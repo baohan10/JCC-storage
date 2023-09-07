@@ -17,9 +17,9 @@ type CreateECPackage struct {
 	Result *CreateECPackageResult
 }
 
-func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo) *CreateECPackage {
+func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo, nodeAffinity *int64) *CreateECPackage {
 	return &CreateECPackage{
-		cmd: *cmd.NewCreateECPackage(userID, bucketID, name, objIter, redundancy),
+		cmd: *cmd.NewCreateECPackage(userID, bucketID, name, objIter, redundancy, nodeAffinity),
 	}
 }
 

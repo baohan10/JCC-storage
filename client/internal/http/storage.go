@@ -65,12 +65,13 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 }
 
 type StorageCreatePackageReq struct {
-	UserID     *int64                     `json:"userID" binding:"required"`
-	StorageID  *int64                     `json:"storageID" binding:"required"`
-	Path       string                     `json:"path" binding:"required"`
-	BucketID   *int64                     `json:"bucketID" binding:"required"`
-	Name       string                     `json:"name" binding:"required"`
-	Redundancy models.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	UserID       *int64                     `json:"userID" binding:"required"`
+	StorageID    *int64                     `json:"storageID" binding:"required"`
+	Path         string                     `json:"path" binding:"required"`
+	BucketID     *int64                     `json:"bucketID" binding:"required"`
+	Name         string                     `json:"name" binding:"required"`
+	Redundancy   models.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 
 type StorageCreatePackageResp struct {
@@ -88,7 +89,7 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 	}
 
 	nodeID, taskID, err := s.svc.StorageSvc().StartStorageCreatePackage(
-		*req.UserID, *req.BucketID, req.Name, *req.StorageID, req.Path, req.Redundancy)
+		*req.UserID, *req.BucketID, req.Name, *req.StorageID, req.Path, req.Redundancy, req.NodeAffinity)
 	if err != nil {
 		log.Warnf("start storage create package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage create package failed"))

@@ -20,11 +20,12 @@ import (
 )
 
 type CreateECPackage struct {
-	userID     int64
-	bucketID   int64
-	name       string
-	objectIter iterator.UploadingObjectIterator
-	redundancy models.ECRedundancyInfo
+	userID       int64
+	bucketID     int64
+	name         string
+	objectIter   iterator.UploadingObjectIterator
+	redundancy   models.ECRedundancyInfo
+	nodeAffinity *int64
 }
 
 type CreateECPackageResult struct {
@@ -38,13 +39,14 @@ type ECObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo) *CreateECPackage {
+func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo, nodeAffinity *int64) *CreateECPackage {
 	return &CreateECPackage{
-		userID:     userID,
-		bucketID:   bucketID,
-		name:       name,
-		objectIter: objIter,
-		redundancy: redundancy,
+		userID:       userID,
+		bucketID:     bucketID,
+		name:         name,
+		objectIter:   objIter,
+		redundancy:   redundancy,
+		nodeAffinity: nodeAffinity,
 	}
 }
 
@@ -124,6 +126,7 @@ func (t *CreateECPackage) Execute(ctx *UpdatePackageContext) (*CreateECPackageRe
 	}
 	defer ipfsMutex.Unlock()
 
+	// TODO 需要支持设置节点亲和性
 	rets, err := uploadAndUpdateECPackage(createPkgResp.PackageID, t.objectIter, uploadNodeInfos, t.redundancy, getECResp.Config)
 	if err != nil {
 		return nil, err

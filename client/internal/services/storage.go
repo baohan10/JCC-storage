@@ -38,7 +38,7 @@ func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, s
 }
 
 // 请求节点启动从Storage中上传文件的任务。会返回节点ID和任务ID
-func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo) (int64, string, error) {
+func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo, nodeAffinity *int64) (int64, string, error) {
 	coorCli, err := globals.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return 0, "", fmt.Errorf("new coordinator client: %w", err)
@@ -56,7 +56,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 	}
 	defer agentCli.Close()
 
-	startResp, err := agentCli.StartStorageCreatePackage(agtmq.NewStartStorageCreatePackage(userID, bucketID, name, storageID, path, redundancy))
+	startResp, err := agentCli.StartStorageCreatePackage(agtmq.NewStartStorageCreatePackage(userID, bucketID, name, storageID, path, redundancy, nodeAffinity))
 	if err != nil {
 		return 0, "", fmt.Errorf("start storage upload package: %w", err)
 	}
