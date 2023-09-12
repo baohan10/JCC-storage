@@ -1,6 +1,7 @@
 package event
 
 type CheckPackage struct {
+	EventBase
 	PackageIDs []int64 `json:"packageIDs"`
 }
 

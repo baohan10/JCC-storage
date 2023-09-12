@@ -16,7 +16,7 @@ func ScannerPostEvent(ctx CommandContext, args []string) error {
 		return fmt.Errorf("execute parsing event command failed, err: %w", err)
 	}
 
-	err = ctx.Cmdline.Svc.ScannerSvc().PostEvent(ret, false, false)
+	err = ctx.Cmdline.Svc.ScannerSvc().PostEvent(ret.(scevt.Event), false, false)
 	if err != nil {
 		return fmt.Errorf("post event to scanner failed, err: %w", err)
 	}

@@ -1,6 +1,7 @@
 package event
 
 type CheckCache struct {
+	EventBase
 	NodeID int64 `json:"nodeID"`
 }
 

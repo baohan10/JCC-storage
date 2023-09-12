@@ -1,6 +1,7 @@
 package event
 
 type CheckRepCount struct {
+	EventBase
 	FileHashes []string `json:"fileHashes"`
 }
 

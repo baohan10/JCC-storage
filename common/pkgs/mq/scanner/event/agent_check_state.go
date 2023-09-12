@@ -1,6 +1,7 @@
 package event
 
 type AgentCheckState struct {
+	EventBase
 	NodeID int64 `json:"nodeID"`
 }
 
