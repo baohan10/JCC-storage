@@ -12,49 +12,53 @@ type NodeService interface {
 }
 
 // 查询用户可用的节点
-var _ = Register(NodeService.GetUserNodes)
+var _ = Register(Service.GetUserNodes)
 
 type GetUserNodes struct {
+	mq.MessageBodyBase
 	UserID int64 `json:"userID"`
 }
 type GetUserNodesResp struct {
+	mq.MessageBodyBase
 	Nodes []model.Node `json:"nodes"`
 }
 
-func NewGetUserNodes(userID int64) GetUserNodes {
-	return GetUserNodes{
+func NewGetUserNodes(userID int64) *GetUserNodes {
+	return &GetUserNodes{
 		UserID: userID,
 	}
 }
-func NewGetUserNodesResp(nodes []model.Node) GetUserNodesResp {
-	return GetUserNodesResp{
+func NewGetUserNodesResp(nodes []model.Node) *GetUserNodesResp {
+	return &GetUserNodesResp{
 		Nodes: nodes,
 	}
 }
-func (client *Client) GetUserNodes(msg GetUserNodes) (*GetUserNodesResp, error) {
-	return mq.Request[GetUserNodesResp](client.rabbitCli, msg)
+func (client *Client) GetUserNodes(msg *GetUserNodes) (*GetUserNodesResp, error) {
+	return mq.Request(Service.GetUserNodes, client.rabbitCli, msg)
 }
 
 // 获取指定节点的信息
-var _ = Register(NodeService.GetNodes)
+var _ = Register(Service.GetNodes)
 
 type GetNodes struct {
+	mq.MessageBodyBase
 	NodeIDs []int64 `json:"nodeIDs"`
 }
 type GetNodesResp struct {
+	mq.MessageBodyBase
 	Nodes []model.Node `json:"nodes"`
 }
 
-func NewGetNodes(nodeIDs []int64) GetNodes {
-	return GetNodes{
+func NewGetNodes(nodeIDs []int64) *GetNodes {
+	return &GetNodes{
 		NodeIDs: nodeIDs,
 	}
 }
-func NewGetNodesResp(nodes []model.Node) GetNodesResp {
-	return GetNodesResp{
+func NewGetNodesResp(nodes []model.Node) *GetNodesResp {
+	return &GetNodesResp{
 		Nodes: nodes,
 	}
 }
-func (client *Client) GetNodes(msg GetNodes) (*GetNodesResp, error) {
-	return mq.Request[GetNodesResp](client.rabbitCli, msg)
+func (client *Client) GetNodes(msg *GetNodes) (*GetNodesResp, error) {
+	return mq.Request(Service.GetNodes, client.rabbitCli, msg)
 }

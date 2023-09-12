@@ -4,8 +4,8 @@ type AgentCheckState struct {
 	NodeID int64 `json:"nodeID"`
 }
 
-func NewAgentCheckState(nodeID int64) AgentCheckState {
-	return AgentCheckState{
+func NewAgentCheckState(nodeID int64) *AgentCheckState {
+	return &AgentCheckState{
 		NodeID: nodeID,
 	}
 }

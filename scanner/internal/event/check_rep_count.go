@@ -17,7 +17,7 @@ import (
 )
 
 type CheckRepCount struct {
-	scevt.CheckRepCount
+	*scevt.CheckRepCount
 }
 
 func NewCheckRepCount(fileHashes []string) *CheckRepCount {

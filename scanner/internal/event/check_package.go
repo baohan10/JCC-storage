@@ -8,7 +8,7 @@ import (
 )
 
 type CheckPackage struct {
-	scevt.CheckPackage
+	*scevt.CheckPackage
 }
 
 func NewCheckPackage(objIDs []int64) *CheckPackage {

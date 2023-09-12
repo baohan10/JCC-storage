@@ -13,7 +13,7 @@ type CacheService interface {
 }
 
 // 检查节点上的IPFS
-var _ = Register(CacheService.CheckCache)
+var _ = Register(Service.CheckCache)
 
 const (
 	CHECK_IPFS_RESP_OP_DELETE_TEMP = "DeleteTemp"
@@ -21,10 +21,12 @@ const (
 )
 
 type CheckCache struct {
+	mq.MessageBodyBase
 	IsComplete bool          `json:"isComplete"`
 	Caches     []model.Cache `json:"caches"`
 }
 type CheckCacheResp struct {
+	mq.MessageBodyBase
 	Entries []CheckIPFSRespEntry `json:"entries"`
 }
 type CheckIPFSRespEntry struct {
@@ -32,14 +34,14 @@ type CheckIPFSRespEntry struct {
 	Operation string `json:"operation"`
 }
 
-func NewCheckCache(isComplete bool, caches []model.Cache) CheckCache {
-	return CheckCache{
+func NewCheckCache(isComplete bool, caches []model.Cache) *CheckCache {
+	return &CheckCache{
 		IsComplete: isComplete,
 		Caches:     caches,
 	}
 }
-func NewCheckCacheResp(entries []CheckIPFSRespEntry) CheckCacheResp {
-	return CheckCacheResp{
+func NewCheckCacheResp(entries []CheckIPFSRespEntry) *CheckCacheResp {
+	return &CheckCacheResp{
 		Entries: entries,
 	}
 }
@@ -49,60 +51,64 @@ func NewCheckCacheRespEntry(fileHash string, op string) CheckIPFSRespEntry {
 		Operation: op,
 	}
 }
-func (client *Client) CheckCache(msg CheckCache, opts ...mq.RequestOption) (*CheckCacheResp, error) {
-	return mq.Request[CheckCacheResp](client.rabbitCli, msg, opts...)
+func (client *Client) CheckCache(msg *CheckCache, opts ...mq.RequestOption) (*CheckCacheResp, error) {
+	return mq.Request(Service.CheckCache, client.rabbitCli, msg, opts...)
 }
 
 // 将Package的缓存移动到这个节点
-var _ = Register(CacheService.StartCacheMovePackage)
+var _ = Register(Service.StartCacheMovePackage)
 
 type StartCacheMovePackage struct {
+	mq.MessageBodyBase
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
 type StartCacheMovePackageResp struct {
+	mq.MessageBodyBase
 	TaskID string `json:"taskID"`
 }
 
-func NewStartCacheMovePackage(userID int64, packageID int64) StartCacheMovePackage {
-	return StartCacheMovePackage{
+func NewStartCacheMovePackage(userID int64, packageID int64) *StartCacheMovePackage {
+	return &StartCacheMovePackage{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
-func NewStartCacheMovePackageResp(taskID string) StartCacheMovePackageResp {
-	return StartCacheMovePackageResp{
+func NewStartCacheMovePackageResp(taskID string) *StartCacheMovePackageResp {
+	return &StartCacheMovePackageResp{
 		TaskID: taskID,
 	}
 }
-func (client *Client) StartCacheMovePackage(msg StartCacheMovePackage, opts ...mq.RequestOption) (*StartCacheMovePackageResp, error) {
-	return mq.Request[StartCacheMovePackageResp](client.rabbitCli, msg, opts...)
+func (client *Client) StartCacheMovePackage(msg *StartCacheMovePackage, opts ...mq.RequestOption) (*StartCacheMovePackageResp, error) {
+	return mq.Request(Service.StartCacheMovePackage, client.rabbitCli, msg, opts...)
 }
 
 // 将Package的缓存移动到这个节点
-var _ = Register(CacheService.WaitCacheMovePackage)
+var _ = Register(Service.WaitCacheMovePackage)
 
 type WaitCacheMovePackage struct {
+	mq.MessageBodyBase
 	TaskID        string `json:"taskID"`
 	WaitTimeoutMs int64  `json:"waitTimeout"`
 }
 type WaitCacheMovePackageResp struct {
+	mq.MessageBodyBase
 	IsComplete bool   `json:"isComplete"`
 	Error      string `json:"error"`
 }
 
-func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) WaitCacheMovePackage {
-	return WaitCacheMovePackage{
+func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMovePackage {
+	return &WaitCacheMovePackage{
 		TaskID:        taskID,
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitCacheMovePackageResp(isComplete bool, err string) WaitCacheMovePackageResp {
-	return WaitCacheMovePackageResp{
+func NewWaitCacheMovePackageResp(isComplete bool, err string) *WaitCacheMovePackageResp {
+	return &WaitCacheMovePackageResp{
 		IsComplete: isComplete,
 		Error:      err,
 	}
 }
-func (client *Client) WaitCacheMovePackage(msg WaitCacheMovePackage, opts ...mq.RequestOption) (*WaitCacheMovePackageResp, error) {
-	return mq.Request[WaitCacheMovePackageResp](client.rabbitCli, msg, opts...)
+func (client *Client) WaitCacheMovePackage(msg *WaitCacheMovePackage, opts ...mq.RequestOption) (*WaitCacheMovePackageResp, error) {
+	return mq.Request(Service.WaitCacheMovePackage, client.rabbitCli, msg, opts...)
 }

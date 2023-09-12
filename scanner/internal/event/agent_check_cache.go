@@ -16,7 +16,7 @@ import (
 )
 
 type AgentCheckCache struct {
-	scevt.AgentCheckCache
+	*scevt.AgentCheckCache
 }
 
 func NewAgentCheckCache(nodeID int64, fileHashes []string) *AgentCheckCache {

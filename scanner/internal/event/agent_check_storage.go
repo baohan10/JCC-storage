@@ -16,7 +16,7 @@ import (
 )
 
 type AgentCheckStorage struct {
-	scevt.AgentCheckStorage
+	*scevt.AgentCheckStorage
 }
 
 func NewAgentCheckStorage(storageID int64, packageIDs []int64) *AgentCheckStorage {

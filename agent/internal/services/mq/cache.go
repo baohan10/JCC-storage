@@ -20,14 +20,14 @@ func (svc *Service) CheckCache(msg *agtmq.CheckCache) (*agtmq.CheckCacheResp, *m
 	ipfsCli, err := globals.IPFSPool.Acquire()
 	if err != nil {
 		logger.Warnf("new ipfs client: %s", err.Error())
-		return mq.ReplyFailed[agtmq.CheckCacheResp](errorcode.OperationFailed, "new ipfs client failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "new ipfs client failed")
 	}
 	defer ipfsCli.Close()
 
 	filesMap, err := ipfsCli.GetPinnedFiles()
 	if err != nil {
 		logger.Warnf("get pinned files from ipfs failed, err: %s", err.Error())
-		return mq.ReplyFailed[agtmq.CheckCacheResp](errorcode.OperationFailed, "get pinned files from ipfs failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "get pinned files from ipfs failed")
 	}
 
 	// TODO 根据锁定清单过滤被锁定的文件的记录
@@ -124,7 +124,7 @@ func (svc *Service) StartCacheMovePackage(msg *agtmq.StartCacheMovePackage) (*ag
 func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtmq.WaitCacheMovePackageResp, *mq.CodeMessage) {
 	tsk := svc.taskManager.FindByID(msg.TaskID)
 	if tsk == nil {
-		return mq.ReplyFailed[agtmq.WaitCacheMovePackageResp](errorcode.TaskNotFound, "task not found")
+		return nil, mq.Failed(errorcode.TaskNotFound, "task not found")
 	}
 
 	if msg.WaitTimeoutMs == 0 {

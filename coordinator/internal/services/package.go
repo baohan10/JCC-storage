@@ -143,13 +143,13 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			Warnf("check package available failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.DeletePackageResp](errorcode.OperationFailed, "check package available failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "check package available failed")
 	}
 	if !isAva {
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			Warnf("package is not available to the user")
-		return mq.ReplyFailed[coormq.DeletePackageResp](errorcode.OperationFailed, "package is not available to the user")
+		return nil, mq.Failed(errorcode.OperationFailed, "package is not available to the user")
 	}
 
 	err = svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
@@ -159,7 +159,7 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			Warnf("set package deleted failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.DeletePackageResp](errorcode.OperationFailed, "set package deleted failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "set package deleted failed")
 	}
 
 	stgs, err := svc.db.StoragePackage().FindPackageStorages(svc.db.SQLCtx(), msg.PackageID)
@@ -197,13 +197,13 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			Warnf("check package available failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.GetPackageCachedNodesResp](errorcode.OperationFailed, "check package available failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "check package available failed")
 	}
 	if !isAva {
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			Warnf("package is not available to the user")
-		return mq.ReplyFailed[coormq.GetPackageCachedNodesResp](errorcode.OperationFailed, "package is not available to the user")
+		return nil, mq.Failed(errorcode.OperationFailed, "package is not available to the user")
 	}
 
 	pkg, err := svc.db.Package().GetByID(svc.db.SQLCtx(), msg.PackageID)
@@ -222,7 +222,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 		if err != nil {
 			logger.WithField("PackageID", msg.PackageID).
 				Warnf("get objectRepDatas by packageID failed, err: %s", err.Error())
-			return mq.ReplyFailed[coormq.GetPackageCachedNodesResp](errorcode.OperationFailed, "get objectRepDatas by packageID failed")
+			return nil, mq.Failed(errorcode.OperationFailed, "get objectRepDatas by packageID failed")
 		}
 
 		for _, data := range objectRepDatas {
@@ -249,7 +249,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 		if err != nil {
 			logger.WithField("PackageID", msg.PackageID).
 				Warnf("get objectECDatas by packageID failed, err: %s", err.Error())
-			return mq.ReplyFailed[coormq.GetPackageCachedNodesResp](errorcode.OperationFailed, "get objectECDatas by packageID failed")
+			return nil, mq.Failed(errorcode.OperationFailed, "get objectECDatas by packageID failed")
 		}
 
 		for _, ecData := range objectECDatas {
@@ -275,7 +275,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 	} else {
 		logger.WithField("PackageID", msg.PackageID).
 			Warnf("Redundancy type %s is wrong", pkg.Redundancy.Type)
-		return mq.ReplyFailed[coormq.GetPackageCachedNodesResp](errorcode.OperationFailed, "redundancy type is wrong")
+		return nil, mq.Failed(errorcode.OperationFailed, "redundancy type is wrong")
 	}
 
 	var nodeInfos []models.NodePackageCachingInfo
@@ -294,7 +294,7 @@ func (svc *Service) GetPackageLoadedNodes(msg *coormq.GetPackageLoadedNodes) (*c
 	if err != nil {
 		logger.WithField("PackageID", msg.PackageID).
 			Warnf("get storages by packageID failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.GetPackageLoadedNodesResp](errorcode.OperationFailed, "get storages by packageID failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "get storages by packageID failed")
 	}
 
 	uniqueNodeIDs := make(map[int64]bool)

@@ -9,27 +9,29 @@ type AgentService interface {
 }
 
 // 代理端发给协调端，告知临时缓存的数据
-var _ = RegisterNoReply(AgentService.TempCacheReport)
+var _ = RegisterNoReply(Service.TempCacheReport)
 
 type TempCacheReport struct {
+	mq.MessageBodyBase
 	NodeID int64    `json:"nodeID"`
 	Hashes []string `json:"hashes"`
 }
 
-func NewTempCacheReportBody(nodeID int64, hashes []string) TempCacheReport {
-	return TempCacheReport{
+func NewTempCacheReportBody(nodeID int64, hashes []string) *TempCacheReport {
+	return &TempCacheReport{
 		NodeID: nodeID,
 		Hashes: hashes,
 	}
 }
-func (client *Client) TempCacheReport(msg TempCacheReport) error {
-	return mq.Send(client.rabbitCli, msg)
+func (client *Client) TempCacheReport(msg *TempCacheReport) error {
+	return mq.Send(AgentService.TempCacheReport, client.rabbitCli, msg)
 }
 
 // 代理端发给协调端，告知延迟、ipfs和资源目录的可达性
-var _ = RegisterNoReply(AgentService.AgentStatusReport)
+var _ = RegisterNoReply(Service.AgentStatusReport)
 
 type AgentStatusReport struct {
+	mq.MessageBodyBase
 	NodeID         int64   `json:"nodeID"`
 	NodeDelayIDs   []int64 `json:"nodeDelayIDs"`
 	NodeDelays     []int   `json:"nodeDelays"`
@@ -37,8 +39,8 @@ type AgentStatusReport struct {
 	LocalDirStatus string  `json:"localDirStatus"`
 }
 
-func NewAgentStatusReportBody(nodeID int64, nodeDelayIDs []int64, nodeDelays []int, ipfsStatus string, localDirStatus string) AgentStatusReport {
-	return AgentStatusReport{
+func NewAgentStatusReportBody(nodeID int64, nodeDelayIDs []int64, nodeDelays []int, ipfsStatus string, localDirStatus string) *AgentStatusReport {
+	return &AgentStatusReport{
 		NodeID:         nodeID,
 		NodeDelayIDs:   nodeDelayIDs,
 		NodeDelays:     nodeDelays,
@@ -46,6 +48,6 @@ func NewAgentStatusReportBody(nodeID int64, nodeDelayIDs []int64, nodeDelays []i
 		LocalDirStatus: localDirStatus,
 	}
 }
-func (client *Client) AgentStatusReport(msg AgentStatusReport) error {
-	return mq.Send(client.rabbitCli, msg)
+func (client *Client) AgentStatusReport(msg *AgentStatusReport) error {
+	return mq.Send(AgentService.AgentStatusReport, client.rabbitCli, msg)
 }

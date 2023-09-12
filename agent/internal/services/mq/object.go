@@ -18,7 +18,7 @@ func (svc *Service) StartPinningObject(msg *agtmq.StartPinningObject) (*agtmq.St
 	if tsk.Error() != nil {
 		log.WithField("FileHash", msg.FileHash).
 			Warnf("pin object failed, err: %s", tsk.Error().Error())
-		return mq.ReplyFailed[agtmq.StartPinningObjectResp](errorcode.OperationFailed, "pin object failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "pin object failed")
 	}
 
 	return mq.ReplyOK(agtmq.NewStartPinningObjectResp(tsk.ID()))
@@ -29,7 +29,7 @@ func (svc *Service) WaitPinningObject(msg *agtmq.WaitPinningObject) (*agtmq.Wait
 
 	tsk := svc.taskManager.FindByID(msg.TaskID)
 	if tsk == nil {
-		return mq.ReplyFailed[agtmq.WaitPinningObjectResp](errorcode.TaskNotFound, "task not found")
+		return nil, mq.Failed(errorcode.TaskNotFound, "task not found")
 	}
 
 	if msg.WaitTimeoutMs == 0 {

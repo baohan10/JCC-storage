@@ -25,96 +25,105 @@ type PackageService interface {
 }
 
 // 获取Package基本信息
-var _ = Register(PackageService.GetPackage)
+var _ = Register(Service.GetPackage)
 
 type GetPackage struct {
+	mq.MessageBodyBase
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
 type GetPackageResp struct {
+	mq.MessageBodyBase
 	model.Package
 }
 
-func NewGetPackage(userID int64, packageID int64) GetPackage {
-	return GetPackage{
+func NewGetPackage(userID int64, packageID int64) *GetPackage {
+	return &GetPackage{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
-func NewGetPackageResp(pkg model.Package) GetPackageResp {
-	return GetPackageResp{
+func NewGetPackageResp(pkg model.Package) *GetPackageResp {
+	return &GetPackageResp{
 		Package: pkg,
 	}
 }
-func (client *Client) GetPackage(msg GetPackage) (*GetPackageResp, error) {
-	return mq.Request[GetPackageResp](client.rabbitCli, msg)
+func (client *Client) GetPackage(msg *GetPackage) (*GetPackageResp, error) {
+	return mq.Request(Service.GetPackage, client.rabbitCli, msg)
 }
 
 // 查询Package中的所有Object，返回的Objects会按照ObjectID升序
-var _ = Register(PackageService.GetPackageObjects)
+var _ = Register(Service.GetPackageObjects)
 
 type GetPackageObjects struct {
+	mq.MessageBodyBase
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
 type GetPackageObjectsResp struct {
+	mq.MessageBodyBase
 	Objects []model.Object `json:"objects"`
 }
 
-func NewGetPackageObjects(userID int64, packageID int64) GetPackageObjects {
-	return GetPackageObjects{
+func NewGetPackageObjects(userID int64, packageID int64) *GetPackageObjects {
+	return &GetPackageObjects{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectsResp(objects []model.Object) GetPackageObjectsResp {
-	return GetPackageObjectsResp{
+func NewGetPackageObjectsResp(objects []model.Object) *GetPackageObjectsResp {
+	return &GetPackageObjectsResp{
 		Objects: objects,
 	}
 }
-func (client *Client) GetPackageObjects(msg GetPackageObjects) (*GetPackageObjectsResp, error) {
-	return mq.Request[GetPackageObjectsResp](client.rabbitCli, msg)
+func (client *Client) GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, error) {
+	return mq.Request(Service.GetPackageObjects, client.rabbitCli, msg)
 }
 
 // 创建一个Package
-var _ = Register(PackageService.CreatePackage)
+var _ = Register(Service.CreatePackage)
 
 type CreatePackage struct {
+	mq.MessageBodyBase
 	UserID     int64                      `json:"userID"`
 	BucketID   int64                      `json:"bucketID"`
 	Name       string                     `json:"name"`
 	Redundancy models.TypedRedundancyInfo `json:"redundancy"`
 }
 type CreatePackageResp struct {
+	mq.MessageBodyBase
 	PackageID int64 `json:"packageID"`
 }
 
-func NewCreatePackage(userID int64, bucketID int64, name string, redundancy models.TypedRedundancyInfo) CreatePackage {
-	return CreatePackage{
+func NewCreatePackage(userID int64, bucketID int64, name string, redundancy models.TypedRedundancyInfo) *CreatePackage {
+	return &CreatePackage{
 		UserID:     userID,
 		BucketID:   bucketID,
 		Name:       name,
 		Redundancy: redundancy,
 	}
 }
-func NewCreatePackageResp(packageID int64) CreatePackageResp {
-	return CreatePackageResp{
+func NewCreatePackageResp(packageID int64) *CreatePackageResp {
+	return &CreatePackageResp{
 		PackageID: packageID,
 	}
 }
-func (client *Client) CreatePackage(msg CreatePackage) (*CreatePackageResp, error) {
-	return mq.Request[CreatePackageResp](client.rabbitCli, msg)
+func (client *Client) CreatePackage(msg *CreatePackage) (*CreatePackageResp, error) {
+	return mq.Request(Service.CreatePackage, client.rabbitCli, msg)
 }
 
 // 更新Rep备份模式的Package
-var _ = Register(PackageService.UpdateRepPackage)
+var _ = Register(Service.UpdateRepPackage)
 
 type UpdateRepPackage struct {
+	mq.MessageBodyBase
 	PackageID int64              `json:"packageID"`
 	Adds      []AddRepObjectInfo `json:"objects"`
 	Deletes   []int64            `json:"deletes"`
 }
-type UpdateRepPackageResp struct{}
+type UpdateRepPackageResp struct {
+	mq.MessageBodyBase
+}
 type AddRepObjectInfo struct {
 	Path     string  `json:"path"`
 	Size     int64   `json:"size,string"`
@@ -122,15 +131,15 @@ type AddRepObjectInfo struct {
 	NodeIDs  []int64 `json:"nodeIDs"`
 }
 
-func NewUpdateRepPackage(packageID int64, adds []AddRepObjectInfo, deletes []int64) UpdateRepPackage {
-	return UpdateRepPackage{
+func NewUpdateRepPackage(packageID int64, adds []AddRepObjectInfo, deletes []int64) *UpdateRepPackage {
+	return &UpdateRepPackage{
 		PackageID: packageID,
 		Adds:      adds,
 		Deletes:   deletes,
 	}
 }
-func NewUpdateRepPackageResp() UpdateRepPackageResp {
-	return UpdateRepPackageResp{}
+func NewUpdateRepPackageResp() *UpdateRepPackageResp {
+	return &UpdateRepPackageResp{}
 }
 func NewAddRepObjectInfo(path string, size int64, fileHash string, nodeIDs []int64) AddRepObjectInfo {
 	return AddRepObjectInfo{
@@ -140,19 +149,22 @@ func NewAddRepObjectInfo(path string, size int64, fileHash string, nodeIDs []int
 		NodeIDs:  nodeIDs,
 	}
 }
-func (client *Client) UpdateRepPackage(msg UpdateRepPackage) (*UpdateRepPackageResp, error) {
-	return mq.Request[UpdateRepPackageResp](client.rabbitCli, msg)
+func (client *Client) UpdateRepPackage(msg *UpdateRepPackage) (*UpdateRepPackageResp, error) {
+	return mq.Request(Service.UpdateRepPackage, client.rabbitCli, msg)
 }
 
 // 更新EC备份模式的Package
-var _ = Register(PackageService.UpdateECPackage)
+var _ = Register(Service.UpdateECPackage)
 
 type UpdateECPackage struct {
+	mq.MessageBodyBase
 	PackageID int64             `json:"packageID"`
 	Adds      []AddECObjectInfo `json:"objects"`
 	Deletes   []int64           `json:"deletes"`
 }
-type UpdateECPackageResp struct{}
+type UpdateECPackageResp struct {
+	mq.MessageBodyBase
+}
 type AddECObjectInfo struct {
 	Path       string   `json:"path"`
 	Size       int64    `json:"size,string"`
@@ -160,15 +172,15 @@ type AddECObjectInfo struct {
 	NodeIDs    []int64  `json:"nodeIDs"`
 }
 
-func NewUpdateECPackage(packageID int64, adds []AddECObjectInfo, deletes []int64) UpdateECPackage {
-	return UpdateECPackage{
+func NewUpdateECPackage(packageID int64, adds []AddECObjectInfo, deletes []int64) *UpdateECPackage {
+	return &UpdateECPackage{
 		PackageID: packageID,
 		Adds:      adds,
 		Deletes:   deletes,
 	}
 }
-func NewUpdateECPackageResp() UpdateECPackageResp {
-	return UpdateECPackageResp{}
+func NewUpdateECPackageResp() *UpdateECPackageResp {
+	return &UpdateECPackageResp{}
 }
 func NewAddECObjectInfo(path string, size int64, fileHashes []string, nodeIDs []int64) AddECObjectInfo {
 	return AddECObjectInfo{
@@ -178,36 +190,40 @@ func NewAddECObjectInfo(path string, size int64, fileHashes []string, nodeIDs []
 		NodeIDs:    nodeIDs,
 	}
 }
-func (client *Client) UpdateECPackage(msg UpdateECPackage) (*UpdateECPackageResp, error) {
-	return mq.Request[UpdateECPackageResp](client.rabbitCli, msg)
+func (client *Client) UpdateECPackage(msg *UpdateECPackage) (*UpdateECPackageResp, error) {
+	return mq.Request(Service.UpdateECPackage, client.rabbitCli, msg)
 }
 
 // 删除对象
-var _ = Register(PackageService.DeletePackage)
+var _ = Register(Service.DeletePackage)
 
 type DeletePackage struct {
+	mq.MessageBodyBase
 	UserID    int64 `db:"userID"`
 	PackageID int64 `db:"packageID"`
 }
-type DeletePackageResp struct{}
+type DeletePackageResp struct {
+	mq.MessageBodyBase
+}
 
-func NewDeletePackage(userID int64, packageID int64) DeletePackage {
-	return DeletePackage{
+func NewDeletePackage(userID int64, packageID int64) *DeletePackage {
+	return &DeletePackage{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
-func NewDeletePackageResp() DeletePackageResp {
-	return DeletePackageResp{}
+func NewDeletePackageResp() *DeletePackageResp {
+	return &DeletePackageResp{}
 }
-func (client *Client) DeletePackage(msg DeletePackage) (*DeletePackageResp, error) {
-	return mq.Request[DeletePackageResp](client.rabbitCli, msg)
+func (client *Client) DeletePackage(msg *DeletePackage) (*DeletePackageResp, error) {
+	return mq.Request(Service.DeletePackage, client.rabbitCli, msg)
 }
 
 // 根据PackageID获取object分布情况
-var _ = Register(PackageService.GetPackageCachedNodes)
+var _ = Register(Service.GetPackageCachedNodes)
 
 type GetPackageCachedNodes struct {
+	mq.MessageBodyBase
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
@@ -219,18 +235,19 @@ type PackageCachedNodeInfo struct {
 }
 
 type GetPackageCachedNodesResp struct {
+	mq.MessageBodyBase
 	models.PackageCachingInfo
 }
 
-func NewGetPackageCachedNodes(userID int64, packageID int64) GetPackageCachedNodes {
-	return GetPackageCachedNodes{
+func NewGetPackageCachedNodes(userID int64, packageID int64) *GetPackageCachedNodes {
+	return &GetPackageCachedNodes{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
 
-func NewGetPackageCachedNodesResp(nodeInfos []models.NodePackageCachingInfo, packageSize int64, redunancyType string) GetPackageCachedNodesResp {
-	return GetPackageCachedNodesResp{
+func NewGetPackageCachedNodesResp(nodeInfos []models.NodePackageCachingInfo, packageSize int64, redunancyType string) *GetPackageCachedNodesResp {
+	return &GetPackageCachedNodesResp{
 		PackageCachingInfo: models.PackageCachingInfo{
 			NodeInfos:     nodeInfos,
 			PackageSize:   packageSize,
@@ -239,35 +256,37 @@ func NewGetPackageCachedNodesResp(nodeInfos []models.NodePackageCachingInfo, pac
 	}
 }
 
-func (client *Client) GetPackageCachedNodes(msg GetPackageCachedNodes) (*GetPackageCachedNodesResp, error) {
-	return mq.Request[GetPackageCachedNodesResp](client.rabbitCli, msg)
+func (client *Client) GetPackageCachedNodes(msg *GetPackageCachedNodes) (*GetPackageCachedNodesResp, error) {
+	return mq.Request(Service.GetPackageCachedNodes, client.rabbitCli, msg)
 }
 
 // 根据PackageID获取storage分布情况
-var _ = Register(PackageService.GetPackageLoadedNodes)
+var _ = Register(Service.GetPackageLoadedNodes)
 
 type GetPackageLoadedNodes struct {
+	mq.MessageBodyBase
 	UserID    int64 `json:"userID"`
 	PackageID int64 `json:"packageID"`
 }
 
 type GetPackageLoadedNodesResp struct {
+	mq.MessageBodyBase
 	NodeIDs []int64 `json:"nodeIDs"`
 }
 
-func NewGetPackageLoadedNodes(userID int64, packageID int64) GetPackageLoadedNodes {
-	return GetPackageLoadedNodes{
+func NewGetPackageLoadedNodes(userID int64, packageID int64) *GetPackageLoadedNodes {
+	return &GetPackageLoadedNodes{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
 
-func NewGetPackageLoadedNodesResp(nodeIDs []int64) GetPackageLoadedNodesResp {
-	return GetPackageLoadedNodesResp{
+func NewGetPackageLoadedNodesResp(nodeIDs []int64) *GetPackageLoadedNodesResp {
+	return &GetPackageLoadedNodesResp{
 		NodeIDs: nodeIDs,
 	}
 }
 
-func (client *Client) GetPackageLoadedNodes(msg GetPackageLoadedNodes) (*GetPackageLoadedNodesResp, error) {
-	return mq.Request[GetPackageLoadedNodesResp](client.rabbitCli, msg)
+func (client *Client) GetPackageLoadedNodes(msg *GetPackageLoadedNodes) (*GetPackageLoadedNodesResp, error) {
+	return mq.Request(Service.GetPackageLoadedNodes, client.rabbitCli, msg)
 }

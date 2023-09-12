@@ -10,23 +10,24 @@ type EventService interface {
 }
 
 // 投递Event
-var _ = RegisterNoReply(EventService.PostEvent)
+var _ = RegisterNoReply(Service.PostEvent)
 
 type PostEvent struct {
+	mq.MessageBodyBase
 	Event       scevt.Event `json:"event"`
 	IsEmergency bool        `json:"isEmergency"` // 重要消息，优先处理
 	DontMerge   bool        `json:"dontMerge"`   // 不可合并此消息
 }
 
-func NewPostEvent(event scevt.Event, isEmergency bool, dontMerge bool) PostEvent {
-	return PostEvent{
+func NewPostEvent(event scevt.Event, isEmergency bool, dontMerge bool) *PostEvent {
+	return &PostEvent{
 		Event:       event,
 		IsEmergency: isEmergency,
 		DontMerge:   dontMerge,
 	}
 }
-func (client *Client) PostEvent(msg PostEvent) error {
-	return mq.Send[PostEvent](client.rabbitCli, msg)
+func (client *Client) PostEvent(msg *PostEvent) error {
+	return mq.Send(Service.PostEvent, client.rabbitCli, msg)
 }
 
 func init() {

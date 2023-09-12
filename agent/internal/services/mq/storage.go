@@ -54,7 +54,7 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 
 	tsk := svc.taskManager.FindByID(msg.TaskID)
 	if tsk == nil {
-		return mq.ReplyFailed[agtmq.WaitStorageLoadPackageResp](errorcode.TaskNotFound, "task not found")
+		return nil, mq.Failed(errorcode.TaskNotFound, "task not found")
 	}
 
 	if msg.WaitTimeoutMs == 0 {

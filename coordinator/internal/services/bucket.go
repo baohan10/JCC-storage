@@ -22,7 +22,7 @@ func (svc *Service) GetUserBuckets(msg *coormq.GetUserBuckets) (*coormq.GetUserB
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			Warnf("get user buckets failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.GetUserBucketsResp](errorcode.OperationFailed, "get all buckets failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "get all buckets failed")
 	}
 
 	return mq.ReplyOK(coormq.NewGetUserBucketsResp(buckets))
@@ -35,7 +35,7 @@ func (svc *Service) GetBucketPackages(msg *coormq.GetBucketPackages) (*coormq.Ge
 		logger.WithField("UserID", msg.UserID).
 			WithField("BucketID", msg.BucketID).
 			Warnf("get bucket packages failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.GetBucketPackagesResp](errorcode.OperationFailed, "get bucket packages failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "get bucket packages failed")
 	}
 
 	return mq.ReplyOK(coormq.NewGetBucketPackagesResp(packages))
@@ -53,7 +53,7 @@ func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucket
 		logger.WithField("UserID", msg.UserID).
 			WithField("BucketName", msg.BucketName).
 			Warnf("create bucket failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.CreateBucketResp](errorcode.OperationFailed, "create bucket failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "create bucket failed")
 	}
 
 	return mq.ReplyOK(coormq.NewCreateBucketResp(bucketID))
@@ -67,7 +67,7 @@ func (svc *Service) DeleteBucket(msg *coormq.DeleteBucket) (*coormq.DeleteBucket
 		logger.WithField("UserID", msg.UserID).
 			WithField("BucketID", msg.BucketID).
 			Warnf("delete bucket failed, err: %s", err.Error())
-		return mq.ReplyFailed[coormq.DeleteBucketResp](errorcode.OperationFailed, "delete bucket failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "delete bucket failed")
 	}
 
 	return mq.ReplyOK(coormq.NewDeleteBucketResp())
