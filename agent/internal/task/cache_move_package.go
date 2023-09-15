@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/globals"
@@ -15,6 +16,8 @@ import (
 type CacheMovePackage struct {
 	userID    int64
 	packageID int64
+
+	ResultCacheInfos []models.ObjectCacheInfo
 }
 
 func NewCacheMovePackage(userID int64, packageID int64) *CacheMovePackage {
@@ -92,6 +95,7 @@ func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.PoolClient, 
 		}
 
 		fileHashes = append(fileHashes, rep.FileHash)
+		t.ResultCacheInfos = append(t.ResultCacheInfos, models.NewObjectCacheInfo(rep.Object.ObjectID, rep.FileHash))
 	}
 
 	_, err = coorCli.CachePackageMoved(coormq.NewCachePackageMoved(pkg.PackageID, *globals.Local.NodeID, fileHashes))

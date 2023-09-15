@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
@@ -93,8 +94,9 @@ type WaitCacheMovePackage struct {
 }
 type WaitCacheMovePackageResp struct {
 	mq.MessageBodyBase
-	IsComplete bool   `json:"isComplete"`
-	Error      string `json:"error"`
+	IsComplete bool                     `json:"isComplete"`
+	Error      string                   `json:"error"`
+	CacheInfos []models.ObjectCacheInfo `json:"cacheInfos"`
 }
 
 func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMovePackage {
@@ -103,10 +105,11 @@ func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMoveP
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitCacheMovePackageResp(isComplete bool, err string) *WaitCacheMovePackageResp {
+func NewWaitCacheMovePackageResp(isComplete bool, err string, cacheInfos []models.ObjectCacheInfo) *WaitCacheMovePackageResp {
 	return &WaitCacheMovePackageResp{
 		IsComplete: isComplete,
 		Error:      err,
+		CacheInfos: cacheInfos,
 	}
 }
 func (client *Client) WaitCacheMovePackage(msg *WaitCacheMovePackage, opts ...mq.RequestOption) (*WaitCacheMovePackageResp, error) {

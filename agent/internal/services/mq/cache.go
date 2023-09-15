@@ -127,6 +127,8 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 		return nil, mq.Failed(errorcode.TaskNotFound, "task not found")
 	}
 
+	mvPkgTask := tsk.Body().(*mytask.CacheMovePackage)
+
 	if msg.WaitTimeoutMs == 0 {
 		tsk.Wait()
 
@@ -135,7 +137,7 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 			errMsg = tsk.Error().Error()
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg))
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, mvPkgTask.ResultCacheInfos))
 
 	} else {
 		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
@@ -145,9 +147,9 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 				errMsg = tsk.Error().Error()
 			}
 
-			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg))
+			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, nil))
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, ""))
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, "", mvPkgTask.ResultCacheInfos))
 	}
 }

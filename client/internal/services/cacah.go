@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 )
@@ -31,25 +32,25 @@ func (svc *CacheService) StartCacheMovePackage(userID int64, packageID int64, no
 	return startResp.TaskID, nil
 }
 
-func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, error) {
+func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, []models.ObjectCacheInfo, error) {
 	agentCli, err := globals.AgentMQPool.Acquire(nodeID)
 	if err != nil {
-		return true, fmt.Errorf("new agent client: %w", err)
+		return true, nil, fmt.Errorf("new agent client: %w", err)
 	}
 	defer agentCli.Close()
 
 	waitResp, err := agentCli.WaitCacheMovePackage(agtmq.NewWaitCacheMovePackage(taskID, waitTimeout.Milliseconds()))
 	if err != nil {
-		return true, fmt.Errorf("wait cache move package: %w", err)
+		return true, nil, fmt.Errorf("wait cache move package: %w", err)
 	}
 
 	if !waitResp.IsComplete {
-		return false, nil
+		return false, nil, nil
 	}
 
 	if waitResp.Error != "" {
-		return true, fmt.Errorf("%s", waitResp.Error)
+		return true, nil, fmt.Errorf("%s", waitResp.Error)
 	}
 
-	return true, nil
+	return true, waitResp.CacheInfos, nil
 }

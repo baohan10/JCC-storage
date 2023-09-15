@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
+	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 )
 
@@ -23,6 +24,9 @@ type CacheMovePackageReq struct {
 	UserID    *int64 `json:"userID" binding:"required"`
 	PackageID *int64 `json:"packageID" binding:"required"`
 	NodeID    *int64 `json:"nodeID" binding:"required"`
+}
+type CacheMovePackageResp struct {
+	CacheInfos []models.ObjectCacheInfo `json:"cacheInfos"`
 }
 
 func (s *CacheService) MovePackage(ctx *gin.Context) {
@@ -43,7 +47,7 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 	}
 
 	for {
-		complete, err := s.svc.CacheSvc().WaitCacheMovePackage(*req.NodeID, taskID, time.Second*10)
+		complete, cacheInfos, err := s.svc.CacheSvc().WaitCacheMovePackage(*req.NodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				log.Warnf("moving complete with: %s", err.Error())
@@ -51,7 +55,9 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 				return
 			}
 
-			ctx.JSON(http.StatusOK, OK(nil))
+			ctx.JSON(http.StatusOK, OK(CacheMovePackageResp{
+				CacheInfos: cacheInfos,
+			}))
 			return
 		}
 
