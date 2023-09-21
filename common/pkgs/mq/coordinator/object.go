@@ -2,7 +2,8 @@ package coordinator
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	"gitlink.org.cn/cloudream/storage/common/models"
+
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 )
 
 type ObjectService interface {
@@ -20,7 +21,7 @@ type GetPackageObjectRepData struct {
 }
 type GetPackageObjectRepDataResp struct {
 	mq.MessageBodyBase
-	Data []models.ObjectRepData `json:"data"`
+	Data []stgmod.ObjectRepData `json:"data"`
 }
 
 func NewGetPackageObjectRepData(packageID int64) *GetPackageObjectRepData {
@@ -28,7 +29,7 @@ func NewGetPackageObjectRepData(packageID int64) *GetPackageObjectRepData {
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectRepDataResp(data []models.ObjectRepData) *GetPackageObjectRepDataResp {
+func NewGetPackageObjectRepDataResp(data []stgmod.ObjectRepData) *GetPackageObjectRepDataResp {
 	return &GetPackageObjectRepDataResp{
 		Data: data,
 	}
@@ -46,7 +47,7 @@ type GetPackageObjectECData struct {
 }
 type GetPackageObjectECDataResp struct {
 	mq.MessageBodyBase
-	Data []models.ObjectECData `json:"data"`
+	Data []stgmod.ObjectECData `json:"data"`
 }
 
 func NewGetPackageObjectECData(packageID int64) *GetPackageObjectECData {
@@ -54,7 +55,7 @@ func NewGetPackageObjectECData(packageID int64) *GetPackageObjectECData {
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectECDataResp(data []models.ObjectECData) *GetPackageObjectECDataResp {
+func NewGetPackageObjectECDataResp(data []stgmod.ObjectECData) *GetPackageObjectECDataResp {
 	return &GetPackageObjectECDataResp{
 		Data: data,
 	}

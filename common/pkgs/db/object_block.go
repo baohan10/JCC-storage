@@ -6,7 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/storage/common/consts"
-	"gitlink.org.cn/cloudream/storage/common/models"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -84,14 +84,14 @@ func (db *ObjectBlockDB) GetBatchBlocksNodes(ctx SQLContext, hashs [][]string) (
 	return nodes, err
 }
 
-func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]models.ObjectECData, error) {
+func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]stgmod.ObjectECData, error) {
 	var objs []model.Object
 	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
 	if err != nil {
 		return nil, fmt.Errorf("query objectIDs: %w", err)
 	}
 
-	rets := make([]models.ObjectECData, 0, len(objs))
+	rets := make([]stgmod.ObjectECData, 0, len(objs))
 
 	for _, obj := range objs {
 		var tmpRets []struct {
@@ -111,9 +111,9 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 			return nil, err
 		}
 
-		blocks := make([]models.ObjectBlockData, 0, len(tmpRets))
+		blocks := make([]stgmod.ObjectBlockData, 0, len(tmpRets))
 		for _, tmp := range tmpRets {
-			var block models.ObjectBlockData
+			var block stgmod.ObjectBlockData
 			block.Index = tmp.Index
 			block.FileHash = tmp.FileHash
 
@@ -124,7 +124,7 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 			blocks = append(blocks, block)
 		}
 
-		rets = append(rets, models.NewObjectECData(obj, blocks))
+		rets = append(rets, stgmod.NewObjectECData(obj, blocks))
 	}
 
 	return rets, nil

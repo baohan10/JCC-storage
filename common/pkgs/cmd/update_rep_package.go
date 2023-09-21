@@ -7,7 +7,7 @@ import (
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -39,15 +39,15 @@ func NewUpdateRepPackage(userID int64, packageID int64, objectIter iterator.Uplo
 func (t *UpdateRepPackage) Execute(ctx *UpdatePackageContext) (*UpdateRepPackageResult, error) {
 	defer t.objectIter.Close()
 
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
 	reqBlder := reqbuilder.NewBuilder()
 	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
-	if globals.Local.NodeID != nil {
-		reqBlder.IPFS().CreateAnyRep(*globals.Local.NodeID)
+	if stgglb.Local.NodeID != nil {
+		reqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
 	}
 	mutex, err := reqBlder.
 		Metadata().
@@ -71,7 +71,7 @@ func (t *UpdateRepPackage) Execute(ctx *UpdatePackageContext) (*UpdateRepPackage
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
 	if err != nil {
 		return nil, fmt.Errorf("finding client location: %w", err)
 	}

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 	"gitlink.org.cn/cloudream/storage/client/internal/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -38,8 +39,8 @@ func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, s
 }
 
 // 请求节点启动从Storage中上传文件的任务。会返回节点ID和任务ID
-func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo, nodeAffinity *int64) (int64, string, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy stgsdk.TypedRedundancyInfo, nodeAffinity *int64) (int64, string, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return 0, "", fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -50,7 +51,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 		return 0, "", fmt.Errorf("getting storage info: %w", err)
 	}
 
-	agentCli, err := globals.AgentMQPool.Acquire(stgResp.NodeID)
+	agentCli, err := stgglb.AgentMQPool.Acquire(stgResp.NodeID)
 	if err != nil {
 		return 0, "", fmt.Errorf("new agent client: %w", err)
 	}
@@ -65,7 +66,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 }
 
 func (svc *StorageService) WaitStorageCreatePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, int64, error) {
-	agentCli, err := globals.AgentMQPool.Acquire(nodeID)
+	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		// TODO 失败是否要当做任务已经结束？
 		return true, 0, fmt.Errorf("new agent client: %w", err)

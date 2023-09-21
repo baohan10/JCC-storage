@@ -11,7 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/storage/client/internal/config"
 	"gitlink.org.cn/cloudream/storage/client/internal/services"
 	"gitlink.org.cn/cloudream/storage/client/internal/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 )
 
@@ -28,13 +28,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	globals.InitLocal(&config.Cfg().Local)
-	globals.InitMQPool(&config.Cfg().RabbitMQ)
-	globals.InitAgentRPCPool(&config.Cfg().AgentGRPC)
+	stgglb.InitLocal(&config.Cfg().Local)
+	stgglb.InitMQPool(&config.Cfg().RabbitMQ)
+	stgglb.InitAgentRPCPool(&config.Cfg().AgentGRPC)
 	if config.Cfg().IPFS != nil {
 		logger.Infof("IPFS config is not empty, so create a ipfs client")
 
-		globals.InitIPFSPool(config.Cfg().IPFS)
+		stgglb.InitIPFSPool(config.Cfg().IPFS)
 	}
 
 	distlockSvc, err := distlock.NewService(&config.Cfg().DistLock)

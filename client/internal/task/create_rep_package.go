@@ -3,8 +3,8 @@ package task
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -17,7 +17,7 @@ type CreateRepPackage struct {
 	Result *CreateRepPackageResult
 }
 
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
+func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy stgsdk.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
 	return &CreateRepPackage{
 		cmd: *cmd.NewCreateRepPackage(userID, bucketID, name, objIter, redundancy, nodeAffinity),
 	}

@@ -1,4 +1,4 @@
-package globals
+package stgglb
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"

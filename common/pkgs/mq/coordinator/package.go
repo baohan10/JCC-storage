@@ -1,8 +1,9 @@
 package coordinator
 
 import (
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -88,14 +89,14 @@ type CreatePackage struct {
 	UserID     int64                      `json:"userID"`
 	BucketID   int64                      `json:"bucketID"`
 	Name       string                     `json:"name"`
-	Redundancy models.TypedRedundancyInfo `json:"redundancy"`
+	Redundancy stgsdk.TypedRedundancyInfo `json:"redundancy"`
 }
 type CreatePackageResp struct {
 	mq.MessageBodyBase
 	PackageID int64 `json:"packageID"`
 }
 
-func NewCreatePackage(userID int64, bucketID int64, name string, redundancy models.TypedRedundancyInfo) *CreatePackage {
+func NewCreatePackage(userID int64, bucketID int64, name string, redundancy stgsdk.TypedRedundancyInfo) *CreatePackage {
 	return &CreatePackage{
 		UserID:     userID,
 		BucketID:   bucketID,
@@ -236,7 +237,7 @@ type PackageCachedNodeInfo struct {
 
 type GetPackageCachedNodesResp struct {
 	mq.MessageBodyBase
-	models.PackageCachingInfo
+	stgsdk.PackageCachingInfo
 }
 
 func NewGetPackageCachedNodes(userID int64, packageID int64) *GetPackageCachedNodes {
@@ -246,9 +247,9 @@ func NewGetPackageCachedNodes(userID int64, packageID int64) *GetPackageCachedNo
 	}
 }
 
-func NewGetPackageCachedNodesResp(nodeInfos []models.NodePackageCachingInfo, packageSize int64, redunancyType string) *GetPackageCachedNodesResp {
+func NewGetPackageCachedNodesResp(nodeInfos []stgsdk.NodePackageCachingInfo, packageSize int64, redunancyType string) *GetPackageCachedNodesResp {
 	return &GetPackageCachedNodesResp{
-		PackageCachingInfo: models.PackageCachingInfo{
+		PackageCachingInfo: stgsdk.PackageCachingInfo{
 			NodeInfos:     nodeInfos,
 			PackageSize:   packageSize,
 			RedunancyType: redunancyType,

@@ -4,9 +4,10 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/models"
 
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
@@ -34,7 +35,7 @@ func NewUpdateECPackage(userID int64, packageID int64, objIter iterator.Uploadin
 func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageResult, error) {
 	defer t.objectIter.Close()
 
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -67,7 +68,7 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
 	if err != nil {
 		return nil, fmt.Errorf("finding client location: %w", err)
 	}
@@ -79,7 +80,7 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 		}
 	})
 
-	var ecInfo models.ECRedundancyInfo
+	var ecInfo stgsdk.ECRedundancyInfo
 	if ecInfo, err = getPkgResp.Package.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
@@ -92,11 +93,11 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 	// 给上传节点的IPFS加锁
 	ipfsReqBlder := reqbuilder.NewBuilder()
 	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
-	if globals.Local.NodeID != nil {
-		ipfsReqBlder.IPFS().CreateAnyRep(*globals.Local.NodeID)
+	if stgglb.Local.NodeID != nil {
+		ipfsReqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
 	}
 	for _, node := range nodeInfos {
-		if globals.Local.NodeID != nil && node.Node.NodeID == *globals.Local.NodeID {
+		if stgglb.Local.NodeID != nil && node.Node.NodeID == *stgglb.Local.NodeID {
 			continue
 		}
 

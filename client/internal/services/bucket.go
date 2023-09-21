@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -23,7 +23,7 @@ func (svc *BucketService) GetBucket(userID int64, bucketID int64) (model.Bucket,
 }
 
 func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -38,7 +38,7 @@ func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
 }
 
 func (svc *BucketService) GetBucketPackages(userID int64, bucketID int64) ([]model.Package, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -53,7 +53,7 @@ func (svc *BucketService) GetBucketPackages(userID int64, bucketID int64) ([]mod
 }
 
 func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return 0, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -81,7 +81,7 @@ func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, 
 }
 
 func (svc *BucketService) DeleteBucket(userID int64, bucketID int64) error {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}

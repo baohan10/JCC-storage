@@ -1,8 +1,9 @@
 package agent
 
 import (
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -139,7 +140,7 @@ type StartStorageCreatePackage struct {
 	Name         string                     `json:"name"`
 	StorageID    int64                      `json:"storageID"`
 	Path         string                     `json:"path"`
-	Redundancy   models.TypedRedundancyInfo `json:"redundancy"`
+	Redundancy   stgsdk.TypedRedundancyInfo `json:"redundancy"`
 	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 type StartStorageCreatePackageResp struct {
@@ -147,7 +148,7 @@ type StartStorageCreatePackageResp struct {
 	TaskID string `json:"taskID"`
 }
 
-func NewStartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy models.TypedRedundancyInfo, nodeAffinity *int64) *StartStorageCreatePackage {
+func NewStartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy stgsdk.TypedRedundancyInfo, nodeAffinity *int64) *StartStorageCreatePackage {
 	return &StartStorageCreatePackage{
 		UserID:       userID,
 		BucketID:     bucketID,

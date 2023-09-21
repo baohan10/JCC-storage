@@ -8,7 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/storage/common/consts"
-	"gitlink.org.cn/cloudream/storage/common/models"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -79,7 +79,7 @@ func (db *ObjectRepDB) GetFileMaxRepCount(ctx SQLContext, fileHash string) (int,
 	return *maxRepCnt, err
 }
 
-func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]models.ObjectRepData, error) {
+func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]stgmod.ObjectRepData, error) {
 	var tmpRets []struct {
 		model.Object
 		FileHash *string `db:"FileHash"`
@@ -97,9 +97,9 @@ func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) (
 	if err != nil {
 		return nil, err
 	}
-	rets := make([]models.ObjectRepData, 0, len(tmpRets))
+	rets := make([]stgmod.ObjectRepData, 0, len(tmpRets))
 	for _, tmp := range tmpRets {
-		var repData models.ObjectRepData
+		var repData stgmod.ObjectRepData
 		repData.Object = tmp.Object
 
 		if tmp.FileHash != nil {

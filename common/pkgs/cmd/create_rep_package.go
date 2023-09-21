@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/models"
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -29,7 +29,7 @@ type CreateRepPackage struct {
 	bucketID     int64
 	name         string
 	objectIter   iterator.UploadingObjectIterator
-	redundancy   models.RepRedundancyInfo
+	redundancy   stgsdk.RepRedundancyInfo
 	nodeAffinity *int64
 }
 
@@ -49,7 +49,7 @@ type RepObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
+func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy stgsdk.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
 	return &CreateRepPackage{
 		userID:       userID,
 		bucketID:     bucketID,
@@ -63,15 +63,15 @@ func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iter
 func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackageResult, error) {
 	defer t.objectIter.Close()
 
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
 	reqBlder := reqbuilder.NewBuilder()
 	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
-	if globals.Local.NodeID != nil {
-		reqBlder.IPFS().CreateAnyRep(*globals.Local.NodeID)
+	if stgglb.Local.NodeID != nil {
+		reqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
 	}
 	mutex, err := reqBlder.
 		Metadata().
@@ -94,7 +94,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 	defer mutex.Unlock()
 
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
-		models.NewTypedRedundancyInfo(t.redundancy)))
+		stgsdk.NewTypedRedundancyInfo(t.redundancy)))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
 	}
@@ -104,7 +104,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
+	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
 	if err != nil {
 		return nil, fmt.Errorf("finding client location: %w", err)
 	}
@@ -138,7 +138,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 }
 
 func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObjectIterator, uploadNode UploadNodeInfo) ([]RepObjectUploadResult, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -185,11 +185,11 @@ func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObj
 // 上传文件
 func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	// 本地有IPFS，则直接从本地IPFS上传
-	if globals.IPFSPool != nil {
+	if stgglb.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to upload file")
 
 		// 只有本地IPFS不是存储系统中的一个节点，才需要Pin文件
-		fileHash, err := uploadToLocalIPFS(file, uploadNode.Node.NodeID, globals.Local.NodeID == nil)
+		fileHash, err := uploadToLocalIPFS(file, uploadNode.Node.NodeID, stgglb.Local.NodeID == nil)
 		if err == nil {
 			return fileHash, nil
 
@@ -236,7 +236,7 @@ func (t *CreateRepPackage) chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity
 }
 
 func uploadToNode(file io.Reader, nodeIP string) (string, error) {
-	rpcCli, err := globals.AgentRPCPool.Acquire(nodeIP)
+	rpcCli, err := stgglb.AgentRPCPool.Acquire(nodeIP)
 	if err != nil {
 		return "", fmt.Errorf("new agent rpc client: %w", err)
 	}
@@ -246,7 +246,7 @@ func uploadToNode(file io.Reader, nodeIP string) (string, error) {
 }
 
 func uploadToLocalIPFS(file io.Reader, nodeID int64, shouldPin bool) (string, error) {
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return "", fmt.Errorf("new ipfs client: %w", err)
 	}
@@ -271,7 +271,7 @@ func uploadToLocalIPFS(file io.Reader, nodeID int64, shouldPin bool) (string, er
 }
 
 func pinIPFSFile(nodeID int64, fileHash string) error {
-	agtCli, err := globals.AgentMQPool.Acquire(nodeID)
+	agtCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		return fmt.Errorf("new agent client: %w", err)
 	}

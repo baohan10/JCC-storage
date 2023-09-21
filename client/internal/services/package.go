@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 	mytask "gitlink.org.cn/cloudream/storage/client/internal/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtcmd "gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -23,7 +24,7 @@ func (svc *Service) PackageSvc() *PackageService {
 }
 
 func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (iterator.DownloadingObjectIterator, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -106,7 +107,7 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
 
-	var ecInfo models.ECRedundancyInfo
+	var ecInfo stgsdk.ECRedundancyInfo
 	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
@@ -123,7 +124,7 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 	return iter, nil
 }
 
-func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo models.RepRedundancyInfo, nodeAffinity *int64) (string, error) {
+func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo stgsdk.RepRedundancyInfo, nodeAffinity *int64) (string, error) {
 	tsk := svc.TaskMgr.StartNew(mytask.NewCreateRepPackage(userID, bucketID, name, objIter, repInfo, nodeAffinity))
 	return tsk.ID(), nil
 }
@@ -151,7 +152,7 @@ func (svc *PackageService) WaitUpdatingRepPackage(taskID string, waitTimeout tim
 	return false, nil, nil
 }
 
-func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo models.ECRedundancyInfo, nodeAffinity *int64) (string, error) {
+func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo stgsdk.ECRedundancyInfo, nodeAffinity *int64) (string, error) {
 	tsk := svc.TaskMgr.StartNew(mytask.NewCreateECPackage(userID, bucketID, name, objIter, ecInfo, nodeAffinity))
 	return tsk.ID(), nil
 }
@@ -180,7 +181,7 @@ func (svc *PackageService) WaitUpdatingECPackage(taskID string, waitTimeout time
 }
 
 func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -214,19 +215,19 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	return nil
 }
 
-func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (models.PackageCachingInfo, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (stgsdk.PackageCachingInfo, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
-		return models.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
+		return stgsdk.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer coorCli.Close()
 
 	resp, err := coorCli.GetPackageCachedNodes(coormq.NewGetPackageCachedNodes(userID, packageID))
 	if err != nil {
-		return models.PackageCachingInfo{}, fmt.Errorf("get package cached nodes: %w", err)
+		return stgsdk.PackageCachingInfo{}, fmt.Errorf("get package cached nodes: %w", err)
 	}
 
-	tmp := models.PackageCachingInfo{
+	tmp := stgsdk.PackageCachingInfo{
 		NodeInfos:     resp.NodeInfos,
 		PackageSize:   resp.PackageSize,
 		RedunancyType: resp.RedunancyType,
@@ -235,7 +236,7 @@ func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (models
 }
 
 func (svc *PackageService) GetLoadedNodes(userID int64, packageID int64) ([]int64, error) {
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}

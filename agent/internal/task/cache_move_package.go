@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -17,7 +17,7 @@ type CacheMovePackage struct {
 	userID    int64
 	packageID int64
 
-	ResultCacheInfos []models.ObjectCacheInfo
+	ResultCacheInfos []stgsdk.ObjectCacheInfo
 }
 
 func NewCacheMovePackage(userID int64, packageID int64) *CacheMovePackage {
@@ -50,14 +50,14 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 		Cache().CreateAny().
 		IPFS().
 		// pin文件
-		CreateAnyRep(*globals.Local.NodeID).
+		CreateAnyRep(*stgglb.Local.NodeID).
 		MutexLock(ctx.distlock)
 	if err != nil {
 		return fmt.Errorf("acquiring distlock: %w", err)
 	}
 	defer mutex.Unlock()
 
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -82,7 +82,7 @@ func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.PoolClient, 
 		return fmt.Errorf("getting package object rep data: %w", err)
 	}
 
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new ipfs client: %w", err)
 	}
@@ -95,10 +95,10 @@ func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.PoolClient, 
 		}
 
 		fileHashes = append(fileHashes, rep.FileHash)
-		t.ResultCacheInfos = append(t.ResultCacheInfos, models.NewObjectCacheInfo(rep.Object.ObjectID, rep.FileHash))
+		t.ResultCacheInfos = append(t.ResultCacheInfos, stgsdk.NewObjectCacheInfo(rep.Object.ObjectID, rep.FileHash))
 	}
 
-	_, err = coorCli.CachePackageMoved(coormq.NewCachePackageMoved(pkg.PackageID, *globals.Local.NodeID, fileHashes))
+	_, err = coorCli.CachePackageMoved(coormq.NewCachePackageMoved(pkg.PackageID, *stgglb.Local.NodeID, fileHashes))
 	if err != nil {
 		return fmt.Errorf("reporting cache package moved: %w", err)
 	}

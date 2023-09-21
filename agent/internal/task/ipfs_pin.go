@@ -6,7 +6,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 )
 
 type IPFSPin struct {
@@ -33,7 +33,7 @@ func (t *IPFSPin) Execute(task *task.Task[TaskContext], ctx TaskContext, complet
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 	defer log.Debugf("end")
 
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		err := fmt.Errorf("new ipfs client: %w", err)
 		log.Warn(err.Error())

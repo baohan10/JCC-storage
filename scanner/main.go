@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
@@ -34,7 +34,7 @@ func main() {
 		logger.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	globals.InitMQPool(&config.Cfg().RabbitMQ)
+	stgglb.InitMQPool(&config.Cfg().RabbitMQ)
 
 	wg := sync.WaitGroup{}
 	wg.Add(3)

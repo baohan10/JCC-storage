@@ -1,4 +1,4 @@
-package globals
+package stgglb
 
 import (
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"

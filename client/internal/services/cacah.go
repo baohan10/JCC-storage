@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 )
 
@@ -18,7 +19,7 @@ func (svc *Service) CacheSvc() *CacheService {
 }
 
 func (svc *CacheService) StartCacheMovePackage(userID int64, packageID int64, nodeID int64) (string, error) {
-	agentCli, err := globals.AgentMQPool.Acquire(nodeID)
+	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		return "", fmt.Errorf("new agent client: %w", err)
 	}
@@ -32,8 +33,8 @@ func (svc *CacheService) StartCacheMovePackage(userID int64, packageID int64, no
 	return startResp.TaskID, nil
 }
 
-func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, []models.ObjectCacheInfo, error) {
-	agentCli, err := globals.AgentMQPool.Acquire(nodeID)
+func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, []stgsdk.ObjectCacheInfo, error) {
+	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		return true, nil, fmt.Errorf("new agent client: %w", err)
 	}

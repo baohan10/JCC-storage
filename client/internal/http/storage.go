@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 type StorageService struct {
@@ -70,7 +70,7 @@ type StorageCreatePackageReq struct {
 	Path         string                     `json:"path" binding:"required"`
 	BucketID     *int64                     `json:"bucketID" binding:"required"`
 	Name         string                     `json:"name" binding:"required"`
-	Redundancy   models.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	Redundancy   stgsdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
 	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 

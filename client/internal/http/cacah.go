@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 type CacheService struct {
@@ -26,7 +26,7 @@ type CacheMovePackageReq struct {
 	NodeID    *int64 `json:"nodeID" binding:"required"`
 }
 type CacheMovePackageResp struct {
-	CacheInfos []models.ObjectCacheInfo `json:"cacheInfos"`
+	CacheInfos []stgsdk.ObjectCacheInfo `json:"cacheInfos"`
 }
 
 func (s *CacheService) MovePackage(ctx *gin.Context) {

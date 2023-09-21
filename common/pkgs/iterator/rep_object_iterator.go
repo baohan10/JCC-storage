@@ -6,11 +6,13 @@ import (
 	"math/rand"
 
 	"github.com/samber/lo"
+
 	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	"gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/models"
+
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -22,7 +24,7 @@ type RepObjectIterator struct {
 	OnClosing func()
 
 	objects       []model.Object
-	objectRepData []models.ObjectRepData
+	objectRepData []stgmod.ObjectRepData
 	currentIndex  int
 	inited        bool
 
@@ -44,7 +46,7 @@ type DownloadContext struct {
 	Distlock *distsvc.Service
 }
 
-func NewRepObjectIterator(objects []model.Object, objectRepData []models.ObjectRepData, downloadCtx *DownloadContext) *RepObjectIterator {
+func NewRepObjectIterator(objects []model.Object, objectRepData []stgmod.ObjectRepData, downloadCtx *DownloadContext) *RepObjectIterator {
 	return &RepObjectIterator{
 		objects:       objects,
 		objectRepData: objectRepData,
@@ -54,7 +56,7 @@ func NewRepObjectIterator(objects []model.Object, objectRepData []models.ObjectR
 
 func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	// TODO 加锁
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -63,7 +65,7 @@ func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	if !i.inited {
 		i.inited = true
 
-		findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
+		findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
 		if err != nil {
 			return nil, fmt.Errorf("finding client location: %w", err)
 		}
@@ -137,7 +139,7 @@ func (i *RepObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downl
 }
 
 func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
-	if globals.IPFSPool != nil {
+	if stgglb.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to download file")
 
 		reader, err := downloadFromLocalIPFS(ctx, fileHash)
@@ -162,7 +164,7 @@ func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, fileHas
 	}
 
 	// 连接grpc
-	agtCli, err := globals.AgentRPCPool.Acquire(nodeIP)
+	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP)
 	if err != nil {
 		return nil, fmt.Errorf("new agent grpc client: %w", err)
 	}
@@ -180,11 +182,11 @@ func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, fileHas
 
 func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser, error) {
 	onClosed := func() {}
-	if globals.Local.NodeID != nil {
+	if stgglb.Local.NodeID != nil {
 		// 二次获取锁
 		mutex, err := reqbuilder.NewBuilder().
 			// 用于从IPFS下载文件
-			IPFS().ReadOneRep(*globals.Local.NodeID, fileHash).
+			IPFS().ReadOneRep(*stgglb.Local.NodeID, fileHash).
 			MutexLock(ctx.Distlock)
 		if err != nil {
 			return nil, fmt.Errorf("acquire locks failed, err: %w", err)
@@ -194,7 +196,7 @@ func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser
 		}
 	}
 
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new ipfs client: %w", err)
 	}

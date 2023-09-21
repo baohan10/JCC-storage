@@ -3,8 +3,8 @@ package task
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -17,7 +17,7 @@ type CreateECPackage struct {
 	Result *CreateECPackageResult
 }
 
-func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy models.ECRedundancyInfo, nodeAffinity *int64) *CreateECPackage {
+func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy stgsdk.ECRedundancyInfo, nodeAffinity *int64) *CreateECPackage {
 	return &CreateECPackage{
 		cmd: *cmd.NewCreateECPackage(userID, bucketID, name, objIter, redundancy, nodeAffinity),
 	}

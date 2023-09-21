@@ -6,7 +6,7 @@ import (
 
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agentserver "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 )
 
@@ -21,7 +21,7 @@ func NewService() *Service {
 func (s *Service) SendIPFSFile(server agentserver.Agent_SendIPFSFileServer) error {
 	log.Debugf("client upload file")
 
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		log.Warnf("new ipfs client: %s", err.Error())
 		return fmt.Errorf("new ipfs client: %w", err)
@@ -84,7 +84,7 @@ func (s *Service) SendIPFSFile(server agentserver.Agent_SendIPFSFileServer) erro
 func (s *Service) GetIPFSFile(req *agentserver.GetIPFSFileReq, server agentserver.Agent_GetIPFSFileServer) error {
 	log.WithField("FileHash", req.FileHash).Debugf("client download file")
 
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		log.Warnf("new ipfs client: %s", err.Error())
 		return fmt.Errorf("new ipfs client: %w", err)

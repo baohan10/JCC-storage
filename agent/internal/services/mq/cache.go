@@ -12,12 +12,12 @@ import (
 	"gitlink.org.cn/cloudream/storage/agent/internal/task"
 	mytask "gitlink.org.cn/cloudream/storage/agent/internal/task"
 	"gitlink.org.cn/cloudream/storage/common/consts"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 )
 
 func (svc *Service) CheckCache(msg *agtmq.CheckCache) (*agtmq.CheckCacheResp, *mq.CodeMessage) {
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		logger.Warnf("new ipfs client: %s", err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "new ipfs client failed")

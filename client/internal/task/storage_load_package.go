@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -58,7 +58,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	}
 	defer mutex.Unlock()
 
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -70,7 +70,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := globals.AgentMQPool.Acquire(getStgResp.NodeID)
+	agentClient, err := stgglb.AgentMQPool.Acquire(getStgResp.NodeID)
 	if err != nil {
 		return fmt.Errorf("create agent client to %d failed, err: %w", getStgResp.NodeID, err)
 	}

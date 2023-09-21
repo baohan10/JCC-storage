@@ -9,7 +9,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 )
 
 type IPFSRead struct {
@@ -63,7 +63,7 @@ func (t *IPFSRead) Execute(task *task.Task[TaskContext], ctx TaskContext, comple
 	}
 	defer outputFile.Close()
 
-	ipfsCli, err := globals.IPFSPool.Acquire()
+	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		err := fmt.Errorf("new ipfs client: %w", err)
 		log.Warn(err.Error())

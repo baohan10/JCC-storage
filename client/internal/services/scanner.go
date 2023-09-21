@@ -3,7 +3,7 @@ package services
 import (
 	"fmt"
 
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
@@ -17,7 +17,7 @@ func (svc *Service) ScannerSvc() *ScannerService {
 }
 
 func (svc *ScannerService) PostEvent(event scevt.Event, isEmergency bool, dontMerge bool) error {
-	scCli, err := globals.ScannerMQPool.Acquire()
+	scCli, err := stgglb.ScannerMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new scacnner client: %w", err)
 	}

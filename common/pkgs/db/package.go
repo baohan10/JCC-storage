@@ -6,8 +6,10 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	"gitlink.org.cn/cloudream/common/models"
+
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/serder"
+
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
@@ -78,7 +80,7 @@ func (db *PackageDB) GetUserPackage(ctx SQLContext, userID int64, packageID int6
 	return ret, err
 }
 
-func (db *PackageDB) Create(ctx SQLContext, bucketID int64, name string, redundancy models.TypedRedundancyInfo) (int64, error) {
+func (db *PackageDB) Create(ctx SQLContext, bucketID int64, name string, redundancy stgsdk.TypedRedundancyInfo) (int64, error) {
 	// 根据packagename和bucketid查询，若不存在则插入，若存在则返回错误
 	var packageID int64
 	err := sqlx.Get(ctx, &packageID, "select PackageID from Package where Name = ? AND BucketID = ?", name, bucketID)

@@ -7,9 +7,11 @@ import (
 	"os"
 
 	"github.com/samber/lo"
-	"gitlink.org.cn/cloudream/common/models"
+
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
@@ -24,13 +26,13 @@ type ECObjectIterator struct {
 	currentIndex int
 	inited       bool
 
-	ecInfo      models.ECRedundancyInfo
+	ecInfo      stgsdk.ECRedundancyInfo
 	ec          model.Ec
 	downloadCtx *DownloadContext
 	cliLocation model.Location
 }
 
-func NewECObjectIterator(objects []model.Object, objectECData []stgmodels.ObjectECData, ecInfo models.ECRedundancyInfo, ec model.Ec, downloadCtx *DownloadContext) *ECObjectIterator {
+func NewECObjectIterator(objects []model.Object, objectECData []stgmodels.ObjectECData, ecInfo stgsdk.ECRedundancyInfo, ec model.Ec, downloadCtx *DownloadContext) *ECObjectIterator {
 	return &ECObjectIterator{
 		objects:      objects,
 		objectECData: objectECData,
@@ -42,7 +44,7 @@ func NewECObjectIterator(objects []model.Object, objectECData []stgmodels.Object
 
 func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	// TODO 加锁
-	coorCli, err := globals.CoordinatorMQPool.Acquire()
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
@@ -51,7 +53,7 @@ func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	if !i.inited {
 		i.inited = true
 
-		findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(globals.Local.ExternalIP))
+		findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
 		if err != nil {
 			return nil, fmt.Errorf("finding client location: %w", err)
 		}

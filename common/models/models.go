@@ -1,4 +1,4 @@
-package models
+package stgmod
 
 import "gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 

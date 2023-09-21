@@ -10,7 +10,7 @@ import (
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage/agent/internal/config"
 	"gitlink.org.cn/cloudream/storage/agent/internal/task"
-	"gitlink.org.cn/cloudream/storage/common/globals"
+	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 
@@ -45,12 +45,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	globals.InitLocal(&config.Cfg().Local)
-	globals.InitMQPool(&config.Cfg().RabbitMQ)
-	globals.InitAgentRPCPool(&agtrpc.PoolConfig{
+	stgglb.InitLocal(&config.Cfg().Local)
+	stgglb.InitMQPool(&config.Cfg().RabbitMQ)
+	stgglb.InitAgentRPCPool(&agtrpc.PoolConfig{
 		Port: config.Cfg().GRPC.Port,
 	})
-	globals.InitIPFSPool(&config.Cfg().IPFS)
+	stgglb.InitIPFSPool(&config.Cfg().IPFS)
 
 	distlock, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {

@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"gitlink.org.cn/cloudream/common/models"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 type Node struct {
@@ -61,7 +61,7 @@ type Package struct {
 	Name       string                     `db:"Name" json:"name"`
 	BucketID   int64                      `db:"BucketID" json:"bucketID"`
 	State      string                     `db:"State" json:"state"`
-	Redundancy models.TypedRedundancyInfo `db:"Redundancy" json:"redundancy"`
+	Redundancy stgsdk.TypedRedundancyInfo `db:"Redundancy" json:"redundancy"`
 }
 
 type Object struct {
