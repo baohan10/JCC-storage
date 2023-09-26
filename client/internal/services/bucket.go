@@ -27,7 +27,7 @@ func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	resp, err := coorCli.GetUserBuckets(coormq.NewGetUserBuckets(userID))
 	if err != nil {
@@ -42,7 +42,7 @@ func (svc *BucketService) GetBucketPackages(userID int64, bucketID int64) ([]mod
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	resp, err := coorCli.GetBucketPackages(coormq.NewGetBucketPackages(userID, bucketID))
 	if err != nil {
@@ -57,7 +57,7 @@ func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, 
 	if err != nil {
 		return 0, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	// TODO 只有阅读了系统操作的源码，才能知道要加哪些锁，但用户的命令可能会调用不止一个系统操作。
 	// 因此加锁的操作还是必须在用户命令里完成，但具体加锁的内容，则需要被封装起来与系统操作放到一起，方便管理，避免分散改动。
@@ -85,7 +85,7 @@ func (svc *BucketService) DeleteBucket(userID int64, bucketID int64) error {
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	// TODO 检查用户是否有删除这个Bucket的权限。检查的时候可以只上UserBucket的Read锁
 

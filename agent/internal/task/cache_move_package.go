@@ -61,7 +61,7 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	pkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
 	if err != nil {
@@ -76,7 +76,7 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 
 	return nil
 }
-func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.PoolClient, pkg model.Package) error {
+func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.Client, pkg model.Package) error {
 	getRepResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(pkg.PackageID))
 	if err != nil {
 		return fmt.Errorf("getting package object rep data: %w", err)

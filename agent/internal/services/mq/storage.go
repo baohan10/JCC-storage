@@ -27,7 +27,7 @@ func (svc *Service) StartStorageLoadPackage(msg *agtmq.StartStorageLoadPackage) 
 
 		return nil, mq.Failed(errorcode.OperationFailed, "new coordinator client failed")
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
 	if err != nil {
@@ -163,7 +163,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 
 		return nil, mq.Failed(errorcode.OperationFailed, "new coordinator client failed")
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
 	if err != nil {

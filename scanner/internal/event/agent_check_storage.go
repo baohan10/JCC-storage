@@ -143,14 +143,14 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	log := logger.WithType[AgentCheckStorage]("Event")
 
 	// 投递任务
-	agentClient, err := stgglb.AgentMQPool.Acquire(stg.NodeID)
+	agtCli, err := stgglb.AgentMQPool.Acquire(stg.NodeID)
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
-	defer agentClient.Close()
+	defer stgglb.AgentMQPool.Release(agtCli)
 
-	checkResp, err := agentClient.StorageCheck(agtmq.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, packages), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agtCli.StorageCheck(agtmq.NewStorageCheck(stg.StorageID, stg.Directory, isComplete, packages), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
 		return

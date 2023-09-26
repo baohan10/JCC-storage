@@ -126,14 +126,14 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	log := logger.WithType[AgentCheckCache]("Event")
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := stgglb.AgentMQPool.Acquire(t.NodeID)
+	agtCli, err := stgglb.AgentMQPool.Acquire(t.NodeID)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
-	defer agentClient.Close()
+	defer stgglb.AgentMQPool.Release(agtCli)
 
-	checkResp, err := agentClient.CheckCache(agtmq.NewCheckCache(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agtCli.CheckCache(agtmq.NewCheckCache(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("checking ipfs: %s", err.Error())
 		return
