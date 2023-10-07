@@ -170,5 +170,5 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
+	RegisterMessageConvertor(func(msg *scevt.AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
 }

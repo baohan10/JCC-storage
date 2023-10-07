@@ -71,6 +71,7 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 	if pkgResp.Redundancy.IsRepInfo() {
 		return t.moveRep(ctx, coorCli, pkgResp.Package)
 	} else {
+		return fmt.Errorf("not implement yet!")
 		// TODO EC的CacheMove逻辑
 	}
 

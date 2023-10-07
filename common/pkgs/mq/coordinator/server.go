@@ -27,8 +27,6 @@ type Service interface {
 type Server struct {
 	service   Service
 	rabbitSvr mq.RabbitMQServer
-
-	OnError func(err error)
 }
 
 func NewServer(svc Service, cfg *mymq.Config) (*Server, error) {
@@ -57,6 +55,10 @@ func (s *Server) Stop() {
 
 func (s *Server) Serve() error {
 	return s.rabbitSvr.Serve()
+}
+
+func (s *Server) OnError(callback func(error)) {
+	s.rabbitSvr.OnError = callback
 }
 
 var msgDispatcher mq.MessageDispatcher = mq.NewMessageDispatcher()

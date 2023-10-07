@@ -69,9 +69,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}
-	agtSvr.OnError = func(err error) {
+	agtSvr.OnError(func(err error) {
 		log.Warnf("agent server err: %s", err.Error())
-	}
+	})
+
 	go serveAgentServer(agtSvr, &wg)
 
 	go reportStatus(&wg) //网络延迟感知

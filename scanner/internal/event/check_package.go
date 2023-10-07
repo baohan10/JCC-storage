@@ -53,5 +53,5 @@ func (t *CheckPackage) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.CheckPackage) Event { return NewCheckPackage(msg.PackageIDs) })
+	RegisterMessageConvertor(func(msg *scevt.CheckPackage) Event { return NewCheckPackage(msg.PackageIDs) })
 }

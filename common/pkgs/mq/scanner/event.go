@@ -29,7 +29,3 @@ func NewPostEvent(event scevt.Event, isEmergency bool, dontMerge bool) *PostEven
 func (client *Client) PostEvent(msg *PostEvent) error {
 	return mq.Send(Service.PostEvent, client.rabbitCli, msg)
 }
-
-func init() {
-	mq.RegisterUnionType(scevt.EventTypeUnino)
-}

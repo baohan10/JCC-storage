@@ -113,5 +113,5 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
+	RegisterMessageConvertor(func(msg *scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
 }

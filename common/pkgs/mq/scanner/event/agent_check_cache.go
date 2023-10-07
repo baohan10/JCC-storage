@@ -1,5 +1,7 @@
 package event
 
+var _ = Register[*AgentCheckCache]()
+
 type AgentCheckCache struct {
 	EventBase
 	NodeID     int64    `json:"nodeID"`
@@ -11,8 +13,4 @@ func NewAgentCheckCache(nodeID int64, fileHashes []string) *AgentCheckCache {
 		NodeID:     nodeID,
 		FileHashes: fileHashes,
 	}
-}
-
-func init() {
-	Register[AgentCheckCache]()
 }

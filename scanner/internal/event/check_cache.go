@@ -80,5 +80,5 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.CheckCache) Event { return NewCheckCache(msg.NodeID) })
+	RegisterMessageConvertor(func(msg *scevt.CheckCache) Event { return NewCheckCache(msg.NodeID) })
 }

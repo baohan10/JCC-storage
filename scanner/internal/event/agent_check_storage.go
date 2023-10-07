@@ -195,5 +195,5 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.PackageIDs) })
+	RegisterMessageConvertor(func(msg *scevt.AgentCheckStorage) Event { return NewAgentCheckStorage(msg.StorageID, msg.PackageIDs) })
 }
