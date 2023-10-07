@@ -36,7 +36,7 @@ var msgDispatcher = typedispatcher.NewTypeDispatcher[Event]()
 func FromMessage(msg scevt.Event) (Event, error) {
 	event, ok := msgDispatcher.Dispatch(msg)
 	if !ok {
-		return nil, fmt.Errorf("unknow event message type: %s", reflect.TypeOf(msg).Name())
+		return nil, fmt.Errorf("unknow event message type: %s", reflect.TypeOf(msg).String())
 	}
 
 	return event, nil

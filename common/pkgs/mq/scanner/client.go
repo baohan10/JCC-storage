@@ -6,11 +6,11 @@ import (
 )
 
 type Client struct {
-	rabbitCli *mq.RabbitMQClient
+	rabbitCli *mq.RabbitMQTransport
 }
 
 func NewClient(cfg *stgmq.Config) (*Client, error) {
-	rabbitCli, err := mq.NewRabbitMQClient(cfg.MakeConnectingURL(), stgmq.SCANNER_QUEUE_NAME, "")
+	rabbitCli, err := mq.NewRabbitMQTransport(cfg.MakeConnectingURL(), stgmq.SCANNER_QUEUE_NAME, "")
 	if err != nil {
 		return nil, err
 	}
@@ -24,36 +24,24 @@ func (c *Client) Close() {
 	c.rabbitCli.Close()
 }
 
-type PoolClient struct {
-	*Client
-	owner *Pool
+type Pool interface {
+	Acquire() (*Client, error)
+	Release(cli *Client)
 }
 
-func (c *PoolClient) Close() {
-	c.owner.Release(c)
-}
-
-type Pool struct {
+type pool struct {
 	mqcfg *stgmq.Config
 }
 
-func NewPool(mqcfg *stgmq.Config) *Pool {
-	return &Pool{
+func NewPool(mqcfg *stgmq.Config) Pool {
+	return &pool{
 		mqcfg: mqcfg,
 	}
 }
-func (p *Pool) Acquire() (*PoolClient, error) {
-	cli, err := NewClient(p.mqcfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &PoolClient{
-		Client: cli,
-		owner:  p,
-	}, nil
+func (p *pool) Acquire() (*Client, error) {
+	return NewClient(p.mqcfg)
 }
 
-func (p *Pool) Release(cli *PoolClient) {
-	cli.Client.Close()
+func (p *pool) Release(cli *Client) {
+	cli.Close()
 }

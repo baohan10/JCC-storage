@@ -40,9 +40,9 @@ func main() {
 		logger.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}
 
-	coorSvr.OnError = func(err error) {
+	coorSvr.OnError(func(err error) {
 		logger.Warnf("coordinator server err: %s", err.Error())
-	}
+	})
 
 	// 启动服务
 	go serveCoorServer(coorSvr)

@@ -48,7 +48,7 @@ func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	if !i.inited {
 		i.inited = true
@@ -69,7 +69,7 @@ func (i *ECObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	return item, err
 }
 
-func (iter *ECObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloadingObject, error) {
+func (iter *ECObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObject, error) {
 	obj := iter.objects[iter.currentIndex]
 	ecData := iter.objectECData[iter.currentIndex]
 

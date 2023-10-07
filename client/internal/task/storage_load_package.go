@@ -62,7 +62,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(t.userID, t.storageID))
 	if err != nil {
@@ -70,13 +70,13 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	}
 
 	// 然后向代理端发送移动文件的请求
-	agentClient, err := stgglb.AgentMQPool.Acquire(getStgResp.NodeID)
+	agentCli, err := stgglb.AgentMQPool.Acquire(getStgResp.NodeID)
 	if err != nil {
 		return fmt.Errorf("create agent client to %d failed, err: %w", getStgResp.NodeID, err)
 	}
-	defer agentClient.Close()
+	defer stgglb.AgentMQPool.Release(agentCli)
 
-	agentMoveResp, err := agentClient.StartStorageLoadPackage(
+	agentMoveResp, err := agentCli.StartStorageLoadPackage(
 		agtmq.NewStartStorageLoadPackage(
 			t.userID,
 			t.packageID,
@@ -87,7 +87,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	}
 
 	for {
-		waitResp, err := agentClient.WaitStorageLoadPackage(agtmq.NewWaitStorageLoadPackage(agentMoveResp.TaskID, int64(time.Second)*5))
+		waitResp, err := agentCli.WaitStorageLoadPackage(agtmq.NewWaitStorageLoadPackage(agentMoveResp.TaskID, int64(time.Second)*5))
 		if err != nil {
 			return fmt.Errorf("wait loading package: %w", err)
 		}

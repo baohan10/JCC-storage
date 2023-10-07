@@ -23,7 +23,7 @@ func (svc *CacheService) StartCacheMovePackage(userID int64, packageID int64, no
 	if err != nil {
 		return "", fmt.Errorf("new agent client: %w", err)
 	}
-	defer agentCli.Close()
+	defer stgglb.AgentMQPool.Release(agentCli)
 
 	startResp, err := agentCli.StartCacheMovePackage(agtmq.NewStartCacheMovePackage(userID, packageID))
 	if err != nil {
@@ -38,7 +38,7 @@ func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitT
 	if err != nil {
 		return true, nil, fmt.Errorf("new agent client: %w", err)
 	}
-	defer agentCli.Close()
+	defer stgglb.AgentMQPool.Release(agentCli)
 
 	waitResp, err := agentCli.WaitCacheMovePackage(agtmq.NewWaitCacheMovePackage(taskID, waitTimeout.Milliseconds()))
 	if err != nil {

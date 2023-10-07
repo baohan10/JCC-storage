@@ -38,7 +38,7 @@ func (t *DownloadPackage) Execute(ctx *DownloadPackageContext) error {
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
 	if err != nil {
@@ -65,7 +65,7 @@ func (t *DownloadPackage) downloadRep(ctx *DownloadPackageContext) (iterator.Dow
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
 	if err != nil {
@@ -89,7 +89,7 @@ func (t *DownloadPackage) downloadEC(ctx *DownloadPackageContext, pkg model.Pack
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
 	if err != nil {

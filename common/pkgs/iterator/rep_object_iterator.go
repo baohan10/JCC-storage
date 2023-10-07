@@ -60,7 +60,7 @@ func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	if !i.inited {
 		i.inited = true
@@ -81,7 +81,7 @@ func (i *RepObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	return item, err
 }
 
-func (i *RepObjectIterator) doMove(coorCli *coormq.PoolClient) (*IterDownloadingObject, error) {
+func (i *RepObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObject, error) {
 	repData := i.objectRepData[i.currentIndex]
 	if len(repData.NodeIDs) == 0 {
 		return nil, fmt.Errorf("no node has this file %s", repData.FileHash)

@@ -53,9 +53,10 @@ func main() {
 	if err != nil {
 		logger.Fatalf("new agent server failed, err: %s", err.Error())
 	}
-	agtSvr.OnError = func(err error) {
+	agtSvr.OnError(func(err error) {
 		logger.Warnf("agent server err: %s", err.Error())
-	}
+	})
+
 	go serveScannerServer(agtSvr, &wg)
 
 	tickExecutor := tickevent.NewExecutor(tickevent.ExecuteArgs{

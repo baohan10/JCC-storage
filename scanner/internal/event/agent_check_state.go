@@ -61,14 +61,14 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	agentClient, err := stgglb.AgentMQPool.Acquire(t.NodeID)
+	agtCli, err := stgglb.AgentMQPool.Acquire(t.NodeID)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
 		return
 	}
-	defer agentClient.Close()
+	defer stgglb.AgentMQPool.Release(agtCli)
 
-	getResp, err := agentClient.GetState(agtmq.NewGetState(), mq.RequestOption{Timeout: time.Second * 30})
+	getResp, err := agtCli.GetState(agtmq.NewGetState(), mq.RequestOption{Timeout: time.Second * 30})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("getting state: %s", err.Error())
 
@@ -113,5 +113,5 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
+	RegisterMessageConvertor(func(msg *scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
 }

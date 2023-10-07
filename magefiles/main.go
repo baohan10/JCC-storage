@@ -69,8 +69,13 @@ func Scripts() error {
 	scriptsDir := "./common/assets/scripts"
 
 	info, err := os.Stat(scriptsDir)
-	if errors.Is(err, os.ErrNotExist) || !info.IsDir() {
-		return fmt.Errorf("script directory not exists or is not a directory")
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("no scripts.\n")
+		return nil
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("scripts is not a directory")
 	}
 
 	fullDirPath, err := filepath.Abs(filepath.Join(BuildDir, "scripts"))
@@ -87,8 +92,13 @@ func Confs() error {
 	confDir := "./common/assets/confs"
 
 	info, err := os.Stat(confDir)
-	if errors.Is(err, os.ErrNotExist) || !info.IsDir() {
-		return fmt.Errorf("conf directory not exists or is not a directory")
+	if errors.Is(err, os.ErrNotExist) {
+		fmt.Printf("no confs.\n")
+		return nil
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("confs is not a directory")
 	}
 
 	fullDirPath, err := filepath.Abs(filepath.Join(BuildDir, "confs"))
@@ -106,7 +116,7 @@ func Agent() error {
 		OutputName: "agent",
 		OutputDir:  "agent",
 		AssetsDir:  "assets",
-		EntryFile:"agent/main.go",
+		EntryFile:  "agent/main.go",
 	})
 }
 
@@ -115,7 +125,7 @@ func Client() error {
 		OutputName: "client",
 		OutputDir:  "client",
 		AssetsDir:  "assets",
-		EntryFile:"client/main.go",
+		EntryFile:  "client/main.go",
 	})
 }
 
@@ -124,7 +134,7 @@ func Coordinator() error {
 		OutputName: "coordinator",
 		OutputDir:  "coordinator",
 		AssetsDir:  "assets",
-		EntryFile:"coordinator/main.go",
+		EntryFile:  "coordinator/main.go",
 	})
 }
 
@@ -133,6 +143,6 @@ func Scanner() error {
 		OutputName: "scanner",
 		OutputDir:  "scanner",
 		AssetsDir:  "assets",
-		EntryFile:"scanner/main.go",
+		EntryFile:  "scanner/main.go",
 	})
 }

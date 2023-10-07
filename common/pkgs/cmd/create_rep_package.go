@@ -275,7 +275,7 @@ func pinIPFSFile(nodeID int64, fileHash string) error {
 	if err != nil {
 		return fmt.Errorf("new agent client: %w", err)
 	}
-	defer agtCli.Close()
+	defer stgglb.AgentMQPool.Release(agtCli)
 
 	// 然后让最近节点pin本地上传的文件
 	pinObjResp, err := agtCli.StartPinningObject(agtmq.NewStartPinningObject(fileHash))

@@ -28,7 +28,7 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	mutex, err := reqbuilder.NewBuilder().
 		// 用于判断用户是否有对象权限
@@ -89,7 +89,7 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 	}
 }
 
-func (svc *PackageService) downloadRepPackage(packageID int64, objects []model.Object, coorCli *coormq.PoolClient) (*iterator.RepObjectIterator, error) {
+func (svc *PackageService) downloadRepPackage(packageID int64, objects []model.Object, coorCli *coormq.Client) (*iterator.RepObjectIterator, error) {
 	getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(packageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package object rep data: %w", err)
@@ -101,7 +101,7 @@ func (svc *PackageService) downloadRepPackage(packageID int64, objects []model.O
 
 	return iter, nil
 }
-func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.Object, coorCli *coormq.PoolClient) (*iterator.ECObjectIterator, error) {
+func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.Object, coorCli *coormq.Client) (*iterator.ECObjectIterator, error) {
 	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(pkg.PackageID))
 	if err != nil {
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
@@ -185,7 +185,7 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().
@@ -220,7 +220,7 @@ func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (stgsdk
 	if err != nil {
 		return stgsdk.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	resp, err := coorCli.GetPackageCachedNodes(coormq.NewGetPackageCachedNodes(userID, packageID))
 	if err != nil {
@@ -240,7 +240,7 @@ func (svc *PackageService) GetLoadedNodes(userID int64, packageID int64) ([]int6
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	resp, err := coorCli.GetPackageLoadedNodes(coormq.NewGetPackageLoadedNodes(userID, packageID))
 	if err != nil {

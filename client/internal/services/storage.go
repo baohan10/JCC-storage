@@ -44,7 +44,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 	if err != nil {
 		return 0, "", fmt.Errorf("new coordinator client: %w", err)
 	}
-	defer coorCli.Close()
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	stgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(userID, storageID))
 	if err != nil {
@@ -55,7 +55,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 	if err != nil {
 		return 0, "", fmt.Errorf("new agent client: %w", err)
 	}
-	defer agentCli.Close()
+	defer stgglb.AgentMQPool.Release(agentCli)
 
 	startResp, err := agentCli.StartStorageCreatePackage(agtmq.NewStartStorageCreatePackage(userID, bucketID, name, storageID, path, redundancy, nodeAffinity))
 	if err != nil {
@@ -71,7 +71,7 @@ func (svc *StorageService) WaitStorageCreatePackage(nodeID int64, taskID string,
 		// TODO 失败是否要当做任务已经结束？
 		return true, 0, fmt.Errorf("new agent client: %w", err)
 	}
-	defer agentCli.Close()
+	defer stgglb.AgentMQPool.Release(agentCli)
 
 	waitResp, err := agentCli.WaitStorageCreatePackage(agtmq.NewWaitStorageCreatePackage(taskID, waitTimeout.Milliseconds()))
 	if err != nil {

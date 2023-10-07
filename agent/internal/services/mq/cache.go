@@ -147,9 +147,9 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 				errMsg = tsk.Error().Error()
 			}
 
-			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, nil))
+			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, mvPkgTask.ResultCacheInfos))
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, "", mvPkgTask.ResultCacheInfos))
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, "", nil))
 	}
 }

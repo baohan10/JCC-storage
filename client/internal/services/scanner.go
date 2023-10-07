@@ -21,7 +21,7 @@ func (svc *ScannerService) PostEvent(event scevt.Event, isEmergency bool, dontMe
 	if err != nil {
 		return fmt.Errorf("new scacnner client: %w", err)
 	}
-	defer scCli.Close()
+	defer stgglb.ScannerMQPool.Release(scCli)
 
 	err = scCli.PostEvent(scmq.NewPostEvent(event, isEmergency, dontMerge))
 	if err != nil {

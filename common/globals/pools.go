@@ -9,11 +9,11 @@ import (
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 )
 
-var AgentMQPool *agtmq.Pool
+var AgentMQPool agtmq.Pool
 
-var CoordinatorMQPool *coormq.Pool
+var CoordinatorMQPool coormq.Pool
 
-var ScannerMQPool *scmq.Pool
+var ScannerMQPool scmq.Pool
 
 func InitMQPool(cfg *stgmq.Config) {
 	AgentMQPool = agtmq.NewPool(cfg)
