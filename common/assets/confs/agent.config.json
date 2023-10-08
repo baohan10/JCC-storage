@@ -10,7 +10,6 @@
         "port": 5010
     },
     "ecPacketSize": 10,
-    "storageBaseDir": ".",
     "tempFileLifetime": 3600,
     "logger": {
         "output": "file",
