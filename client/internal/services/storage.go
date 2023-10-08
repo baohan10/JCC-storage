@@ -8,6 +8,7 @@ import (
 
 	"gitlink.org.cn/cloudream/storage/client/internal/task"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -25,12 +26,13 @@ func (svc *StorageService) StartStorageLoadPackage(userID int64, packageID int64
 	return tsk.ID(), nil
 }
 
-func (svc *StorageService) WaitStorageLoadPackage(taskID string, waitTimeout time.Duration) (bool, error) {
+func (svc *StorageService) WaitStorageLoadPackage(taskID string, waitTimeout time.Duration) (bool, string, error) {
 	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		return true, tsk.Error()
+		loadTsk := tsk.Body().(*task.StorageLoadPackage)
+		return true, loadTsk.ResultFullPath, tsk.Error()
 	}
-	return false, nil
+	return false, "", nil
 }
 
 func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, storageID int64) error {
@@ -88,4 +90,19 @@ func (svc *StorageService) WaitStorageCreatePackage(nodeID int64, taskID string,
 	}
 
 	return true, waitResp.PackageID, nil
+}
+
+func (svc *StorageService) GetInfo(userID int64, storageID int64) (*model.Storage, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	getResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(userID, storageID))
+	if err != nil {
+		return nil, fmt.Errorf("request to coordinator: %w", err)
+	}
+
+	return &getResp.Storage, nil
 }

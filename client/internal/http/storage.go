@@ -26,6 +26,10 @@ type StorageLoadPackageReq struct {
 	StorageID *int64 `json:"storageID" binding:"required"`
 }
 
+type StorageLoadPackageResp struct {
+	stgsdk.StorageLoadPackageResp
+}
+
 func (s *StorageService) LoadPackage(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Storage.LoadPackage")
 
@@ -44,7 +48,7 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 	}
 
 	for {
-		complete, err := s.svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
+		complete, fullPath, err := s.svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				log.Warnf("loading complete with: %s", err.Error())
@@ -52,7 +56,11 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 				return
 			}
 
-			ctx.JSON(http.StatusOK, OK(nil))
+			ctx.JSON(http.StatusOK, OK(StorageLoadPackageResp{
+				StorageLoadPackageResp: stgsdk.StorageLoadPackageResp{
+					FullPath: fullPath,
+				},
+			}))
 			return
 		}
 
@@ -117,4 +125,39 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 			return
 		}
 	}
+}
+
+type StorageGetInfoReq struct {
+	UserID    *int64 `json:"userID" binding:"required"`
+	StorageID *int64 `json:"storageID" binding:"required"`
+}
+
+type StorageGetInfoResp struct {
+	stgsdk.StorageGetInfoResp
+}
+
+func (s *StorageService) GetInfo(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Storage.GetInfo")
+
+	var req StorageGetInfoReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	info, err := s.svc.StorageSvc().GetInfo(*req.UserID, *req.StorageID)
+	if err != nil {
+		log.Warnf("getting info: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get storage inf failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(StorageGetInfoResp{
+		StorageGetInfoResp: stgsdk.StorageGetInfoResp{
+			Name:      info.Name,
+			NodeID:    info.NodeID,
+			Directory: info.Directory,
+		},
+	}))
 }

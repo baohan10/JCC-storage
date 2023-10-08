@@ -45,7 +45,7 @@ func (svc *Service) StartStorageLoadPackage(msg *agtmq.StartStorageLoadPackage) 
 		return nil, mq.Failed(errorcode.OperationFailed, "create output directory failed")
 	}
 
-	tsk := svc.taskManager.StartNew(mytask.NewDownloadPackage(msg.UserID, msg.PackageID, outputDirPath))
+	tsk := svc.taskManager.StartNew(mytask.NewStorageLoadPackage(msg.UserID, msg.PackageID, outputDirPath))
 	return mq.ReplyOK(agtmq.NewStartStorageLoadPackageResp(tsk.ID()))
 }
 
@@ -65,7 +65,9 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 			errMsg = tsk.Error().Error()
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg))
+		loadTsk := tsk.Body().(*mytask.StorageLoadPackage)
+
+		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullPath))
 
 	} else {
 		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
@@ -75,10 +77,12 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 				errMsg = tsk.Error().Error()
 			}
 
-			return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg))
+			loadTsk := tsk.Body().(*mytask.StorageLoadPackage)
+
+			return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullPath))
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(false, ""))
+		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(false, "", ""))
 	}
 }
 

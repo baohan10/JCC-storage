@@ -11,10 +11,13 @@ import (
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
+// TODO 可以考虑不用Task来实现这些逻辑
 type StorageLoadPackage struct {
 	userID    int64
 	packageID int64
 	storageID int64
+
+	ResultFullPath string
 }
 
 func NewStorageLoadPackage(userID int64, packageID int64, storageID int64) *StorageLoadPackage {
@@ -97,6 +100,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 				return fmt.Errorf("agent loading package: %s", waitResp.Error)
 			}
 
+			t.ResultFullPath = waitResp.FullPath
 			break
 		}
 	}
