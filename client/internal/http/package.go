@@ -11,6 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	stgiter "gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
@@ -22,6 +23,34 @@ func (s *Server) PackageSvc() *PackageService {
 	return &PackageService{
 		Server: s,
 	}
+}
+
+type PackageGetReq struct {
+	UserID    *int64 `form:"userID" binding:"required"`
+	PackageID *int64 `form:"packageID" binding:"required"`
+}
+type PackageGetResp struct {
+	model.Package
+}
+
+func (s *PackageService) Get(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.Get")
+
+	var req PackageGetReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	pkg, err := s.svc.PackageSvc().Get(*req.UserID, *req.PackageID)
+	if err != nil {
+		log.Warnf("getting package: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(PackageGetResp{Package: *pkg}))
 }
 
 type PackageUploadReq struct {

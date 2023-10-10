@@ -23,6 +23,21 @@ func (svc *Service) PackageSvc() *PackageService {
 	return &PackageService{Service: svc}
 }
 
+func (svc *PackageService) Get(userID int64, packageID int64) (*model.Package, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	getResp, err := coorCli.GetPackage(coormq.NewGetPackage(userID, packageID))
+	if err != nil {
+		return nil, fmt.Errorf("requsting to coodinator: %w", err)
+	}
+
+	return &getResp.Package, nil
+}
+
 func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (iterator.DownloadingObjectIterator, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {

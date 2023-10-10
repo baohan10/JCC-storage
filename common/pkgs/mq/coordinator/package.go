@@ -10,8 +10,6 @@ import (
 type PackageService interface {
 	GetPackage(msg *GetPackage) (*GetPackageResp, *mq.CodeMessage)
 
-	GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, *mq.CodeMessage)
-
 	CreatePackage(msg *CreatePackage) (*CreatePackageResp, *mq.CodeMessage)
 
 	UpdateRepPackage(msg *UpdateRepPackage) (*UpdateRepPackageResp, *mq.CodeMessage)
@@ -51,34 +49,6 @@ func NewGetPackageResp(pkg model.Package) *GetPackageResp {
 }
 func (client *Client) GetPackage(msg *GetPackage) (*GetPackageResp, error) {
 	return mq.Request(Service.GetPackage, client.rabbitCli, msg)
-}
-
-// 查询Package中的所有Object，返回的Objects会按照ObjectID升序
-var _ = Register(Service.GetPackageObjects)
-
-type GetPackageObjects struct {
-	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
-}
-type GetPackageObjectsResp struct {
-	mq.MessageBodyBase
-	Objects []model.Object `json:"objects"`
-}
-
-func NewGetPackageObjects(userID int64, packageID int64) *GetPackageObjects {
-	return &GetPackageObjects{
-		UserID:    userID,
-		PackageID: packageID,
-	}
-}
-func NewGetPackageObjectsResp(objects []model.Object) *GetPackageObjectsResp {
-	return &GetPackageObjectsResp{
-		Objects: objects,
-	}
-}
-func (client *Client) GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, error) {
-	return mq.Request(Service.GetPackageObjects, client.rabbitCli, msg)
 }
 
 // 创建一个Package

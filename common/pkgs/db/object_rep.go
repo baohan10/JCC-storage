@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -114,6 +115,27 @@ func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) (
 	}
 
 	return rets, nil
+}
+
+func (db *ObjectRepDB) GetPackageObjectCacheInfos(ctx SQLContext, packageID int64) ([]stgsdk.ObjectCacheInfo, error) {
+	var tmpRet []struct {
+		stgsdk.Object
+		FileHash string `db:"FileHash"`
+	}
+
+	err := sqlx.Select(ctx, &tmpRet, "select Object.*, ObjectRep.FileHash from Object"+
+		" left join ObjectRep on Object.ObjectID = ObjectRep.ObjectID"+
+		" where Object.PackageID = ? order by Object.ObjectID asc", packageID)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := make([]stgsdk.ObjectCacheInfo, len(tmpRet))
+	for i, r := range tmpRet {
+		ret[i] = stgsdk.NewObjectCacheInfo(r.Object, r.FileHash)
+	}
+
+	return ret, nil
 }
 
 // 按逗号切割字符串，并将每一个部分解析为一个int64的ID。
