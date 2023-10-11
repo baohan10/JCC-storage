@@ -74,7 +74,7 @@ type CacheGetPackageObjectCacheInfosReq struct {
 	PackageID *int64 `form:"packageID" binding:"required"`
 }
 
-type CacheGetPackageObjectCacheInfosResp = stgsdk.GetPackageObjectCacheInfosResp
+type CacheGetPackageObjectCacheInfosResp = stgsdk.CacheGetPackageObjectCacheInfosResp
 
 func (s *CacheService) GetPackageObjectCacheInfos(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Cache.GetPackageObjectCacheInfos")
