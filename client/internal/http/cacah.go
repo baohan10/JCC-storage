@@ -68,3 +68,30 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 		}
 	}
 }
+
+type CacheGetPackageObjectCacheInfosReq struct {
+	UserID    *int64 `form:"userID" binding:"required"`
+	PackageID *int64 `form:"packageID" binding:"required"`
+}
+
+type CacheGetPackageObjectCacheInfosResp = stgsdk.CacheGetPackageObjectCacheInfosResp
+
+func (s *CacheService) GetPackageObjectCacheInfos(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Cache.GetPackageObjectCacheInfos")
+
+	var req CacheGetPackageObjectCacheInfosReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	infos, err := s.svc.CacheSvc().GetPackageObjectCacheInfos(*req.UserID, *req.PackageID)
+	if err != nil {
+		log.Warnf("getting package object cache infos: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package object cache infos failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(CacheGetPackageObjectCacheInfosResp{Infos: infos}))
+}

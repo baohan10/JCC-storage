@@ -61,6 +61,7 @@ type WaitStorageLoadPackageResp struct {
 	mq.MessageBodyBase
 	IsComplete bool   `json:"isComplete"`
 	Error      string `json:"error"`
+	FullPath   string `json:"fullPath"`
 }
 
 func NewWaitStorageLoadPackage(taskID string, waitTimeoutMs int64) *WaitStorageLoadPackage {
@@ -69,10 +70,11 @@ func NewWaitStorageLoadPackage(taskID string, waitTimeoutMs int64) *WaitStorageL
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitStorageLoadPackageResp(isComplete bool, err string) *WaitStorageLoadPackageResp {
+func NewWaitStorageLoadPackageResp(isComplete bool, err string, fullPath string) *WaitStorageLoadPackageResp {
 	return &WaitStorageLoadPackageResp{
 		IsComplete: isComplete,
 		Error:      err,
+		FullPath:   fullPath,
 	}
 }
 func (client *Client) WaitStorageLoadPackage(msg *WaitStorageLoadPackage, opts ...mq.RequestOption) (*WaitStorageLoadPackageResp, error) {

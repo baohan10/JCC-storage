@@ -6,6 +6,8 @@ import (
 	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
+// TODO 可以考虑逐步迁移到stgsdk中。迁移思路：数据对象应该包含的字段都迁移到stgsdk中，内部使用的一些特殊字段则留在这里
+
 type Node struct {
 	NodeID         int64      `db:"NodeID" json:"nodeID"`
 	Name           string     `db:"Name" json:"name"`
@@ -56,20 +58,9 @@ type Bucket struct {
 	CreatorID int64  `db:"CreatorID" json:"creatorID"`
 }
 
-type Package struct {
-	PackageID  int64                      `db:"PackageID" json:"packageID"`
-	Name       string                     `db:"Name" json:"name"`
-	BucketID   int64                      `db:"BucketID" json:"bucketID"`
-	State      string                     `db:"State" json:"state"`
-	Redundancy stgsdk.TypedRedundancyInfo `db:"Redundancy" json:"redundancy"`
-}
+type Package = stgsdk.Package
 
-type Object struct {
-	ObjectID  int64  `db:"ObjectID" json:"objectID"`
-	PackageID int64  `db:"PackageID" json:"packageID"`
-	Path      string `db:"Path" json:"path"`
-	Size      int64  `db:"Size" json:"size,string"`
-}
+type Object = stgsdk.Object
 
 type ObjectRep struct {
 	ObjectID int64  `db:"ObjectID" json:"objectID"`

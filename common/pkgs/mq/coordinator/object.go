@@ -4,12 +4,43 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type ObjectService interface {
+	GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, *mq.CodeMessage)
+
 	GetPackageObjectRepData(msg *GetPackageObjectRepData) (*GetPackageObjectRepDataResp, *mq.CodeMessage)
 
 	GetPackageObjectECData(msg *GetPackageObjectECData) (*GetPackageObjectECDataResp, *mq.CodeMessage)
+}
+
+// 查询Package中的所有Object，返回的Objects会按照ObjectID升序
+var _ = Register(Service.GetPackageObjects)
+
+type GetPackageObjects struct {
+	mq.MessageBodyBase
+	UserID    int64 `json:"userID"`
+	PackageID int64 `json:"packageID"`
+}
+type GetPackageObjectsResp struct {
+	mq.MessageBodyBase
+	Objects []model.Object `json:"objects"`
+}
+
+func NewGetPackageObjects(userID int64, packageID int64) *GetPackageObjects {
+	return &GetPackageObjects{
+		UserID:    userID,
+		PackageID: packageID,
+	}
+}
+func NewGetPackageObjectsResp(objects []model.Object) *GetPackageObjectsResp {
+	return &GetPackageObjectsResp{
+		Objects: objects,
+	}
+}
+func (client *Client) GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, error) {
+	return mq.Request(Service.GetPackageObjects, client.rabbitCli, msg)
 }
 
 // 获取指定Object的Rep数据，返回的Objects会按照ObjectID升序

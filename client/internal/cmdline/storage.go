@@ -14,12 +14,13 @@ func StorageLoadPackage(ctx CommandContext, packageID int64, storageID int64) er
 	}
 
 	for {
-		complete, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
+		complete, fullPath, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)
 			}
 
+			fmt.Printf("Load To: %s\n", fullPath)
 			return nil
 		}
 

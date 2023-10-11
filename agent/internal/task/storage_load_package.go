@@ -1,0 +1,29 @@
+package task
+
+import (
+	"time"
+
+	"gitlink.org.cn/cloudream/common/pkgs/task"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
+)
+
+type StorageLoadPackage struct {
+	cmd      *cmd.DownloadPackage
+	FullPath string
+}
+
+func NewStorageLoadPackage(userID int64, packageID int64, outputPath string) *StorageLoadPackage {
+	return &StorageLoadPackage{
+		cmd:      cmd.NewDownloadPackage(userID, packageID, outputPath),
+		FullPath: outputPath,
+	}
+}
+func (t *StorageLoadPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
+	err := t.cmd.Execute(&cmd.DownloadPackageContext{
+		Distlock: ctx.distlock,
+	})
+
+	complete(err, CompleteOption{
+		RemovingDelay: time.Minute,
+	})
+}
