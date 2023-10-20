@@ -51,6 +51,10 @@ func (s *ObjectService) Download(ctx *gin.Context) {
 	ctx.Stream(func(w io.Writer) bool {
 		rd, err := file.Read(buf)
 		if err == io.EOF {
+			err = myio.WriteAll(w, buf[:rd])
+			if err != nil {
+				log.Warnf("writing data to response: %s", err.Error())
+			}
 			return false
 		}
 
