@@ -25,8 +25,13 @@ func (db *LocationDB) FindLocationByExternalIP(ctx SQLContext, ip string) (model
 	var locID int64
 	err := sqlx.Get(ctx, &locID, "select LocationID from Node where ExternalIP = ?", ip)
 	if err != nil {
-		return model.Location{}, fmt.Errorf("find node by external ip: %w", err)
+		return model.Location{}, fmt.Errorf("finding node by external ip: %w", err)
 	}
 
-	return db.GetByID(ctx, locID)
+	loc, err := db.GetByID(ctx, locID)
+	if err != nil {
+		return model.Location{}, fmt.Errorf("getting location by id: %w", err)
+	}
+
+	return loc, nil
 }

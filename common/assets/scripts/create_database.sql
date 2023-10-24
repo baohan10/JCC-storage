@@ -9,6 +9,8 @@ create table Node (
   Name varchar(128) not null comment '节点名称',
   LocalIP varchar(128) not null comment '节点的内网IP',
   ExternalIP varchar(128) not null comment '节点的外网IP',
+  LocalGRPCPort int not null comment '节点的内网GRCP端口',
+  ExternalGRPCPort int not null comment '节点的外网GRCP端口',
   LocationID int not null comment '节点的地域',
   State varchar(128) comment '节点的状态',
   LastReportTime timestamp comment '节点上次上报时间'

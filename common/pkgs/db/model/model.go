@@ -9,13 +9,15 @@ import (
 // TODO 可以考虑逐步迁移到stgsdk中。迁移思路：数据对象应该包含的字段都迁移到stgsdk中，内部使用的一些特殊字段则留在这里
 
 type Node struct {
-	NodeID         int64      `db:"NodeID" json:"nodeID"`
-	Name           string     `db:"Name" json:"name"`
-	LocalIP        string     `db:"LocalIP" json:"localIP"`
-	ExternalIP     string     `db:"ExternalIP" json:"externalIP"`
-	LocationID     int64      `db:"LocationID" json:"locationID"`
-	State          string     `db:"State" json:"state"`
-	LastReportTime *time.Time `db:"LastReportTime" json:"lastReportTime"`
+	NodeID           int64      `db:"NodeID" json:"nodeID"`
+	Name             string     `db:"Name" json:"name"`
+	LocalIP          string     `db:"LocalIP" json:"localIP"`
+	ExternalIP       string     `db:"ExternalIP" json:"externalIP"`
+	LocalGRPCPort    int        `db:"LocalGRPCPort" json:"localGRPCPort"`
+	ExternalGRPCPort int        `db:"ExternalGRPCPort" json:"externalGRPCPort"`
+	LocationID       int64      `db:"LocationID" json:"locationID"`
+	State            string     `db:"State" json:"state"`
+	LastReportTime   *time.Time `db:"LastReportTime" json:"lastReportTime"`
 }
 
 type Storage struct {
