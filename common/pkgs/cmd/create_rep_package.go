@@ -201,13 +201,15 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	// 否则发送到agent上传
 	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
 	nodeIP := uploadNode.Node.ExternalIP
+	grpcPort := uploadNode.Node.ExternalGRPCPort
 	if uploadNode.IsSameLocation {
 		nodeIP = uploadNode.Node.LocalIP
+		grpcPort = uploadNode.Node.LocalGRPCPort
 
 		logger.Infof("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
 	}
 
-	fileHash, err := uploadToNode(file, nodeIP)
+	fileHash, err := uploadToNode(file, nodeIP, grpcPort)
 	if err != nil {
 		return "", fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
 	}
@@ -235,8 +237,8 @@ func (t *CreateRepPackage) chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func uploadToNode(file io.Reader, nodeIP string) (string, error) {
-	rpcCli, err := stgglb.AgentRPCPool.Acquire(nodeIP)
+func uploadToNode(file io.Reader, nodeIP string, grpcPort int) (string, error) {
+	rpcCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
 		return "", fmt.Errorf("new agent rpc client: %w", err)
 	}

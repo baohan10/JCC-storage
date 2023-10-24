@@ -5,7 +5,6 @@ import (
 )
 
 type PoolConfig struct {
-	Port int `json:"port"`
 }
 
 type PoolClient struct {
@@ -26,8 +25,11 @@ func NewPool(grpcCfg *PoolConfig) *Pool {
 		grpcCfg: grpcCfg,
 	}
 }
-func (p *Pool) Acquire(ip string) (*PoolClient, error) {
-	cli, err := NewClient(fmt.Sprintf("%s:%d", ip, p.grpcCfg.Port))
+
+// 获取一个GRPC客户端。由于事先不能知道所有agent的GRPC配置信息，所以只能让调用者把建立连接所需的配置都传递进来，
+// Pool来决定要不要新建客户端。
+func (p *Pool) Acquire(ip string, port int) (*PoolClient, error) {
+	cli, err := NewClient(fmt.Sprintf("%s:%d", ip, port))
 	if err != nil {
 		return nil, err
 	}

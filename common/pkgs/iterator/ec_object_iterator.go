@@ -101,11 +101,14 @@ func (iter *ECObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingOb
 	//nodeIDs, nodeIPs直接按照第1~ecK个排列
 	nodeIDs := make([]int64, ecK)
 	nodeIPs := make([]string, ecK)
+	grpcPorts := make([]int, ecK)
 	for i := 0; i < ecK; i++ {
 		nodeIDs[i] = nds[i].Node.NodeID
 		nodeIPs[i] = nds[i].Node.ExternalIP
+		grpcPorts[i] = nds[i].Node.ExternalGRPCPort
 		if nds[i].IsSameLocation {
 			nodeIPs[i] = nds[i].Node.LocalIP
+			grpcPorts[i] = nds[i].Node.LocalGRPCPort
 			logger.Infof("client and node %d are at the same location, use local ip", nds[i].Node.NodeID)
 		}
 	}
@@ -115,7 +118,7 @@ func (iter *ECObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingOb
 	for i := 0; i < ecK; i++ {
 		blockIDs[i] = i
 	}
-	reader, err := iter.downloadEcObject(fileSize, ecK, ecN, blockIDs, nodeIDs, nodeIPs, hashs)
+	reader, err := iter.downloadEcObject(fileSize, ecK, ecN, blockIDs, nodeIDs, nodeIPs, grpcPorts, hashs)
 	if err != nil {
 		return nil, fmt.Errorf("ec read failed, err: %w", err)
 	}
@@ -143,7 +146,7 @@ func (i *ECObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downlo
 	return entries[rand.Intn(len(entries))]
 }
 
-func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, hashs []string) (io.ReadCloser, error) {
+func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, grpcPorts []int, hashs []string) (io.ReadCloser, error) {
 	// TODO zkx 先试用同步方式实现逻辑，做好错误处理。同时也方便下面直接使用uploadToNode和uploadToLocalIPFS来优化代码结构
 	//wg := sync.WaitGroup{}
 	numPacket := (fileSize + int64(ecK)*iter.ecInfo.PacketSize - 1) / (int64(ecK) * iter.ecInfo.PacketSize)
@@ -159,7 +162,7 @@ func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int,
 		i := idx
 		go func() {
 			// TODO 处理错误
-			file, _ := downloadFile(iter.downloadCtx, nodeIDs[i], nodeIPs[i], hashs[i])
+			file, _ := downloadFile(iter.downloadCtx, nodeIDs[i], nodeIPs[i], grpcPorts[i], hashs[i])
 
 			for p := int64(0); p < numPacket; p++ {
 				buf := make([]byte, iter.ecInfo.PacketSize)

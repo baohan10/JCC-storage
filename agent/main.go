@@ -47,9 +47,7 @@ func main() {
 
 	stgglb.InitLocal(&config.Cfg().Local)
 	stgglb.InitMQPool(&config.Cfg().RabbitMQ)
-	stgglb.InitAgentRPCPool(&agtrpc.PoolConfig{
-		Port: config.Cfg().GRPC.Port,
-	})
+	stgglb.InitAgentRPCPool(&agtrpc.PoolConfig{})
 	stgglb.InitIPFSPool(&config.Cfg().IPFS)
 
 	distlock, err := distlock.NewService(&config.Cfg().DistLock)

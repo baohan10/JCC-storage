@@ -104,13 +104,15 @@ func (i *RepObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObje
 
 	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
 	nodeIP := downloadNode.Node.ExternalIP
+	grpcPort := downloadNode.Node.ExternalGRPCPort
 	if downloadNode.IsSameLocation {
 		nodeIP = downloadNode.Node.LocalIP
+		grpcPort = downloadNode.Node.LocalGRPCPort
 
 		logger.Infof("client and node %d are at the same location, use local ip", downloadNode.Node.NodeID)
 	}
 
-	reader, err := downloadFile(i.downloadCtx, downloadNode.Node.NodeID, nodeIP, repData.FileHash)
+	reader, err := downloadFile(i.downloadCtx, downloadNode.Node.NodeID, nodeIP, grpcPort, repData.FileHash)
 	if err != nil {
 		return nil, fmt.Errorf("rep read failed, err: %w", err)
 	}
@@ -138,7 +140,7 @@ func (i *RepObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downl
 	return entries[rand.Intn(len(entries))]
 }
 
-func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
+func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {
 	if stgglb.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to download file")
 
@@ -150,10 +152,10 @@ func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash st
 		logger.Warnf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
 	}
 
-	return downloadFromNode(ctx, nodeID, nodeIP, fileHash)
+	return downloadFromNode(ctx, nodeID, nodeIP, grpcPort, fileHash)
 }
 
-func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, fileHash string) (io.ReadCloser, error) {
+func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {
 	// 二次获取锁
 	mutex, err := reqbuilder.NewBuilder().
 		// 用于从IPFS下载文件
@@ -164,7 +166,7 @@ func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, fileHas
 	}
 
 	// 连接grpc
-	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP)
+	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
 		return nil, fmt.Errorf("new agent grpc client: %w", err)
 	}

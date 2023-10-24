@@ -11,7 +11,7 @@ func (svc *Service) FindClientLocation(msg *coormq.FindClientLocation) (*coormq.
 	location, err := svc.db.Location().FindLocationByExternalIP(svc.db.SQLCtx(), msg.IP)
 	if err != nil {
 		logger.WithField("IP", msg.IP).
-			Warnf("query client location failed, err: %s", err.Error())
+			Warnf("finding location by external ip: %s", err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "query client location failed")
 	}
 
