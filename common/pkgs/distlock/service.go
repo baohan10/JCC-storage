@@ -2,15 +2,14 @@ package distlock
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	"gitlink.org.cn/cloudream/common/pkgs/trie"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
-type Service = service.Service
+type Service = distlock.Service
 
-func NewService(cfg *distlock.Config) (*service.Service, error) {
-	srv, err := service.NewService(cfg, initProviders())
+func NewService(cfg *distlock.Config) (*distlock.Service, error) {
+	srv, err := distlock.NewService(cfg, initProviders())
 	if err != nil {
 		return nil, err
 	}
@@ -18,8 +17,8 @@ func NewService(cfg *distlock.Config) (*service.Service, error) {
 	return srv, nil
 }
 
-func initProviders() []service.PathProvider {
-	var provs []service.PathProvider
+func initProviders() []distlock.PathProvider {
+	var provs []distlock.PathProvider
 
 	provs = append(provs, initMetadataLockProviders()...)
 
@@ -30,33 +29,33 @@ func initProviders() []service.PathProvider {
 	return provs
 }
 
-func initMetadataLockProviders() []service.PathProvider {
-	return []service.PathProvider{
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Node"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Storage"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "User"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "UserBucket"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "UserNode"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "UserStorage"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Bucket"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Object"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Package"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "ObjectRep"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "ObjectBlock"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Cache"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "StoragePackage"),
-		service.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Location"),
+func initMetadataLockProviders() []distlock.PathProvider {
+	return []distlock.PathProvider{
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Node"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Storage"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "User"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "UserBucket"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "UserNode"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "UserStorage"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Bucket"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Object"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Package"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "ObjectRep"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "ObjectBlock"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Cache"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "StoragePackage"),
+		distlock.NewPathProvider(lockprovider.NewMetadataLock(), lockprovider.MetadataLockPathPrefix, "Location"),
 	}
 }
 
-func initIPFSLockProviders() []service.PathProvider {
-	return []service.PathProvider{
-		service.NewPathProvider(lockprovider.NewIPFSLock(), lockprovider.IPFSLockPathPrefix, trie.WORD_ANY),
+func initIPFSLockProviders() []distlock.PathProvider {
+	return []distlock.PathProvider{
+		distlock.NewPathProvider(lockprovider.NewIPFSLock(), lockprovider.IPFSLockPathPrefix, trie.WORD_ANY),
 	}
 }
 
-func initStorageLockProviders() []service.PathProvider {
-	return []service.PathProvider{
-		service.NewPathProvider(lockprovider.NewStorageLock(), lockprovider.StorageLockPathPrefix, trie.WORD_ANY),
+func initStorageLockProviders() []distlock.PathProvider {
+	return []distlock.PathProvider{
+		distlock.NewPathProvider(lockprovider.NewStorageLock(), lockprovider.StorageLockPathPrefix, trie.WORD_ANY),
 	}
 }

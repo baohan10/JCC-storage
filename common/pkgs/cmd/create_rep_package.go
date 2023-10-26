@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
@@ -34,7 +34,7 @@ type CreateRepPackage struct {
 }
 
 type UpdatePackageContext struct {
-	Distlock *distsvc.Service
+	Distlock *distlock.Service
 }
 
 type CreateRepPackageResult struct {

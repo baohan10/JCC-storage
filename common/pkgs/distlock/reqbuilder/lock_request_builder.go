@@ -2,7 +2,6 @@ package reqbuilder
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/common/pkgs/distlock/service"
 	mylo "gitlink.org.cn/cloudream/common/utils/lo"
 )
 
@@ -20,8 +19,8 @@ func (b *LockRequestBuilder) Build() distlock.LockRequest {
 	}
 }
 
-func (b *LockRequestBuilder) MutexLock(svc *service.Service) (*service.Mutex, error) {
-	mutex := service.NewMutex(svc, b.Build())
+func (b *LockRequestBuilder) MutexLock(svc *distlock.Service) (*distlock.Mutex, error) {
+	mutex := distlock.NewMutex(svc, b.Build())
 	err := mutex.Lock()
 	if err != nil {
 		return nil, err

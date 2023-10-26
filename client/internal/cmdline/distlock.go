@@ -59,7 +59,8 @@ func parseOneLock(lockData string) (distlock.Lock, error) {
 }
 
 func DistLockUnlock(ctx CommandContext, reqID string) error {
-	return ctx.Cmdline.Svc.DistLock.Release(reqID)
+	ctx.Cmdline.Svc.DistLock.Release(reqID)
+	return nil
 }
 
 func init() {
