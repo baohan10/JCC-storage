@@ -24,6 +24,6 @@
         "etcdUsername": "",
         "etcdPassword": "",
         "etcdLockLeaseTimeSec": 5,
-        "submitLockRequestWithoutLease": true
+        "description": "I am a client"
     }
 }
