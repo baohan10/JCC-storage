@@ -1,7 +1,7 @@
 package services
 
 import (
-	distlock "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/storage/client/internal/task"
 )
 

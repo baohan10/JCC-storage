@@ -8,7 +8,7 @@ import (
 
 	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
-	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
@@ -22,7 +22,7 @@ type DownloadPackage struct {
 }
 
 type DownloadPackageContext struct {
-	Distlock *distsvc.Service
+	Distlock *distlock.Service
 }
 
 func NewDownloadPackage(userID int64, packageID int64, outputPath string) *DownloadPackage {

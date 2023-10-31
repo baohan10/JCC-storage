@@ -1,12 +1,12 @@
 package task
 
 import (
-	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 )
 
 type TaskContext struct {
-	distlock *distsvc.Service
+	distlock *distlock.Service
 }
 
 // 需要在Task结束后主动调用，completing函数将在Manager加锁期间被调用，
@@ -21,7 +21,7 @@ type Task = task.Task[TaskContext]
 
 type CompleteOption = task.CompleteOption
 
-func NewManager(distlock *distsvc.Service) Manager {
+func NewManager(distlock *distlock.Service) Manager {
 	return task.NewManager(TaskContext{
 		distlock: distlock,
 	})

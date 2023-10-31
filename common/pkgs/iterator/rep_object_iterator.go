@@ -7,7 +7,7 @@ import (
 
 	"github.com/samber/lo"
 
-	distsvc "gitlink.org.cn/cloudream/common/pkgs/distlock/service"
+	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 
@@ -43,7 +43,7 @@ type DownloadNodeInfo struct {
 }
 
 type DownloadContext struct {
-	Distlock *distsvc.Service
+	Distlock *distlock.Service
 }
 
 func NewRepObjectIterator(objects []model.Object, objectRepData []stgmod.ObjectRepData, downloadCtx *DownloadContext) *RepObjectIterator {
