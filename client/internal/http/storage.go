@@ -128,8 +128,8 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 }
 
 type StorageGetInfoReq struct {
-	UserID    *int64 `json:"userID" binding:"required"`
-	StorageID *int64 `json:"storageID" binding:"required"`
+	UserID    *int64 `form:"userID" binding:"required"`
+	StorageID *int64 `form:"storageID" binding:"required"`
 }
 
 type StorageGetInfoResp struct {
@@ -140,8 +140,8 @@ func (s *StorageService) GetInfo(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Storage.GetInfo")
 
 	var req StorageGetInfoReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		log.Warnf("binding body: %s", err.Error())
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding query: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}

@@ -47,7 +47,7 @@ func (t *AgentCheckStorage) TryMerge(other Event) bool {
 
 func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckStorage]("Event")
-	log.Debugf("begin with %v", logger.FormatStruct(t))
+	log.Debugf("begin with %v", logger.FormatStruct(t.AgentCheckStorage))
 	defer log.Debugf("end")
 
 	// 读取数据的地方就不加锁了，因为check任务会反复执行，单次失败问题不大
