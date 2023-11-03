@@ -48,6 +48,7 @@ func (s *Server) initRouters() {
 
 	s.engine.POST("/storage/loadPackage", s.StorageSvc().LoadPackage)
 	s.engine.POST("/storage/createPackage", s.StorageSvc().CreatePackage)
+	s.engine.GET("/storage/getInfo", s.StorageSvc().GetInfo)
 
 	s.engine.POST("/cache/movePackage", s.CacheSvc().MovePackage)
 	s.engine.GET("/cache/getPackageObjectCacheInfos", s.CacheSvc().GetPackageObjectCacheInfos)

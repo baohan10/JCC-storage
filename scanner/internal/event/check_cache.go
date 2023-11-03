@@ -35,7 +35,7 @@ func (t *CheckCache) TryMerge(other Event) bool {
 
 func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckStorage]("Event")
-	log.Debugf("begin with %v", logger.FormatStruct(t))
+	log.Debugf("begin with %v", logger.FormatStruct(t.CheckCache))
 	defer log.Debugf("end")
 
 	mutex, err := reqbuilder.NewBuilder().

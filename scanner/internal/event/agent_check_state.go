@@ -37,7 +37,7 @@ func (t *AgentCheckState) TryMerge(other Event) bool {
 
 func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckState]("Event")
-	log.Debugf("begin with %v", logger.FormatStruct(t))
+	log.Debugf("begin with %v", logger.FormatStruct(t.AgentCheckState))
 	defer log.Debugf("end")
 
 	mutex, err := reqbuilder.NewBuilder().

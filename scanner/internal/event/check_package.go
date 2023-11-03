@@ -29,7 +29,7 @@ func (t *CheckPackage) TryMerge(other Event) bool {
 
 func (t *CheckPackage) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CheckPackage]("Event")
-	log.Debugf("begin with %v", logger.FormatStruct(t))
+	log.Debugf("begin with %v", logger.FormatStruct(t.CheckPackage))
 	defer log.Debugf("end")
 
 	// 检查对象是否没有被引用的时候，需要读取StoragePackage表
