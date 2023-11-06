@@ -9,7 +9,7 @@ import (
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
@@ -26,13 +26,13 @@ type ECObjectIterator struct {
 	currentIndex int
 	inited       bool
 
-	ecInfo      stgsdk.ECRedundancyInfo
+	ecInfo      cdssdk.ECRedundancyInfo
 	ec          model.Ec
 	downloadCtx *DownloadContext
 	cliLocation model.Location
 }
 
-func NewECObjectIterator(objects []model.Object, objectECData []stgmodels.ObjectECData, ecInfo stgsdk.ECRedundancyInfo, ec model.Ec, downloadCtx *DownloadContext) *ECObjectIterator {
+func NewECObjectIterator(objects []model.Object, objectECData []stgmodels.ObjectECData, ecInfo cdssdk.ECRedundancyInfo, ec model.Ec, downloadCtx *DownloadContext) *ECObjectIterator {
 	return &ECObjectIterator{
 		objects:      objects,
 		objectECData: objectECData,

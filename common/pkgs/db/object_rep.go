@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -117,9 +117,9 @@ func (db *ObjectRepDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) (
 	return rets, nil
 }
 
-func (db *ObjectRepDB) GetPackageObjectCacheInfos(ctx SQLContext, packageID int64) ([]stgsdk.ObjectCacheInfo, error) {
+func (db *ObjectRepDB) GetPackageObjectCacheInfos(ctx SQLContext, packageID int64) ([]cdssdk.ObjectCacheInfo, error) {
 	var tmpRet []struct {
-		stgsdk.Object
+		cdssdk.Object
 		FileHash string `db:"FileHash"`
 	}
 
@@ -130,9 +130,9 @@ func (db *ObjectRepDB) GetPackageObjectCacheInfos(ctx SQLContext, packageID int6
 		return nil, err
 	}
 
-	ret := make([]stgsdk.ObjectCacheInfo, len(tmpRet))
+	ret := make([]cdssdk.ObjectCacheInfo, len(tmpRet))
 	for i, r := range tmpRet {
-		ret[i] = stgsdk.NewObjectCacheInfo(r.Object, r.FileHash)
+		ret[i] = cdssdk.NewObjectCacheInfo(r.Object, r.FileHash)
 	}
 
 	return ret, nil
