@@ -9,7 +9,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -29,7 +29,7 @@ type CreateRepPackage struct {
 	bucketID     int64
 	name         string
 	objectIter   iterator.UploadingObjectIterator
-	redundancy   stgsdk.RepRedundancyInfo
+	redundancy   cdssdk.RepRedundancyInfo
 	nodeAffinity *int64
 }
 
@@ -49,7 +49,7 @@ type RepObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy stgsdk.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
+func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy cdssdk.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
 	return &CreateRepPackage{
 		userID:       userID,
 		bucketID:     bucketID,
@@ -94,7 +94,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 	defer mutex.Unlock()
 
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
-		stgsdk.NewTypedRedundancyInfo(t.redundancy)))
+		cdssdk.NewTypedRedundancyInfo(t.redundancy)))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -34,7 +34,7 @@ func (svc *CacheService) StartCacheMovePackage(userID int64, packageID int64, no
 	return startResp.TaskID, nil
 }
 
-func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, []stgsdk.ObjectCacheInfo, error) {
+func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, []cdssdk.ObjectCacheInfo, error) {
 	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		return true, nil, fmt.Errorf("new agent client: %w", err)
@@ -57,7 +57,7 @@ func (svc *CacheService) WaitCacheMovePackage(nodeID int64, taskID string, waitT
 	return true, waitResp.CacheInfos, nil
 }
 
-func (svc *CacheService) GetPackageObjectCacheInfos(userID int64, packageID int64) ([]stgsdk.ObjectCacheInfo, error) {
+func (svc *CacheService) GetPackageObjectCacheInfos(userID int64, packageID int64) ([]cdssdk.ObjectCacheInfo, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)

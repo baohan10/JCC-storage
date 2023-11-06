@@ -3,10 +3,10 @@ package model
 import (
 	"time"
 
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
-// TODO 可以考虑逐步迁移到stgsdk中。迁移思路：数据对象应该包含的字段都迁移到stgsdk中，内部使用的一些特殊字段则留在这里
+// TODO 可以考虑逐步迁移到cdssdk中。迁移思路：数据对象应该包含的字段都迁移到cdssdk中，内部使用的一些特殊字段则留在这里
 
 type Node struct {
 	NodeID           int64      `db:"NodeID" json:"nodeID"`
@@ -60,9 +60,9 @@ type Bucket struct {
 	CreatorID int64  `db:"CreatorID" json:"creatorID"`
 }
 
-type Package = stgsdk.Package
+type Package = cdssdk.Package
 
-type Object = stgsdk.Object
+type Object = cdssdk.Object
 
 type ObjectRep struct {
 	ObjectID int64  `db:"ObjectID" json:"objectID"`

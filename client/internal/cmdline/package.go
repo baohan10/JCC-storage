@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/client/internal/config"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -112,7 +112,7 @@ func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingRepPackage(0, bucketID, name, objIter, stgsdk.NewRepRedundancyInfo(repCount), nodeAff)
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingRepPackage(0, bucketID, name, objIter, cdssdk.NewRepRedundancyInfo(repCount), nodeAff)
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
@@ -209,7 +209,7 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, stgsdk.NewECRedundancyInfo(ecName, config.Cfg().ECPacketSize), nodeAff)
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, cdssdk.NewECRedundancyInfo(ecName, config.Cfg().ECPacketSize), nodeAff)
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)

@@ -9,7 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/iterator"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	stgiter "gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
@@ -62,7 +62,7 @@ type PackageUploadInfo struct {
 	UserID       *int64                     `json:"userID" binding:"required"`
 	BucketID     *int64                     `json:"bucketID" binding:"required"`
 	Name         string                     `json:"name" binding:"required"`
-	Redundancy   stgsdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	Redundancy   cdssdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
 	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 
@@ -97,7 +97,7 @@ func (s *PackageService) uploadRep(ctx *gin.Context, req *PackageUploadReq) {
 	log := logger.WithField("HTTP", "Package.Upload")
 
 	var err error
-	var repInfo stgsdk.RepRedundancyInfo
+	var repInfo cdssdk.RepRedundancyInfo
 	if repInfo, err = req.Info.Redundancy.ToRepInfo(); err != nil {
 		log.Warnf("parsing rep redundancy config: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
@@ -141,7 +141,7 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 	log := logger.WithField("HTTP", "Package.Upload")
 
 	var err error
-	var ecInfo stgsdk.ECRedundancyInfo
+	var ecInfo cdssdk.ECRedundancyInfo
 	if ecInfo, err = req.Info.Redundancy.ToECInfo(); err != nil {
 		log.Warnf("parsing ec redundancy config: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
@@ -211,7 +211,7 @@ type GetCachedNodesReq struct {
 	PackageID *int64 `json:"packageID" binding:"required"`
 }
 type GetCachedNodesResp struct {
-	stgsdk.PackageCachingInfo
+	cdssdk.PackageCachingInfo
 }
 
 func (s *PackageService) GetCachedNodes(ctx *gin.Context) {

@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 type StorageService struct {
@@ -27,7 +27,7 @@ type StorageLoadPackageReq struct {
 }
 
 type StorageLoadPackageResp struct {
-	stgsdk.StorageLoadPackageResp
+	cdssdk.StorageLoadPackageResp
 }
 
 func (s *StorageService) LoadPackage(ctx *gin.Context) {
@@ -57,7 +57,7 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 			}
 
 			ctx.JSON(http.StatusOK, OK(StorageLoadPackageResp{
-				StorageLoadPackageResp: stgsdk.StorageLoadPackageResp{
+				StorageLoadPackageResp: cdssdk.StorageLoadPackageResp{
 					FullPath: fullPath,
 				},
 			}))
@@ -78,7 +78,7 @@ type StorageCreatePackageReq struct {
 	Path         string                     `json:"path" binding:"required"`
 	BucketID     *int64                     `json:"bucketID" binding:"required"`
 	Name         string                     `json:"name" binding:"required"`
-	Redundancy   stgsdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
+	Redundancy   cdssdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
 	NodeAffinity *int64                     `json:"nodeAffinity"`
 }
 
@@ -133,7 +133,7 @@ type StorageGetInfoReq struct {
 }
 
 type StorageGetInfoResp struct {
-	stgsdk.StorageGetInfoResp
+	cdssdk.StorageGetInfoResp
 }
 
 func (s *StorageService) GetInfo(ctx *gin.Context) {
@@ -154,7 +154,7 @@ func (s *StorageService) GetInfo(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, OK(StorageGetInfoResp{
-		StorageGetInfoResp: stgsdk.StorageGetInfoResp{
+		StorageGetInfoResp: cdssdk.StorageGetInfoResp{
 			Name:      info.Name,
 			NodeID:    info.NodeID,
 			Directory: info.Directory,

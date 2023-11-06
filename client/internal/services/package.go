@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	mytask "gitlink.org.cn/cloudream/storage/client/internal/task"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
@@ -122,7 +122,7 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
 
-	var ecInfo stgsdk.ECRedundancyInfo
+	var ecInfo cdssdk.ECRedundancyInfo
 	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
@@ -139,7 +139,7 @@ func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.
 	return iter, nil
 }
 
-func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo stgsdk.RepRedundancyInfo, nodeAffinity *int64) (string, error) {
+func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo cdssdk.RepRedundancyInfo, nodeAffinity *int64) (string, error) {
 	tsk := svc.TaskMgr.StartNew(mytask.NewCreateRepPackage(userID, bucketID, name, objIter, repInfo, nodeAffinity))
 	return tsk.ID(), nil
 }
@@ -167,7 +167,7 @@ func (svc *PackageService) WaitUpdatingRepPackage(taskID string, waitTimeout tim
 	return false, nil, nil
 }
 
-func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo stgsdk.ECRedundancyInfo, nodeAffinity *int64) (string, error) {
+func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo cdssdk.ECRedundancyInfo, nodeAffinity *int64) (string, error) {
 	tsk := svc.TaskMgr.StartNew(mytask.NewCreateECPackage(userID, bucketID, name, objIter, ecInfo, nodeAffinity))
 	return tsk.ID(), nil
 }
@@ -230,19 +230,19 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	return nil
 }
 
-func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (stgsdk.PackageCachingInfo, error) {
+func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (cdssdk.PackageCachingInfo, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
-		return stgsdk.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
+		return cdssdk.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	resp, err := coorCli.GetPackageCachedNodes(coormq.NewGetPackageCachedNodes(userID, packageID))
 	if err != nil {
-		return stgsdk.PackageCachingInfo{}, fmt.Errorf("get package cached nodes: %w", err)
+		return cdssdk.PackageCachingInfo{}, fmt.Errorf("get package cached nodes: %w", err)
 	}
 
-	tmp := stgsdk.PackageCachingInfo{
+	tmp := cdssdk.PackageCachingInfo{
 		NodeInfos:     resp.NodeInfos,
 		PackageSize:   resp.PackageSize,
 		RedunancyType: resp.RedunancyType,

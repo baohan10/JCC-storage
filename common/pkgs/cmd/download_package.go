@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
@@ -101,7 +101,7 @@ func (t *DownloadPackage) downloadEC(ctx *DownloadPackageContext, pkg model.Pack
 		return nil, fmt.Errorf("getting package object ec data: %w", err)
 	}
 
-	var ecInfo stgsdk.ECRedundancyInfo
+	var ecInfo cdssdk.ECRedundancyInfo
 	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}

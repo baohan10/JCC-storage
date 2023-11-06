@@ -2,7 +2,7 @@ package coordinator
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 type CacheService interface {
@@ -48,7 +48,7 @@ type GetPackageObjectCacheInfos struct {
 }
 type GetPackageObjectCacheInfosResp struct {
 	mq.MessageBodyBase
-	Infos []stgsdk.ObjectCacheInfo
+	Infos []cdssdk.ObjectCacheInfo
 }
 
 func NewGetPackageObjectCacheInfos(userID int64, packageID int64) *GetPackageObjectCacheInfos {
@@ -57,7 +57,7 @@ func NewGetPackageObjectCacheInfos(userID int64, packageID int64) *GetPackageObj
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectCacheInfosResp(infos []stgsdk.ObjectCacheInfo) *GetPackageObjectCacheInfosResp {
+func NewGetPackageObjectCacheInfosResp(infos []cdssdk.ObjectCacheInfo) *GetPackageObjectCacheInfosResp {
 	return &GetPackageObjectCacheInfosResp{
 		Infos: infos,
 	}

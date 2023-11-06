@@ -9,7 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
@@ -215,7 +215,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 	}
 
 	var packageSize int64
-	nodeInfoMap := make(map[int64]*stgsdk.NodePackageCachingInfo)
+	nodeInfoMap := make(map[int64]*cdssdk.NodePackageCachingInfo)
 	if pkg.Redundancy.IsRepInfo() {
 		// 备份方式为rep
 		objectRepDatas, err := svc.db.ObjectRep().GetWithNodeIDInPackage(svc.db.SQLCtx(), msg.PackageID)
@@ -231,7 +231,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 
 				nodeInfo, exists := nodeInfoMap[nodeID]
 				if !exists {
-					nodeInfo = &stgsdk.NodePackageCachingInfo{
+					nodeInfo = &cdssdk.NodePackageCachingInfo{
 						NodeID:      nodeID,
 						FileSize:    data.Object.Size,
 						ObjectCount: 1,
@@ -259,7 +259,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 
 					nodeInfo, exists := nodeInfoMap[nodeID]
 					if !exists {
-						nodeInfo = &stgsdk.NodePackageCachingInfo{
+						nodeInfo = &cdssdk.NodePackageCachingInfo{
 							NodeID:      nodeID,
 							FileSize:    ecData.Object.Size,
 							ObjectCount: 1,
@@ -278,7 +278,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 		return nil, mq.Failed(errorcode.OperationFailed, "redundancy type is wrong")
 	}
 
-	var nodeInfos []stgsdk.NodePackageCachingInfo
+	var nodeInfos []cdssdk.NodePackageCachingInfo
 	for _, nodeInfo := range nodeInfoMap {
 		nodeInfos = append(nodeInfos, *nodeInfo)
 	}

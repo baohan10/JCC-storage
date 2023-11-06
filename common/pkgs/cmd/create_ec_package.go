@@ -10,7 +10,7 @@ import (
 
 	"github.com/samber/lo"
 
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -25,7 +25,7 @@ type CreateECPackage struct {
 	bucketID     int64
 	name         string
 	objectIter   iterator.UploadingObjectIterator
-	redundancy   stgsdk.ECRedundancyInfo
+	redundancy   cdssdk.ECRedundancyInfo
 	nodeAffinity *int64
 }
 
@@ -40,7 +40,7 @@ type ECObjectUploadResult struct {
 	ObjectID int64
 }
 
-func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy stgsdk.ECRedundancyInfo, nodeAffinity *int64) *CreateECPackage {
+func NewCreateECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy cdssdk.ECRedundancyInfo, nodeAffinity *int64) *CreateECPackage {
 	return &CreateECPackage{
 		userID:       userID,
 		bucketID:     bucketID,
@@ -80,7 +80,7 @@ func (t *CreateECPackage) Execute(ctx *UpdatePackageContext) (*CreateECPackageRe
 	defer mutex.Unlock()
 
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
-		stgsdk.NewTypedRedundancyInfo(t.redundancy)))
+		cdssdk.NewTypedRedundancyInfo(t.redundancy)))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
 	}
@@ -139,7 +139,7 @@ func (t *CreateECPackage) Execute(ctx *UpdatePackageContext) (*CreateECPackageRe
 	}, nil
 }
 
-func uploadAndUpdateECPackage(packageID int64, objectIter iterator.UploadingObjectIterator, uploadNodes []UploadNodeInfo, ecInfo stgsdk.ECRedundancyInfo, ec model.Ec) ([]ECObjectUploadResult, error) {
+func uploadAndUpdateECPackage(packageID int64, objectIter iterator.UploadingObjectIterator, uploadNodes []UploadNodeInfo, ecInfo cdssdk.ECRedundancyInfo, ec model.Ec) ([]ECObjectUploadResult, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -185,7 +185,7 @@ func uploadAndUpdateECPackage(packageID int64, objectIter iterator.UploadingObje
 }
 
 // 上传文件
-func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ecInfo stgsdk.ECRedundancyInfo, ec model.Ec) ([]string, []int64, error) {
+func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ecInfo cdssdk.ECRedundancyInfo, ec model.Ec) ([]string, []int64, error) {
 	//生成纠删码的写入节点序列
 	nodes := make([]UploadNodeInfo, ec.EcN)
 	numNodes := len(uploadNodes)

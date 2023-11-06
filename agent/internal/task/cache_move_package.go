@@ -6,7 +6,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -17,7 +17,7 @@ type CacheMovePackage struct {
 	userID    int64
 	packageID int64
 
-	ResultCacheInfos []stgsdk.ObjectCacheInfo
+	ResultCacheInfos []cdssdk.ObjectCacheInfo
 }
 
 func NewCacheMovePackage(userID int64, packageID int64) *CacheMovePackage {
@@ -96,7 +96,7 @@ func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.Client, pkg 
 		}
 
 		fileHashes = append(fileHashes, rep.FileHash)
-		t.ResultCacheInfos = append(t.ResultCacheInfos, stgsdk.NewObjectCacheInfo(rep.Object, rep.FileHash))
+		t.ResultCacheInfos = append(t.ResultCacheInfos, cdssdk.NewObjectCacheInfo(rep.Object, rep.FileHash))
 	}
 
 	_, err = coorCli.CachePackageMoved(coormq.NewCachePackageMoved(pkg.PackageID, *stgglb.Local.NodeID, fileHashes))

@@ -5,7 +5,7 @@ import (
 
 	"github.com/samber/lo"
 
-	stgsdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -80,7 +80,7 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 		}
 	})
 
-	var ecInfo stgsdk.ECRedundancyInfo
+	var ecInfo cdssdk.ECRedundancyInfo
 	if ecInfo, err = getPkgResp.Package.Redundancy.ToECInfo(); err != nil {
 		return nil, fmt.Errorf("get ec redundancy info: %w", err)
 	}
