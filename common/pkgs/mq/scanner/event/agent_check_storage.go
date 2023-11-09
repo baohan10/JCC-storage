@@ -1,7 +1,5 @@
 package event
 
-var _ = Register[*AgentCheckStorage]()
-
 type AgentCheckStorage struct {
 	EventBase
 	StorageID  int64   `json:"storageID"`
@@ -13,4 +11,8 @@ func NewAgentCheckStorage(storageID int64, packageIDs []int64) *AgentCheckStorag
 		StorageID:  storageID,
 		PackageIDs: packageIDs,
 	}
+}
+
+func init() {
+	Register[*AgentCheckStorage]()
 }
