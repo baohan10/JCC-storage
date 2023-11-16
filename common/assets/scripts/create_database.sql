@@ -17,17 +17,9 @@ create table Node (
 ) comment = '节点表';
 
 insert into
-  Node (
-    NodeID,
-    Name,
-    LocalIP,
-    ExternalIP,
-    LocationID,
-    State
-  )
+    Node (NodeID, Name, LocalIP, ExternalIP, LocalGRPCPort, ExternalGRPCPort, LocationID, State)
 values
-  (0, "LocalNode", "localhost", "localhost", 0, 1);
-
+    (1, "localhost", "localhost", "localhost", 5010, 5010, 1, "alive")
 create table Storage (
   StorageID int not null auto_increment primary key comment '存储服务ID',
   Name varchar(100) not null comment '存储服务名称',
