@@ -31,10 +31,10 @@ func NewRedundancyEcData(ec EC, blocks []ObjectBlockData) ECRedundancyData {
 }
 
 type EC struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	EcK  int    `json:"ecK"`
-	EcN  int    `json:"ecN"`
+	ID        int64 `json:"id"`
+	K         int   `json:"k"`
+	N         int   `json:"n"`
+	ChunkSize int   `json:"chunkSize"`
 }
 
 type ObjectBlockData struct {
@@ -51,12 +51,12 @@ func NewObjectBlockData(index int, fileHash string, nodeIDs []int64) ObjectBlock
 	}
 }
 
-func NewEc(id int, name string, ecK int, ecN int) EC {
+func NewEc(id int64, k int, n int, chunkSize int) EC {
 	return EC{
-		ID:   id,
-		Name: name,
-		EcK:  ecK,
-		EcN:  ecN,
+		ID:        id,
+		K:         k,
+		N:         n,
+		ChunkSize: chunkSize,
 	}
 }
 

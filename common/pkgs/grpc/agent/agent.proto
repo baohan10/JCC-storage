@@ -5,13 +5,14 @@ syntax = "proto3";
 option go_package = ".;agent";//grpc这里生效了
 
 
-enum FileDataPacketType {
-    Data = 0;
-    EOF = 1;
+enum StreamDataPacketType {
+    EOF = 0;
+    Data = 1;
+    SendArgs = 2;
 }
 // 文件数据。注意：只在Type为Data的时候，Data字段才能有数据
 message FileDataPacket {
-    FileDataPacketType Type = 1;
+    StreamDataPacketType Type = 1;
     bytes Data = 2;
 }
 
@@ -23,8 +24,27 @@ message GetIPFSFileReq {
     string FileHash = 1;
 }
 
+// 注：EOF时data也可能有数据
+message StreamDataPacket {
+    StreamDataPacketType Type = 1;
+    string PlanID = 2;
+    string StreamID = 3;
+    bytes Data = 4;
+}
+
+message SendStreamResp {
+}
+
+message FetchStreamReq {
+    string PlanID = 1;
+    string StreamID = 2;
+}
+
 service Agent {
     rpc SendIPFSFile(stream FileDataPacket)returns(SendIPFSFileResp){}
     rpc GetIPFSFile(GetIPFSFileReq)returns(stream FileDataPacket){}
+
+    rpc SendStream(stream StreamDataPacket)returns(SendStreamResp){}
+    rpc FetchStream(FetchStreamReq)returns(stream StreamDataPacket){}
 }
 

@@ -43,7 +43,7 @@ func (svc *Service) WaitPinningObject(msg *agtmq.WaitPinningObject) (*agtmq.Wait
 		return mq.ReplyOK(agtmq.NewWaitPinningObjectResp(true, errMsg))
 
 	} else {
-		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
+		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
 
 			errMsg := ""
 			if tsk.Error() != nil {

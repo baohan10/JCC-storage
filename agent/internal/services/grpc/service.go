@@ -8,14 +8,18 @@ import (
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agentserver "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 type Service struct {
 	agentserver.AgentServer
+	sw *ioswitch.Switch
 }
 
-func NewService() *Service {
-	return &Service{}
+func NewService(sw *ioswitch.Switch) *Service {
+	return &Service{
+		sw: sw,
+	}
 }
 
 func (s *Service) SendIPFSFile(server agentserver.Agent_SendIPFSFileServer) error {
@@ -59,7 +63,7 @@ func (s *Service) SendIPFSFile(server agentserver.Agent_SendIPFSFileServer) erro
 
 		recvSize += int64(len(msg.Data))
 
-		if msg.Type == agentserver.FileDataPacketType_EOF {
+		if msg.Type == agentserver.StreamDataPacketType_EOF {
 			// 客户端明确说明文件传输已经结束，那么结束写入，获得文件Hash
 			hash, err := writer.Finish()
 			if err != nil {
@@ -106,7 +110,7 @@ func (s *Service) GetIPFSFile(req *agentserver.GetIPFSFileReq, server agentserve
 		if readCnt > 0 {
 			readAllCnt += readCnt
 			err = server.Send(&agentserver.FileDataPacket{
-				Type: agentserver.FileDataPacketType_Data,
+				Type: agentserver.StreamDataPacketType_Data,
 				Data: buf[:readCnt],
 			})
 			if err != nil {
@@ -121,7 +125,7 @@ func (s *Service) GetIPFSFile(req *agentserver.GetIPFSFileReq, server agentserve
 			log.WithField("FileHash", req.FileHash).Debugf("send data size %d", readAllCnt)
 			// 发送EOF消息
 			server.Send(&agentserver.FileDataPacket{
-				Type: agentserver.FileDataPacketType_EOF,
+				Type: agentserver.StreamDataPacketType_EOF,
 			})
 			return nil
 		}

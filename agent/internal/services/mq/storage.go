@@ -69,7 +69,7 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullPath))
 
 	} else {
-		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
+		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
 
 			errMsg := ""
 			if tsk.Error() != nil {
@@ -227,7 +227,7 @@ func (svc *Service) WaitStorageCreatePackage(msg *agtmq.WaitStorageCreatePackage
 
 	if msg.WaitTimeoutMs == 0 {
 		tsk.Wait()
-	} else if !tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
+	} else if !tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
 		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(false, "", 0))
 	}
 
