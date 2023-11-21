@@ -34,7 +34,7 @@ type EC struct {
 	ID        int64 `json:"id"`
 	K         int   `json:"k"`
 	N         int   `json:"n"`
-	ChunkSize int   `json:"chunkSize"`
+	ChunkSize int64 `json:"chunkSize"`
 }
 
 type ObjectBlockData struct {
@@ -51,7 +51,7 @@ func NewObjectBlockData(index int, fileHash string, nodeIDs []int64) ObjectBlock
 	}
 }
 
-func NewEc(id int64, k int, n int, chunkSize int) EC {
+func NewEc(id int64, k int, n int, chunkSize int64) EC {
 	return EC{
 		ID:        id,
 		K:         k,

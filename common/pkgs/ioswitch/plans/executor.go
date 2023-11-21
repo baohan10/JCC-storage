@@ -1,6 +1,7 @@
 package plans
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -102,6 +103,10 @@ func (e *Executor) ReadStream(info *ToExecutorStream) (io.ReadCloser, error) {
 	}), nil
 }
 
+func (e *Executor) Wait() (ExecutorResult, error) {
+	return e.callback.WaitValue(context.TODO())
+}
+
 func (e *Executor) cancelAll() {
 	for _, cli := range e.mqClis {
 		cli.CancelIOPlan(agtmq.NewCancelIOPlan(e.plan.ID))
@@ -116,8 +121,8 @@ func (e *Executor) Close() {
 
 func (e *Executor) pollResult() {
 	wg := sync.WaitGroup{}
-	anyErr := atomic.Value{}
-	anyErr.Store(nil)
+	var anyErr error
+	var done atomic.Bool
 	rets := make([]*ioswitch.PlanResult, len(e.plan.AgentPlans))
 
 	for i, id := range e.planTaskIDs {
@@ -131,20 +136,21 @@ func (e *Executor) pollResult() {
 			for {
 				resp, err := e.mqClis[idx].WaitIOPlan(agtmq.NewWaitIOPlan(taskID, 5000))
 				if err != nil {
-					anyErr.Store(err)
+					anyErr = err
 					break
 				}
 
 				if resp.IsComplete {
 					if resp.Error != "" {
-						anyErr.Store(errors.New(resp.Error))
+						anyErr = errors.New(resp.Error)
+						done.Store(true)
 					} else {
 						rets[idx] = &resp.Result
 					}
 					break
 				}
 
-				if anyErr.Load() != nil {
+				if done.Load() {
 					break
 				}
 			}
@@ -153,9 +159,8 @@ func (e *Executor) pollResult() {
 
 	wg.Wait()
 
-	err := anyErr.Load().(error)
-	if err != nil {
-		e.callback.SetError(err)
+	if anyErr != nil {
+		e.callback.SetError(anyErr)
 		return
 	}
 

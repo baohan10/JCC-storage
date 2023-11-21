@@ -84,7 +84,7 @@ func (s *FromExecutorStream) ToNode(node model.Node) *AgentStream {
 	s.toNode = &node
 	return &AgentStream{
 		owner: s.owner.AtAgent(node),
-		info:  s.owner.newStream(),
+		info:  s.info,
 	}
 }
 
@@ -108,7 +108,7 @@ func (s *AgentStream) IPFSWrite(resultKey string) {
 func (s *AgentStream) GRPCSend(node model.Node) *AgentStream {
 	agtStr := &AgentStream{
 		owner: s.owner.owner.AtAgent(node),
-		info:  s.owner.owner.newStream(),
+		info:  s.info,
 	}
 
 	s.owner.ops = append(s.owner.ops, &ops.GRPCSend{

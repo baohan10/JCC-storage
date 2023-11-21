@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
@@ -13,6 +14,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
@@ -169,7 +171,40 @@ type ECCompute struct {
 }
 
 func (o *ECCompute) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	// TODO2
+	rs, err := ec.NewRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
+	if err != nil {
+		return fmt.Errorf("new ec: %w", err)
+	}
+
+	strs, err := sw.WaitStreams(planID, o.InputIDs...)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		for _, s := range strs {
+			s.Stream.Close()
+		}
+	}()
+
+	var inputs []io.ReadCloser
+	for _, s := range strs {
+		inputs = append(inputs, s.Stream)
+	}
+
+	outputs, err := rs.ReconstructSome(inputs, o.InputBlockIndexes, o.OutputBlockIndexes)
+	if err != nil {
+		return fmt.Errorf("reconstructing: %w", err)
+	}
+
+	wg := sync.WaitGroup{}
+	for i, id := range o.OutputIDs {
+		wg.Add(1)
+		sw.StreamReady(planID, ioswitch.NewStream(id, myio.AfterReadClosed(outputs[i], func(closer io.ReadCloser) {
+			wg.Done()
+		})))
+	}
+	wg.Wait()
+
 	return nil
 }
 

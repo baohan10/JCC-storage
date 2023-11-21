@@ -42,12 +42,13 @@ type Planning struct {
 
 func NewPlanning(plan Plan) Planning {
 	planning := Planning{
-		plan:     plan,
-		callback: future.NewSetValue[PlanResult](),
-		readys:   make(map[StreamID]Stream),
+		plan:         plan,
+		resultValues: make(map[string]any),
+		callback:     future.NewSetValue[PlanResult](),
+		readys:       make(map[StreamID]Stream),
 	}
 
-	for _ = range plan.Ops {
+	for range plan.Ops {
 		oping := Oping{
 			State: OpPending,
 		}
@@ -134,10 +135,10 @@ func (s *Switch) SetupPlan(plan Plan) error {
 
 func (s *Switch) ExecutePlan(id PlanID) (PlanResult, error) {
 	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	planning, ok := s.plannings[id]
 	if !ok {
+		s.lock.Unlock()
 		return PlanResult{}, fmt.Errorf("plan not found")
 	}
 
@@ -162,6 +163,7 @@ func (s *Switch) ExecutePlan(id PlanID) (PlanResult, error) {
 			}
 		}()
 	}
+	s.lock.Unlock()
 
 	return planning.callback.WaitValue(context.TODO())
 }
@@ -239,12 +241,11 @@ func (s *Switch) StreamReady(planID PlanID, stream Stream) {
 }
 
 func (s *Switch) WaitStreams(planID PlanID, streamIDs ...StreamID) ([]Stream, error) {
-
 	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	plan, ok := s.plannings[planID]
 	if !ok {
+		s.lock.Unlock()
 		return nil, ErrPlanNotFound
 	}
 
@@ -262,6 +263,7 @@ func (s *Switch) WaitStreams(planID PlanID, streamIDs ...StreamID) ([]Stream, er
 	}
 
 	if allReady {
+		s.lock.Unlock()
 		return readys, nil
 	}
 
@@ -272,6 +274,7 @@ func (s *Switch) WaitStreams(planID PlanID, streamIDs ...StreamID) ([]Stream, er
 		Readys:   readys,
 		Callback: callback,
 	})
+	s.lock.Unlock()
 
 	return callback.WaitValue(context.TODO())
 }
