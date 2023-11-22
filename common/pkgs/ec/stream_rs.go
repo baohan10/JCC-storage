@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/klauspost/reedsolomon"
+	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
 type Rs struct {
@@ -140,78 +141,57 @@ func (r *Rs) ReconstructData(input []io.ReadCloser, inBlockIdx []int) ([]io.Read
 	return dataReader, nil
 }
 
-// 修复，任意k个块恢复若干想要的块
-func (r *Rs) ReconstructSome(input []io.ReadCloser, inBlockIdx []int, outBlockIdx []int) ([]io.ReadCloser, error) {
-	outReader := make([]io.ReadCloser, len(outBlockIdx))
-	outWriter := make([]*io.PipeWriter, len(outBlockIdx))
+// 修复，任意k个块恢复若干想要的块。调用者应该保证input的每一个流长度相同，且均为chunkSize的整数倍
+func (r *Rs) ReconstructSome(input []io.Reader, inBlockIdx []int, outBlockIdx []int) ([]io.ReadCloser, error) {
+	outReaders := make([]io.ReadCloser, len(outBlockIdx))
+	outWriters := make([]*io.PipeWriter, len(outBlockIdx))
 	for i := 0; i < len(outBlockIdx); i++ {
-		var reader *io.PipeReader
-		reader, outWriter[i] = io.Pipe()
-		outReader[i] = reader
+		outReaders[i], outWriters[i] = io.Pipe()
 	}
+
 	go func() {
 		chunks := make([][]byte, r.ecN)
-		for i := range chunks {
-			chunks[i] = make([]byte, r.chunkSize)
-		}
-		finished := false
-		//outBools:要输出的若干块idx
-		outBools := make([]bool, r.ecN)
-		for i := range outBools {
-			outBools[i] = false
-		}
-		for i := range outBlockIdx {
-			outBools[outBlockIdx[i]] = true
-		}
-		constructIdx := make([]bool, r.ecN)
-		for i := 0; i < r.ecN; i++ {
-			constructIdx[i] = false
-		}
-		for i := 0; i < r.ecK; i++ {
-			constructIdx[inBlockIdx[i]] = true
-		}
-		//nil Idx就是没有输入的块idx，要置成nil
-		nilIdx := make([]int, r.ecP)
-		ct := 0
-		for i := 0; i < r.ecN; i++ {
-			if !constructIdx[i] {
-				nilIdx[ct] = i
-				ct++
-			}
+		for _, idx := range inBlockIdx {
+			chunks[idx] = make([]byte, r.chunkSize)
 		}
 
+		//outBools:要输出的若干块idx
+		outBools := make([]bool, r.ecN)
+		for _, idx := range outBlockIdx {
+			outBools[idx] = true
+		}
+
+		var closeErr error
+	loop:
 		for {
 			//读块到buff
 			for i := 0; i < r.ecK; i++ {
-				_, err := input[i].Read(chunks[inBlockIdx[i]])
+				_, err := io.ReadFull(input[i], chunks[inBlockIdx[i]])
 				if err != nil {
-					finished = true
-					break
+					closeErr = err
+					break loop
 				}
 			}
-			for i := 0; i < r.ecP; i++ {
-				chunks[nilIdx[i]] = nil
-			}
-			if finished {
-				break
-			}
-			//解码
 
 			err := r.encoder.ReconstructSome(chunks, outBools)
 			if err != nil {
 				return
 			}
+
 			//输出到outWriter
 			for i := range outBlockIdx {
-				outWriter[i].Write(chunks[outBlockIdx[i]])
+				err := myio.WriteAll(outWriters[i], chunks[outBlockIdx[i]])
+				if err != nil {
+					closeErr = err
+					break loop
+				}
 			}
 		}
-		for i := range input {
-			input[i].Close()
-		}
-		for i := range outWriter {
-			outWriter[i].Close()
+
+		for i := range outWriters {
+			outWriters[i].CloseWithError(closeErr)
 		}
 	}()
-	return outReader, nil
+
+	return outReaders, nil
 }

@@ -185,16 +185,18 @@ func print_ioreaders(t *testing.T, readers []io.ReadCloser, chunkSize int64) {
 }
 
 func test_reconstructData(t *testing.T) {
-	blkReader, _ := NewBlockReader()
-	defer blkReader.Close()
-	hashs := []string{"QmS2t7xFgTMTX2DGYsbDdmHnGvaG6sc7D9k1R2WZyuDx56", "QmUSZvuABjfGKF1c4VxvVBdH31SroDm2QyLGBrVFomRM8P", "QmcD3RpUh5rwMhf9yBywBeT6ibT1P5DSJC67aoD77jhTBn"}
-	dataBlocks, _ := blkReader.FetchBLocks(hashs)
-	chunkSize := int64(6)
-	enc, _ := NewRs(3, 5, chunkSize)
-	print("@@@@@@@@@")
-	newDataBlocks, _ := enc.ReconstructSome(dataBlocks, []int{0, 1, 2}, []int{3, 4})
-	print("!!!!!!!!!")
-	print_ioreaders(t, newDataBlocks, chunkSize)
+	/*
+		blkReader, _ := NewBlockReader()
+		defer blkReader.Close()
+		hashs := []string{"QmS2t7xFgTMTX2DGYsbDdmHnGvaG6sc7D9k1R2WZyuDx56", "QmUSZvuABjfGKF1c4VxvVBdH31SroDm2QyLGBrVFomRM8P", "QmcD3RpUh5rwMhf9yBywBeT6ibT1P5DSJC67aoD77jhTBn"}
+		dataBlocks, _ := blkReader.FetchBLocks(hashs)
+		chunkSize := int64(6)
+		enc, _ := NewRs(3, 5, chunkSize)
+		print("@@@@@@@@@")
+		newDataBlocks, _ := enc.ReconstructSome(dataBlocks, []int{0, 1, 2}, []int{3, 4})
+		print("!!!!!!!!!")
+		print_ioreaders(t, newDataBlocks, chunkSize)
+	*/
 }
 func Test_main(t *testing.T) {
 	//test_Encode(t)

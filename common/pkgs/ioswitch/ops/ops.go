@@ -10,6 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/types"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
+	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
@@ -186,7 +187,7 @@ func (o *ECCompute) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 		}
 	}()
 
-	var inputs []io.ReadCloser
+	var inputs []io.Reader
 	for _, s := range strs {
 		inputs = append(inputs, s.Stream)
 	}
@@ -211,6 +212,7 @@ func (o *ECCompute) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 type Combine struct {
 	InputIDs []ioswitch.StreamID `json:"inputIDs"`
 	OutputID ioswitch.StreamID   `json:"outputID"`
+	Length   int64               `json:"length"`
 }
 
 func (o *Combine) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
@@ -218,15 +220,50 @@ func (o *Combine) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		for _, str := range strs {
+			str.Stream.Close()
+		}
+	}()
+
+	length := o.Length
 
 	pr, pw := io.Pipe()
 	sw.StreamReady(planID, ioswitch.NewStream(o.OutputID, pr))
 
+	buf := make([]byte, 4096)
 	for _, str := range strs {
-		_, err := io.Copy(pw, str.Stream)
-		if err != nil {
-			return err
+		for {
+			bufLen := mymath.Min(length, int64(len(buf)))
+			if bufLen == 0 {
+				return nil
+			}
+
+			rd, err := str.Stream.Read(buf[:bufLen])
+			if err != nil {
+				if err != io.EOF {
+					return err
+				}
+
+				length -= int64(rd)
+				err = myio.WriteAll(pw, buf[:rd])
+				if err != nil {
+					return err
+				}
+
+				break
+			}
+
+			length -= int64(rd)
+			err = myio.WriteAll(pw, buf[:rd])
+			if err != nil {
+				return err
+			}
 		}
+	}
+
+	if length > 0 {
+		return fmt.Errorf("want %d bytes, but only get %d bytes", o.Length, o.Length-length)
 	}
 
 	return nil
