@@ -189,7 +189,7 @@ func (b *AgentPlanBuilder) ECCompute(ec stgmod.EC, inBlockIndexes []int, outBloc
 	return mstr
 }
 
-func (b *AgentPlanBuilder) Combine(length int64, streams ...*AgentStream) *AgentStream {
+func (b *AgentPlanBuilder) Join(length int64, streams ...*AgentStream) *AgentStream {
 	agtStr := &AgentStream{
 		owner: b,
 		info:  b.owner.newStream(),
@@ -200,7 +200,7 @@ func (b *AgentPlanBuilder) Combine(length int64, streams ...*AgentStream) *Agent
 		inputStrIDs = append(inputStrIDs, str.info.ID)
 	}
 
-	b.ops = append(b.ops, &ops.Combine{
+	b.ops = append(b.ops, &ops.Join{
 		InputIDs: inputStrIDs,
 		OutputID: agtStr.info.ID,
 		Length:   length,

@@ -99,20 +99,7 @@ func (i *RepObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObje
 		}
 	})
 
-	// 选择下载节点
-	downloadNode := i.chooseDownloadNode(downloadNodes)
-
-	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-	nodeIP := downloadNode.Node.ExternalIP
-	grpcPort := downloadNode.Node.ExternalGRPCPort
-	if downloadNode.IsSameLocation {
-		nodeIP = downloadNode.Node.LocalIP
-		grpcPort = downloadNode.Node.LocalGRPCPort
-
-		logger.Infof("client and node %d are at the same location, use local ip", downloadNode.Node.NodeID)
-	}
-
-	reader, err := downloadFile(i.downloadCtx, downloadNode.Node.NodeID, nodeIP, grpcPort, repData.FileHash)
+	reader, err := downloadFile(i.downloadCtx, i.chooseDownloadNode(downloadNodes), repData.FileHash)
 	if err != nil {
 		return nil, fmt.Errorf("rep read failed, err: %w", err)
 	}
@@ -140,7 +127,17 @@ func (i *RepObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downl
 	return entries[rand.Intn(len(entries))]
 }
 
-func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {
+func downloadFile(ctx *DownloadContext, node DownloadNodeInfo, fileHash string) (io.ReadCloser, error) {
+	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+	nodeIP := node.Node.ExternalIP
+	grpcPort := node.Node.ExternalGRPCPort
+	if node.IsSameLocation {
+		nodeIP = node.Node.LocalIP
+		grpcPort = node.Node.LocalGRPCPort
+
+		logger.Infof("client and node %d are at the same location, use local ip", node.Node.NodeID)
+	}
+
 	if stgglb.IPFSPool != nil {
 		logger.Infof("try to use local IPFS to download file")
 
@@ -152,7 +149,7 @@ func downloadFile(ctx *DownloadContext, nodeID int64, nodeIP string, grpcPort in
 		logger.Warnf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
 	}
 
-	return downloadFromNode(ctx, nodeID, nodeIP, grpcPort, fileHash)
+	return downloadFromNode(ctx, node.Node.NodeID, nodeIP, grpcPort, fileHash)
 }
 
 func downloadFromNode(ctx *DownloadContext, nodeID int64, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {

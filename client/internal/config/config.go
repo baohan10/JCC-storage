@@ -11,14 +11,13 @@ import (
 )
 
 type Config struct {
-	Local        stgmodels.LocalMachineInfo `json:"local"`
-	AgentGRPC    agtrpc.PoolConfig          `json:"agentGRPC"`
-	ECPacketSize int64                      `json:"ecPacketSize"`
-	MaxRepCount  int                        `json:"maxRepCount"`
-	Logger       logger.Config              `json:"logger"`
-	RabbitMQ     stgmq.Config               `json:"rabbitMQ"`
-	IPFS         *ipfs.Config               `json:"ipfs"` // 此字段非空代表客户端上存在ipfs daemon
-	DistLock     distlock.Config            `json:"distlock"`
+	Local       stgmodels.LocalMachineInfo `json:"local"`
+	AgentGRPC   agtrpc.PoolConfig          `json:"agentGRPC"`
+	MaxRepCount int                        `json:"maxRepCount"`
+	Logger      logger.Config              `json:"logger"`
+	RabbitMQ    stgmq.Config               `json:"rabbitMQ"`
+	IPFS        *ipfs.Config               `json:"ipfs"` // 此字段非空代表客户端上存在ipfs daemon
+	DistLock    distlock.Config            `json:"distlock"`
 }
 
 var cfg Config

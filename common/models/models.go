@@ -4,37 +4,20 @@ import "gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 
 /// TODO 将分散在各处的公共结构体定义集中到这里来
 
-type RedundancyData interface{}
-type RedundancyDataConst interface {
-	RepRedundancyData | ECRedundancyData | RedundancyData
-}
-type RepRedundancyData struct {
-	FileHash string `json:"fileHash"`
-}
-
-func NewRedundancyRepData(fileHash string) RepRedundancyData {
-	return RepRedundancyData{
-		FileHash: fileHash,
-	}
-}
-
-type ECRedundancyData struct {
-	Ec     EC                `json:"ec"`
-	Blocks []ObjectBlockData `json:"blocks"`
-}
-
-func NewRedundancyEcData(ec EC, blocks []ObjectBlockData) ECRedundancyData {
-	return ECRedundancyData{
-		Ec:     ec,
-		Blocks: blocks,
-	}
-}
-
 type EC struct {
 	ID        int64 `json:"id"`
 	K         int   `json:"k"`
 	N         int   `json:"n"`
 	ChunkSize int64 `json:"chunkSize"`
+}
+
+func NewEc(id int64, k int, n int, chunkSize int64) EC {
+	return EC{
+		ID:        id,
+		K:         k,
+		N:         n,
+		ChunkSize: chunkSize,
+	}
 }
 
 type ObjectBlockData struct {
@@ -48,15 +31,6 @@ func NewObjectBlockData(index int, fileHash string, nodeIDs []int64) ObjectBlock
 		Index:    index,
 		FileHash: fileHash,
 		NodeIDs:  nodeIDs,
-	}
-}
-
-func NewEc(id int64, k int, n int, chunkSize int64) EC {
-	return EC{
-		ID:        id,
-		K:         k,
-		N:         n,
-		ChunkSize: chunkSize,
 	}
 }
 

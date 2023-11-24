@@ -80,6 +80,7 @@ func (s *Service) SendIPFSFile(server agentserver.Agent_SendIPFSFileServer) erro
 				return fmt.Errorf("send response failed, err: %w", err)
 			}
 
+			log.Debugf("%d bytes received ", recvSize)
 			return nil
 		}
 	}

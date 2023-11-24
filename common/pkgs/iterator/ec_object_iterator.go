@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"os"
 
 	"github.com/samber/lo"
 
-	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
+	myio "gitlink.org.cn/cloudream/common/utils/io"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -73,19 +72,23 @@ func (iter *ECObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingOb
 	obj := iter.objects[iter.currentIndex]
 	ecData := iter.objectECData[iter.currentIndex]
 
-	blocks := ecData.Blocks
-	ec := iter.ec
-	ecK := ec.EcK
-	ecN := ec.EcN
 	//采取直接读，优先选内网节点
-	hashs := make([]string, ecK)
-	nds := make([]DownloadNodeInfo, ecK)
-	for i := 0; i < ecK; i++ {
-		hashs[i] = blocks[i].FileHash
+	var chosenNodes []DownloadNodeInfo
+	var chosenBlocks []stgmodels.ObjectBlockData
+	for i := range ecData.Blocks {
+		if len(chosenBlocks) == iter.ec.EcK {
+			break
+		}
 
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(blocks[i].NodeIDs))
+		// 块没有被任何节点缓存或者获取失败都没关系，只要能获取到k个块的信息就行
+
+		if len(ecData.Blocks[i].NodeIDs) == 0 {
+			continue
+		}
+
+		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(ecData.Blocks[i].NodeIDs))
 		if err != nil {
-			return nil, fmt.Errorf("getting nodes: %w", err)
+			continue
 		}
 
 		downloadNodes := lo.Map(getNodesResp.Nodes, func(node model.Node, index int) DownloadNodeInfo {
@@ -95,36 +98,23 @@ func (iter *ECObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingOb
 			}
 		})
 
-		nds[i] = iter.chooseDownloadNode(downloadNodes)
+		chosenBlocks = append(chosenBlocks, ecData.Blocks[i])
+		chosenNodes = append(chosenNodes, iter.chooseDownloadNode(downloadNodes))
+
 	}
 
-	//nodeIDs, nodeIPs直接按照第1~ecK个排列
-	nodeIDs := make([]int64, ecK)
-	nodeIPs := make([]string, ecK)
-	grpcPorts := make([]int, ecK)
-	for i := 0; i < ecK; i++ {
-		nodeIDs[i] = nds[i].Node.NodeID
-		nodeIPs[i] = nds[i].Node.ExternalIP
-		grpcPorts[i] = nds[i].Node.ExternalGRPCPort
-		if nds[i].IsSameLocation {
-			nodeIPs[i] = nds[i].Node.LocalIP
-			grpcPorts[i] = nds[i].Node.LocalGRPCPort
-			logger.Infof("client and node %d are at the same location, use local ip", nds[i].Node.NodeID)
-		}
+	if len(chosenBlocks) < iter.ec.EcK {
+		return nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", iter.ec.EcK, len(chosenBlocks))
 	}
 
-	fileSize := obj.Size
-	blockIDs := make([]int, ecK)
-	for i := 0; i < ecK; i++ {
-		blockIDs[i] = i
-	}
-	reader, err := iter.downloadEcObject(fileSize, ecK, ecN, blockIDs, nodeIDs, nodeIPs, grpcPorts, hashs)
+	reader, err := iter.downloadEcObject(iter.downloadCtx, obj.Size, chosenNodes, chosenBlocks)
 	if err != nil {
 		return nil, fmt.Errorf("ec read failed, err: %w", err)
 	}
 
 	return &IterDownloadingObject{
-		File: reader,
+		Object: obj,
+		File:   reader,
 	}, nil
 }
 
@@ -146,87 +136,36 @@ func (i *ECObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Downlo
 	return entries[rand.Intn(len(entries))]
 }
 
-func (iter *ECObjectIterator) downloadEcObject(fileSize int64, ecK int, ecN int, blockIDs []int, nodeIDs []int64, nodeIPs []string, grpcPorts []int, hashs []string) (io.ReadCloser, error) {
-	// TODO zkx 先试用同步方式实现逻辑，做好错误处理。同时也方便下面直接使用uploadToNode和uploadToLocalIPFS来优化代码结构
-	//wg := sync.WaitGroup{}
-	numPacket := (fileSize + int64(ecK)*iter.ecInfo.PacketSize - 1) / (int64(ecK) * iter.ecInfo.PacketSize)
-	getBufs := make([]chan []byte, ecN)
-	decodeBufs := make([]chan []byte, ecK)
-	for i := 0; i < ecN; i++ {
-		getBufs[i] = make(chan []byte)
-	}
-	for i := 0; i < ecK; i++ {
-		decodeBufs[i] = make(chan []byte)
-	}
-	for idx := 0; idx < len(blockIDs); idx++ {
-		i := idx
-		go func() {
-			// TODO 处理错误
-			file, _ := downloadFile(iter.downloadCtx, nodeIDs[i], nodeIPs[i], grpcPorts[i], hashs[i])
+func (iter *ECObjectIterator) downloadEcObject(ctx *DownloadContext, fileSize int64, nodes []DownloadNodeInfo, blocks []stgmodels.ObjectBlockData) (io.ReadCloser, error) {
+	var fileStrs []io.ReadCloser
 
-			for p := int64(0); p < numPacket; p++ {
-				buf := make([]byte, iter.ecInfo.PacketSize)
-				// TODO 处理错误
-				io.ReadFull(file, buf)
-				getBufs[blockIDs[i]] <- buf
-			}
-		}()
+	rs, err := ec.NewRs(iter.ec.EcK, iter.ec.EcN, iter.ecInfo.ChunkSize)
+	if err != nil {
+		return nil, fmt.Errorf("new rs: %w", err)
 	}
-	print(numPacket)
-	go decode(getBufs[:], decodeBufs[:], blockIDs, ecK, numPacket)
-	r, w := io.Pipe()
-	//persist函数,将解码得到的文件写入pipe
-	go func() {
-		for i := 0; int64(i) < numPacket; i++ {
-			for j := 0; j < len(decodeBufs); j++ {
-				tmp := <-decodeBufs[j]
-				_, err := w.Write(tmp)
-				if err != nil {
-					fmt.Errorf("persist file falied, err:%w", err)
-				}
-			}
-		}
-		w.Close()
-	}()
-	return r, nil
-}
 
-func decode(inBufs []chan []byte, outBufs []chan []byte, blockSeq []int, ecK int, numPacket int64) {
-	fmt.Println("decode ")
-	var tmpIn [][]byte
-	var zeroPkt []byte
-	tmpIn = make([][]byte, len(inBufs))
-	hasBlock := map[int]bool{}
-	for j := 0; j < len(blockSeq); j++ {
-		hasBlock[blockSeq[j]] = true
-	}
-	needRepair := false //检测是否传入了所有数据块
-	for j := 0; j < len(outBufs); j++ {
-		if blockSeq[j] != j {
-			needRepair = true
-		}
-	}
-	enc := ec.NewRsEnc(ecK, len(inBufs))
-	for i := 0; int64(i) < numPacket; i++ {
-		print("!!!!!")
-		for j := 0; j < len(inBufs); j++ {
-			if hasBlock[j] {
-				tmpIn[j] = <-inBufs[j]
-			} else {
-				tmpIn[j] = zeroPkt
+	for i := range blocks {
+		str, err := downloadFile(ctx, nodes[i], blocks[i].FileHash)
+		if err != nil {
+			for i -= 1; i >= 0; i-- {
+				fileStrs[i].Close()
 			}
+			return nil, fmt.Errorf("donwloading file: %w", err)
 		}
-		if needRepair {
-			err := enc.Repair(tmpIn)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Decode Repair Error: %s", err.Error())
-			}
-		}
-		for j := 0; j < len(outBufs); j++ {
-			outBufs[j] <- tmpIn[j]
-		}
+
+		fileStrs = append(fileStrs, str)
 	}
-	for i := 0; i < len(outBufs); i++ {
-		close(outBufs[i])
+
+	fileReaders, filesCloser := myio.ToReaders(fileStrs)
+
+	var indexes []int
+	for _, b := range blocks {
+		indexes = append(indexes, b.Index)
 	}
+
+	outputs, outputsCloser := myio.ToReaders(rs.ReconstructData(fileReaders, indexes))
+	return myio.AfterReadClosed(myio.Length(myio.ChunkedJoin(outputs, int(iter.ecInfo.ChunkSize)), fileSize), func(c io.ReadCloser) {
+		filesCloser()
+		outputsCloser()
+	}), nil
 }

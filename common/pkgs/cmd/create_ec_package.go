@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/samber/lo"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
+	myio "gitlink.org.cn/cloudream/common/utils/io"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -185,175 +184,65 @@ func uploadAndUpdateECPackage(packageID int64, objectIter iterator.UploadingObje
 }
 
 // 上传文件
-func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ecInfo cdssdk.ECRedundancyInfo, ec model.Ec) ([]string, []int64, error) {
-	//生成纠删码的写入节点序列
-	nodes := make([]UploadNodeInfo, ec.EcN)
-	numNodes := len(uploadNodes)
-	startWriteNodeID := rand.Intn(numNodes)
-	for i := 0; i < ec.EcN; i++ {
-		nodes[i] = uploadNodes[(startWriteNodeID+i)%numNodes]
-	}
+func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ecInfo cdssdk.ECRedundancyInfo, ecMod model.Ec) ([]string, []int64, error) {
+	uploadNodes = shuffleNodes(uploadNodes, ecMod.EcN)
 
-	hashs, err := ecWrite(obj.File, obj.Size, ecInfo.PacketSize, ec.EcK, ec.EcN, nodes)
+	rs, err := ec.NewRs(ecMod.EcK, ecMod.EcN, ecInfo.ChunkSize)
 	if err != nil {
-		return nil, nil, fmt.Errorf("EcWrite failed, err: %w", err)
+		return nil, nil, err
 	}
 
-	nodeIDs := make([]int64, len(nodes))
-	for i := 0; i < len(nodes); i++ {
-		nodeIDs[i] = nodes[i].Node.NodeID
+	outputs := myio.ChunkedSplit(obj.File, ecInfo.ChunkSize, ecMod.EcK, myio.ChunkedSplitOption{
+		FillZeros: true,
+	})
+	var readers []io.Reader
+	for _, o := range outputs {
+		readers = append(readers, o)
 	}
-
-	return hashs, nodeIDs, nil
-}
-
-// chooseUploadNode 选择一个上传文件的节点
-// 1. 从与当前客户端相同地域的节点中随机选一个
-// 2. 没有用的话从所有节点中随机选一个
-func (t *CreateECPackage) chooseUploadNode(nodes []UploadNodeInfo) UploadNodeInfo {
-	sameLocationNodes := lo.Filter(nodes, func(e UploadNodeInfo, i int) bool { return e.IsSameLocation })
-	if len(sameLocationNodes) > 0 {
-		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]
-	}
-
-	return nodes[rand.Intn(len(nodes))]
-}
-
-func ecWrite(file io.ReadCloser, fileSize int64, packetSize int64, ecK int, ecN int, nodes []UploadNodeInfo) ([]string, error) {
-	// TODO 需要参考RepWrite函数的代码逻辑，做好错误处理
-	//获取文件大小
-
-	var coefs = [][]int64{{1, 1, 1}, {1, 2, 3}} //2应替换为ecK，3应替换为ecN
-	//计算每个块的packet数
-	numPacket := (fileSize + int64(ecK)*packetSize - 1) / (int64(ecK) * packetSize)
-	//fmt.Println(numPacket)
-	//创建channel
-	loadBufs := make([]chan []byte, ecN)
-	encodeBufs := make([]chan []byte, ecN)
-	for i := 0; i < ecN; i++ {
-		loadBufs[i] = make(chan []byte)
-	}
-	for i := 0; i < ecN; i++ {
-		encodeBufs[i] = make(chan []byte)
-	}
-	hashs := make([]string, ecN)
-	//正式开始写入
-	go load(file, loadBufs[:ecN], ecK, numPacket*int64(ecK), packetSize) //从本地文件系统加载数据
-	go encode(loadBufs[:ecN], encodeBufs[:ecN], ecK, coefs, numPacket)
-
-	var wg sync.WaitGroup
-	wg.Add(ecN)
-
-	for idx := 0; idx < ecN; idx++ {
-		i := idx
-		reader := channelBytesReader{
-			channel:     encodeBufs[idx],
-			packetCount: numPacket,
+	defer func() {
+		for _, o := range outputs {
+			o.Close()
 		}
+	}()
+
+	encStrs := rs.EncodeAll(readers)
+
+	wg := sync.WaitGroup{}
+
+	nodeIDs := make([]int64, ecMod.EcN)
+	fileHashes := make([]string, ecMod.EcN)
+	anyErrs := make([]error, ecMod.EcN)
+
+	for i := range encStrs {
+		idx := i
+		wg.Add(1)
+		nodeIDs[idx] = uploadNodes[idx].Node.NodeID
 		go func() {
-			// TODO 处理错误
-			fileHash, _ := uploadFile(&reader, nodes[i])
-			hashs[i] = fileHash
-			wg.Done()
+			defer wg.Done()
+			fileHashes[idx], anyErrs[idx] = uploadFile(encStrs[idx], uploadNodes[idx])
 		}()
 	}
+
 	wg.Wait()
 
-	return hashs, nil
+	for i, e := range anyErrs {
+		if e != nil {
+			return nil, nil, fmt.Errorf("uploading file to node %d: %w", uploadNodes[i].Node.NodeID, e)
+		}
+	}
 
+	return fileHashes, nodeIDs, nil
 }
 
-func load(file io.ReadCloser, loadBufs []chan []byte, ecK int, totalNumPacket int64, ecPacketSize int64) error {
-
-	for i := 0; int64(i) < totalNumPacket; i++ {
-
-		buf := make([]byte, ecPacketSize)
-		idx := i % ecK
-		_, err := file.Read(buf)
-		if err != nil {
-			return fmt.Errorf("read file falied, err:%w", err)
-		}
-		loadBufs[idx] <- buf
-
-		if idx == ecK-1 {
-			for j := ecK; j < len(loadBufs); j++ {
-				zeroPkt := make([]byte, ecPacketSize)
-				loadBufs[j] <- zeroPkt
-			}
-		}
-		if err != nil && err != io.EOF {
-			return fmt.Errorf("load file to buf failed, err:%w", err)
-		}
-	}
-	for i := 0; i < len(loadBufs); i++ {
-
-		close(loadBufs[i])
-	}
-	file.Close()
-	return nil
-}
-
-func encode(inBufs []chan []byte, outBufs []chan []byte, ecK int, coefs [][]int64, numPacket int64) {
-	var tmpIn [][]byte
-	tmpIn = make([][]byte, len(outBufs))
-	enc := ec.NewRsEnc(ecK, len(outBufs))
-	for i := 0; int64(i) < numPacket; i++ {
-		for j := 0; j < len(outBufs); j++ {
-			tmpIn[j] = <-inBufs[j]
-		}
-		enc.Encode(tmpIn)
-		for j := 0; j < len(outBufs); j++ {
-			outBufs[j] <- tmpIn[j]
-		}
-	}
-	for i := 0; i < len(outBufs); i++ {
-		close(outBufs[i])
-	}
-}
-
-type channelBytesReader struct {
-	channel     chan []byte
-	packetCount int64
-	readingData []byte
-}
-
-func (r *channelBytesReader) Read(buf []byte) (int, error) {
-	if len(r.readingData) == 0 {
-		if r.packetCount == 0 {
-			return 0, io.EOF
-		}
-
-		r.readingData = <-r.channel
-		r.packetCount--
+func shuffleNodes(uploadNodes []UploadNodeInfo, extendTo int) []UploadNodeInfo {
+	for i := len(uploadNodes); i < extendTo; i++ {
+		uploadNodes = append(uploadNodes, uploadNodes[rand.Intn(len(uploadNodes))])
 	}
 
-	len := copy(buf, r.readingData)
-	r.readingData = r.readingData[:len]
+	// 随机排列上传节点
+	rand.Shuffle(len(uploadNodes), func(i, j int) {
+		uploadNodes[i], uploadNodes[j] = uploadNodes[j], uploadNodes[i]
+	})
 
-	return len, nil
-}
-
-func persist(inBuf []chan []byte, numPacket int64, localFilePath string, wg *sync.WaitGroup) {
-	fDir, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	fURL := filepath.Join(filepath.Dir(fDir), "assets")
-	_, err = os.Stat(fURL)
-	if os.IsNotExist(err) {
-		os.MkdirAll(fURL, os.ModePerm)
-	}
-	file, err := os.Create(filepath.Join(fURL, localFilePath))
-	if err != nil {
-		return
-	}
-	for i := 0; int64(i) < numPacket; i++ {
-		for j := 0; j < len(inBuf); j++ {
-			tmp := <-inBuf[j]
-			fmt.Println(tmp)
-			file.Write(tmp)
-		}
-	}
-	file.Close()
-	wg.Done()
+	return uploadNodes
 }

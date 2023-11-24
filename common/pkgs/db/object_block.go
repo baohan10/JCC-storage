@@ -19,7 +19,7 @@ func (db *DB) ObjectBlock() *ObjectBlockDB {
 }
 
 func (db *ObjectBlockDB) Create(ctx SQLContext, objectID int64, index int, fileHash string) error {
-	_, err := ctx.Exec("insert into ObjectBlock(ObjectID, Index, FileHash) values(?,?,?)", objectID, index, fileHash)
+	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?)", objectID, index, fileHash)
 	return err
 }
 
