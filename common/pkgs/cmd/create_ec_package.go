@@ -193,7 +193,7 @@ func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeI
 	}
 
 	outputs := myio.ChunkedSplit(obj.File, ecInfo.ChunkSize, ecMod.EcK, myio.ChunkedSplitOption{
-		FillZeros: true,
+		PaddingZeros: true,
 	})
 	var readers []io.Reader
 	for _, o := range outputs {

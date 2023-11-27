@@ -8,10 +8,10 @@ type EC struct {
 	ID        int64 `json:"id"`
 	K         int   `json:"k"`
 	N         int   `json:"n"`
-	ChunkSize int64 `json:"chunkSize"`
+	ChunkSize int   `json:"chunkSize"`
 }
 
-func NewEc(id int64, k int, n int, chunkSize int64) EC {
+func NewEc(id int64, k int, n int, chunkSize int) EC {
 	return EC{
 		ID:        id,
 		K:         k,

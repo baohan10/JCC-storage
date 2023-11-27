@@ -185,7 +185,7 @@ func PackageUpdateRepPackage(ctx CommandContext, packageID int64, rootPath strin
 	}
 }
 
-func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string, chunkSize int64, nodeAffinity []int64) error {
+func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string, chunkSize int, nodeAffinity []int64) error {
 	rootPath = filepath.Clean(rootPath)
 
 	var uploadFilePathes []string
