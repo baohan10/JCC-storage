@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
@@ -105,18 +104,28 @@ func (s *AgentStream) IPFSWrite(resultKey string) {
 	})
 }
 
-func (s *AgentStream) GRPCSend(node model.Node) *AgentStream {
-	agtStr := &AgentStream{
-		owner: s.owner.owner.AtAgent(node),
-		info:  s.info,
+func (b *AgentStream) ChunkSplit(chunkSize int, streamCount int, paddingZeros bool) *MultiStream {
+	mstr := &MultiStream{}
+
+	var outputStrIDs []ioswitch.StreamID
+	for i := 0; i < streamCount; i++ {
+		info := b.owner.owner.newStream()
+		mstr.Streams = append(mstr.Streams, &AgentStream{
+			owner: b.owner,
+			info:  info,
+		})
+		outputStrIDs = append(outputStrIDs, info.ID)
 	}
 
-	s.owner.ops = append(s.owner.ops, &ops.GRPCSend{
-		StreamID: s.info.ID,
-		Node:     node,
+	b.owner.ops = append(b.owner.ops, &ops.ChunkedSplit{
+		InputID:      b.info.ID,
+		OutputIDs:    outputStrIDs,
+		ChunkSize:    chunkSize,
+		StreamCount:  streamCount,
+		PaddingZeros: paddingZeros,
 	})
 
-	return agtStr
+	return mstr
 }
 
 func (s *AgentStream) ToExecutor() *ToExecutorStream {
@@ -132,20 +141,6 @@ type AgentPlanBuilder struct {
 	ops   []ioswitch.Op
 }
 
-func (b *AgentPlanBuilder) GRCPFetch(node model.Node) *AgentStream {
-	agtStr := &AgentStream{
-		owner: b,
-		info:  b.owner.newStream(),
-	}
-
-	b.ops = append(b.ops, &ops.GRPCFetch{
-		StreamID: agtStr.info.ID,
-		Node:     node,
-	})
-
-	return agtStr
-}
-
 func (b *AgentPlanBuilder) IPFSRead(fileHash string) *AgentStream {
 	agtStr := &AgentStream{
 		owner: b,
@@ -158,35 +153,6 @@ func (b *AgentPlanBuilder) IPFSRead(fileHash string) *AgentStream {
 	})
 
 	return agtStr
-}
-
-func (b *AgentPlanBuilder) ECCompute(ec stgmod.EC, inBlockIndexes []int, outBlockIndexes []int, streams ...*AgentStream) *MultiStream {
-	mstr := &MultiStream{}
-
-	var inputStrIDs []ioswitch.StreamID
-	for _, str := range streams {
-		inputStrIDs = append(inputStrIDs, str.info.ID)
-	}
-
-	var outputStrIDs []ioswitch.StreamID
-	for i := 0; i < ec.N-ec.K; i++ {
-		info := b.owner.newStream()
-		mstr.streams[i] = &AgentStream{
-			owner: b,
-			info:  info,
-		}
-		outputStrIDs = append(outputStrIDs, info.ID)
-	}
-
-	b.ops = append(b.ops, &ops.ECCompute{
-		EC:                 ec,
-		InputIDs:           inputStrIDs,
-		OutputIDs:          outputStrIDs,
-		InputBlockIndexes:  inBlockIndexes,
-		OutputBlockIndexes: outBlockIndexes,
-	})
-
-	return mstr
 }
 
 func (b *AgentPlanBuilder) Join(length int64, streams ...*AgentStream) *AgentStream {
@@ -209,6 +175,26 @@ func (b *AgentPlanBuilder) Join(length int64, streams ...*AgentStream) *AgentStr
 	return agtStr
 }
 
+func (b *AgentPlanBuilder) ChunkJoin(chunkSize int, streams ...*AgentStream) *AgentStream {
+	agtStr := &AgentStream{
+		owner: b,
+		info:  b.owner.newStream(),
+	}
+
+	var inputStrIDs []ioswitch.StreamID
+	for _, str := range streams {
+		inputStrIDs = append(inputStrIDs, str.info.ID)
+	}
+
+	b.ops = append(b.ops, &ops.ChunkedJoin{
+		InputIDs:  inputStrIDs,
+		OutputID:  agtStr.info.ID,
+		ChunkSize: chunkSize,
+	})
+
+	return agtStr
+}
+
 func (b *AgentPlanBuilder) Build(planID ioswitch.PlanID) (AgentPlan, error) {
 	plan := ioswitch.Plan{
 		ID:  planID,
@@ -222,9 +208,13 @@ func (b *AgentPlanBuilder) Build(planID ioswitch.PlanID) (AgentPlan, error) {
 }
 
 type MultiStream struct {
-	streams []*AgentStream
+	Streams []*AgentStream
+}
+
+func (m *MultiStream) Count() int {
+	return len(m.Streams)
 }
 
 func (m *MultiStream) Stream(index int) *AgentStream {
-	return m.streams[index]
+	return m.Streams[index]
 }

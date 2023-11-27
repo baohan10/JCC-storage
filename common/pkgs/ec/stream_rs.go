@@ -12,10 +12,10 @@ type Rs struct {
 	ecN       int
 	ecK       int
 	ecP       int
-	chunkSize int64
+	chunkSize int
 }
 
-func NewRs(k int, n int, chunkSize int64) (*Rs, error) {
+func NewRs(k int, n int, chunkSize int) (*Rs, error) {
 	enc := Rs{
 		ecN:       n,
 		ecK:       k,
