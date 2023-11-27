@@ -6,7 +6,6 @@
     "agentGRPC": {
         "port": 5010
     },
-    "ecPacketSize": 10,
     "maxRepCount": 10,
     "logger": {
         "output": "stdout",

@@ -9,7 +9,6 @@
         "ip": "127.0.0.1",
         "port": 5010
     },
-    "ecPacketSize": 10,
     "tempFileLifetime": 3600,
     "logger": {
         "output": "file",

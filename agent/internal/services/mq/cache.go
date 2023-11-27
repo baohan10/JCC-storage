@@ -140,7 +140,7 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, mvPkgTask.ResultCacheInfos))
 
 	} else {
-		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs)) {
+		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
 
 			errMsg := ""
 			if tsk.Error() != nil {

@@ -17,16 +17,33 @@ create table Node (
 ) comment = '节点表';
 
 insert into
-    Node (NodeID, Name, LocalIP, ExternalIP, LocalGRPCPort, ExternalGRPCPort, LocationID, State)
+  Node (
+    NodeID,
+    Name,
+    LocalIP,
+    ExternalIP,
+    LocalGRPCPort,
+    ExternalGRPCPort,
+    LocationID,
+    State
+  )
 values
-    (1, "localhost", "localhost", "localhost", 5010, 5010, 1, "alive")
-create table Storage (
-  StorageID int not null auto_increment primary key comment '存储服务ID',
-  Name varchar(100) not null comment '存储服务名称',
-  NodeID int not null comment '存储服务所在节点的ID',
-  Directory varchar(4096) not null comment '存储服务所在节点的目录',
-  State varchar(100) comment '状态'
-) comment = "存储服务表";
+  (
+    1,
+    "localhost",
+    "localhost",
+    "localhost",
+    5010,
+    5010,
+    1,
+    "alive"
+  ) create table Storage (
+    StorageID int not null auto_increment primary key comment '存储服务ID',
+    Name varchar(100) not null comment '存储服务名称',
+    NodeID int not null comment '存储服务所在节点的ID',
+    Directory varchar(4096) not null comment '存储服务所在节点的目录',
+    State varchar(100) comment '状态'
+  ) comment = "存储服务表";
 
 insert into
   Storage (StorageID, Name, NodeID, Directory, State)
@@ -145,7 +162,7 @@ values
   (1, "Local");
 
 create table Ec (
-  EcID int not null comment '纠删码ID',
+  EcID int not null primary key comment '纠删码ID',
   Name varchar(128) not null comment '纠删码名称',
   EcK int not null comment 'ecK',
   EcN int not null comment 'ecN'

@@ -9,7 +9,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/client/internal/config"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
@@ -186,7 +185,9 @@ func PackageUpdateRepPackage(ctx CommandContext, packageID int64, rootPath strin
 	}
 }
 
-func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string, nodeAffinity []int64) error {
+func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string, chunkSize int64, nodeAffinity []int64) error {
+	rootPath = filepath.Clean(rootPath)
+
 	var uploadFilePathes []string
 	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
 		if err != nil {
@@ -209,14 +210,14 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, cdssdk.NewECRedundancyInfo(ecName, config.Cfg().ECPacketSize), nodeAff)
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, cdssdk.NewECRedundancyInfo(ecName, chunkSize), nodeAff)
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
 
 	for {
-		complete, uploadObjectResult, err := ctx.Cmdline.Svc.PackageSvc().WaitCreatingRepPackage(taskID, time.Second*5)
+		complete, uploadObjectResult, err := ctx.Cmdline.Svc.PackageSvc().WaitCreatingECPackage(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("uploading ec package: %w", err)
@@ -224,12 +225,11 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 
 			tb := table.NewWriter()
 
-			tb.AppendHeader(table.Row{"Path", "ObjectID", "FileHash"})
+			tb.AppendHeader(table.Row{"Path", "ObjectID"})
 			for i := 0; i < len(uploadObjectResult.ObjectResults); i++ {
 				tb.AppendRow(table.Row{
 					uploadObjectResult.ObjectResults[i].Info.Path,
 					uploadObjectResult.ObjectResults[i].ObjectID,
-					uploadObjectResult.ObjectResults[i].FileHash,
 				})
 			}
 			fmt.Print(tb.Render())
@@ -319,9 +319,9 @@ func init() {
 
 	commands.MustAdd(PackageUpdateRepPackage, "pkg", "update", "rep")
 
-	commands.MustAdd(PackageUploadRepPackage, "pkg", "new", "ec")
+	commands.MustAdd(PackageUploadECPackage, "pkg", "new", "ec")
 
-	commands.MustAdd(PackageUpdateRepPackage, "pkg", "update", "ec")
+	commands.MustAdd(PackageUpdateECPackage, "pkg", "update", "ec")
 
 	commands.MustAdd(PackageDeletePackage, "pkg", "delete")
 

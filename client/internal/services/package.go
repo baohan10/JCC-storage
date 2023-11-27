@@ -172,10 +172,10 @@ func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, 
 	return tsk.ID(), nil
 }
 
-func (svc *PackageService) WaitCreatingECPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreateRepPackageResult, error) {
+func (svc *PackageService) WaitCreatingECPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreateECPackageResult, error) {
 	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		cteatePkgTask := tsk.Body().(*mytask.CreateRepPackage)
+		cteatePkgTask := tsk.Body().(*mytask.CreateECPackage)
 		return true, cteatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil

@@ -23,6 +23,8 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	Agent_SendIPFSFile_FullMethodName = "/Agent/SendIPFSFile"
 	Agent_GetIPFSFile_FullMethodName  = "/Agent/GetIPFSFile"
+	Agent_SendStream_FullMethodName   = "/Agent/SendStream"
+	Agent_FetchStream_FullMethodName  = "/Agent/FetchStream"
 )
 
 // AgentClient is the client API for Agent service.
@@ -31,6 +33,8 @@ const (
 type AgentClient interface {
 	SendIPFSFile(ctx context.Context, opts ...grpc.CallOption) (Agent_SendIPFSFileClient, error)
 	GetIPFSFile(ctx context.Context, in *GetIPFSFileReq, opts ...grpc.CallOption) (Agent_GetIPFSFileClient, error)
+	SendStream(ctx context.Context, opts ...grpc.CallOption) (Agent_SendStreamClient, error)
+	FetchStream(ctx context.Context, in *FetchStreamReq, opts ...grpc.CallOption) (Agent_FetchStreamClient, error)
 }
 
 type agentClient struct {
@@ -107,12 +111,80 @@ func (x *agentGetIPFSFileClient) Recv() (*FileDataPacket, error) {
 	return m, nil
 }
 
+func (c *agentClient) SendStream(ctx context.Context, opts ...grpc.CallOption) (Agent_SendStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[2], Agent_SendStream_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &agentSendStreamClient{stream}
+	return x, nil
+}
+
+type Agent_SendStreamClient interface {
+	Send(*StreamDataPacket) error
+	CloseAndRecv() (*SendStreamResp, error)
+	grpc.ClientStream
+}
+
+type agentSendStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *agentSendStreamClient) Send(m *StreamDataPacket) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *agentSendStreamClient) CloseAndRecv() (*SendStreamResp, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(SendStreamResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *agentClient) FetchStream(ctx context.Context, in *FetchStreamReq, opts ...grpc.CallOption) (Agent_FetchStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[3], Agent_FetchStream_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &agentFetchStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Agent_FetchStreamClient interface {
+	Recv() (*StreamDataPacket, error)
+	grpc.ClientStream
+}
+
+type agentFetchStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *agentFetchStreamClient) Recv() (*StreamDataPacket, error) {
+	m := new(StreamDataPacket)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // AgentServer is the server API for Agent service.
 // All implementations must embed UnimplementedAgentServer
 // for forward compatibility
 type AgentServer interface {
 	SendIPFSFile(Agent_SendIPFSFileServer) error
 	GetIPFSFile(*GetIPFSFileReq, Agent_GetIPFSFileServer) error
+	SendStream(Agent_SendStreamServer) error
+	FetchStream(*FetchStreamReq, Agent_FetchStreamServer) error
 	mustEmbedUnimplementedAgentServer()
 }
 
@@ -125,6 +197,12 @@ func (UnimplementedAgentServer) SendIPFSFile(Agent_SendIPFSFileServer) error {
 }
 func (UnimplementedAgentServer) GetIPFSFile(*GetIPFSFileReq, Agent_GetIPFSFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetIPFSFile not implemented")
+}
+func (UnimplementedAgentServer) SendStream(Agent_SendStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method SendStream not implemented")
+}
+func (UnimplementedAgentServer) FetchStream(*FetchStreamReq, Agent_FetchStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method FetchStream not implemented")
 }
 func (UnimplementedAgentServer) mustEmbedUnimplementedAgentServer() {}
 
@@ -186,6 +264,53 @@ func (x *agentGetIPFSFileServer) Send(m *FileDataPacket) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Agent_SendStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServer).SendStream(&agentSendStreamServer{stream})
+}
+
+type Agent_SendStreamServer interface {
+	SendAndClose(*SendStreamResp) error
+	Recv() (*StreamDataPacket, error)
+	grpc.ServerStream
+}
+
+type agentSendStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *agentSendStreamServer) SendAndClose(m *SendStreamResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *agentSendStreamServer) Recv() (*StreamDataPacket, error) {
+	m := new(StreamDataPacket)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _Agent_FetchStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(FetchStreamReq)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServer).FetchStream(m, &agentFetchStreamServer{stream})
+}
+
+type Agent_FetchStreamServer interface {
+	Send(*StreamDataPacket) error
+	grpc.ServerStream
+}
+
+type agentFetchStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *agentFetchStreamServer) Send(m *StreamDataPacket) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // Agent_ServiceDesc is the grpc.ServiceDesc for Agent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +327,16 @@ var Agent_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetIPFSFile",
 			Handler:       _Agent_GetIPFSFile_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "SendStream",
+			Handler:       _Agent_SendStream_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "FetchStream",
+			Handler:       _Agent_FetchStream_Handler,
 			ServerStreams: true,
 		},
 	},
