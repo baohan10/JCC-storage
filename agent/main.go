@@ -63,7 +63,7 @@ func main() {
 
 	//处置协调端、客户端命令（可多建几个）
 	wg := sync.WaitGroup{}
-	wg.Add(5)
+	wg.Add(4)
 
 	taskMgr := task.NewManager(distlock, &sw)
 
@@ -79,7 +79,7 @@ func main() {
 
 	go serveAgentServer(agtSvr, &wg)
 
-	go reportStatus(&wg) //网络延迟感知
+	// go reportStatus(&wg) //网络延迟感知
 
 	//面向客户端收发数据
 	listenAddr := config.Cfg().GRPC.MakeListenAddress()
