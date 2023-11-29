@@ -44,7 +44,7 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 		Metadata().
 		// 用于查询可用的上传节点
 		Node().ReadAny().
-		// 用于创建包信息
+		// 用于修改包信息
 		Package().WriteOne(t.packageID).
 		// 用于创建包中的文件的信息
 		Object().CreateAny().
