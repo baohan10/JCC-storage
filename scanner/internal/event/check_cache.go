@@ -5,6 +5,7 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -15,7 +16,7 @@ type CheckCache struct {
 	*scevt.CheckCache
 }
 
-func NewCheckCache(nodeID int64) *CheckCache {
+func NewCheckCache(nodeID cdssdk.NodeID) *CheckCache {
 	return &CheckCache{
 		CheckCache: scevt.NewCheckCache(nodeID),
 	}

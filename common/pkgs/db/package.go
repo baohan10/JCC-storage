@@ -8,8 +8,6 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/common/utils/serder"
-
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
@@ -22,35 +20,35 @@ func (db *DB) Package() *PackageDB {
 	return &PackageDB{DB: db}
 }
 
-func (db *PackageDB) GetByID(ctx SQLContext, packageID int64) (model.Package, error) {
+func (db *PackageDB) GetByID(ctx SQLContext, packageID cdssdk.PackageID) (model.Package, error) {
 	var ret model.Package
 	err := sqlx.Get(ctx, &ret, "select * from Package where PackageID = ?", packageID)
 	return ret, err
 }
 
-func (db *PackageDB) GetByName(ctx SQLContext, bucketID int64, name string) (model.Package, error) {
+func (db *PackageDB) GetByName(ctx SQLContext, bucketID cdssdk.BucketID, name string) (model.Package, error) {
 	var ret model.Package
 	err := sqlx.Get(ctx, &ret, "select * from Package where BucketID = ? and Name = ?", bucketID, name)
 	return ret, err
 }
 
-func (*PackageDB) BatchGetAllPackageIDs(ctx SQLContext, start int, count int) ([]int64, error) {
-	var ret []int64
+func (*PackageDB) BatchGetAllPackageIDs(ctx SQLContext, start int, count int) ([]cdssdk.PackageID, error) {
+	var ret []cdssdk.PackageID
 	err := sqlx.Select(ctx, &ret, "select PackageID from Package limit ?, ?", start, count)
 	return ret, err
 }
 
-func (db *PackageDB) GetBucketPackages(ctx SQLContext, userID int64, bucketID int64) ([]model.Package, error) {
+func (db *PackageDB) GetBucketPackages(ctx SQLContext, userID cdssdk.UserID, bucketID cdssdk.BucketID) ([]model.Package, error) {
 	var ret []model.Package
 	err := sqlx.Select(ctx, &ret, "select Package.* from UserBucket, Package where UserID = ? and UserBucket.BucketID = ? and UserBucket.BucketID = Package.BucketID", userID, bucketID)
 	return ret, err
 }
 
 // IsAvailable 判断一个用户是否拥有指定对象
-func (db *PackageDB) IsAvailable(ctx SQLContext, userID int64, packageID int64) (bool, error) {
-	var objID int64
+func (db *PackageDB) IsAvailable(ctx SQLContext, userID cdssdk.UserID, packageID cdssdk.PackageID) (bool, error) {
+	var pkgID cdssdk.PackageID
 	// 先根据PackageID找到Package，然后判断此Package所在的Bucket是不是归此用户所有
-	err := sqlx.Get(ctx, &objID,
+	err := sqlx.Get(ctx, &pkgID,
 		"select Package.PackageID from Package, UserBucket where "+
 			"Package.PackageID = ? and "+
 			"Package.BucketID = UserBucket.BucketID and "+
@@ -69,7 +67,7 @@ func (db *PackageDB) IsAvailable(ctx SQLContext, userID int64, packageID int64) 
 }
 
 // GetUserPackage 获得Package，如果用户没有权限访问，则不会获得结果
-func (db *PackageDB) GetUserPackage(ctx SQLContext, userID int64, packageID int64) (model.Package, error) {
+func (db *PackageDB) GetUserPackage(ctx SQLContext, userID cdssdk.UserID, packageID cdssdk.PackageID) (model.Package, error) {
 	var ret model.Package
 	err := sqlx.Get(ctx, &ret,
 		"select Package.* from Package, UserBucket where"+
@@ -80,7 +78,7 @@ func (db *PackageDB) GetUserPackage(ctx SQLContext, userID int64, packageID int6
 	return ret, err
 }
 
-func (db *PackageDB) Create(ctx SQLContext, bucketID int64, name string, redundancy cdssdk.TypedRedundancyInfo) (int64, error) {
+func (db *PackageDB) Create(ctx SQLContext, bucketID cdssdk.BucketID, name string) (cdssdk.PackageID, error) {
 	// 根据packagename和bucketid查询，若不存在则插入，若存在则返回错误
 	var packageID int64
 	err := sqlx.Get(ctx, &packageID, "select PackageID from Package where Name = ? AND BucketID = ?", name, bucketID)
@@ -93,13 +91,8 @@ func (db *PackageDB) Create(ctx SQLContext, bucketID int64, name string, redunda
 		return 0, fmt.Errorf("query Package by PackageName and BucketID failed, err: %w", err)
 	}
 
-	redundancyJSON, err := serder.ObjectToJSON(redundancy)
-	if err != nil {
-		return 0, fmt.Errorf("redundancy to json: %w", err)
-	}
-
-	sql := "insert into Package(Name, BucketID, State, Redundancy) values(?,?,?,?)"
-	r, err := ctx.Exec(sql, name, bucketID, consts.PackageStateNormal, redundancyJSON)
+	sql := "insert into Package(Name, BucketID, State) values(?,?,?)"
+	r, err := ctx.Exec(sql, name, bucketID, consts.PackageStateNormal)
 	if err != nil {
 		return 0, fmt.Errorf("insert package failed, err: %w", err)
 	}
@@ -109,11 +102,11 @@ func (db *PackageDB) Create(ctx SQLContext, bucketID int64, name string, redunda
 		return 0, fmt.Errorf("get id of inserted package failed, err: %w", err)
 	}
 
-	return packageID, nil
+	return cdssdk.PackageID(packageID), nil
 }
 
 // SoftDelete 设置一个对象被删除，并将相关数据删除
-func (db *PackageDB) SoftDelete(ctx SQLContext, packageID int64) error {
+func (db *PackageDB) SoftDelete(ctx SQLContext, packageID cdssdk.PackageID) error {
 	obj, err := db.GetByID(ctx, packageID)
 	if err != nil {
 		return fmt.Errorf("get package failed, err: %w", err)
@@ -130,16 +123,9 @@ func (db *PackageDB) SoftDelete(ctx SQLContext, packageID int64) error {
 		return fmt.Errorf("change package state failed, err: %w", err)
 	}
 
-	if obj.Redundancy.IsRepInfo() {
-		err = db.ObjectRep().DeleteInPackage(ctx, packageID)
-		if err != nil {
-			return fmt.Errorf("delete from object rep failed, err: %w", err)
-		}
-	} else {
-		err = db.ObjectBlock().DeleteInPackage(ctx, packageID)
-		if err != nil {
-			return fmt.Errorf("delete from object rep failed, err: %w", err)
-		}
+	err = db.ObjectBlock().DeleteInPackage(ctx, packageID)
+	if err != nil {
+		return fmt.Errorf("delete from object rep failed, err: %w", err)
 	}
 
 	if err := db.Object().DeleteInPackage(ctx, packageID); err != nil {
@@ -155,7 +141,7 @@ func (db *PackageDB) SoftDelete(ctx SQLContext, packageID int64) error {
 }
 
 // DeleteUnused 删除一个已经是Deleted状态，且不再被使用的对象。目前可能被使用的地方只有StoragePackage
-func (PackageDB) DeleteUnused(ctx SQLContext, packageID int64) error {
+func (PackageDB) DeleteUnused(ctx SQLContext, packageID cdssdk.PackageID) error {
 	_, err := ctx.Exec("delete from Package where PackageID = ? and State = ? and "+
 		"not exists(select StorageID from StoragePackage where PackageID = ?)",
 		packageID,
@@ -166,7 +152,7 @@ func (PackageDB) DeleteUnused(ctx SQLContext, packageID int64) error {
 	return err
 }
 
-func (*PackageDB) ChangeState(ctx SQLContext, packageID int64, state string) error {
+func (*PackageDB) ChangeState(ctx SQLContext, packageID cdssdk.PackageID, state string) error {
 	_, err := ctx.Exec("update Package set State = ? where PackageID = ?", state, packageID)
 	return err
 }

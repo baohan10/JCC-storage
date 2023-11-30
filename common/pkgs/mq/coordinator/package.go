@@ -4,6 +4,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -12,9 +13,7 @@ type PackageService interface {
 
 	CreatePackage(msg *CreatePackage) (*CreatePackageResp, *mq.CodeMessage)
 
-	UpdateRepPackage(msg *UpdateRepPackage) (*UpdateRepPackageResp, *mq.CodeMessage)
-
-	UpdateECPackage(msg *UpdateECPackage) (*UpdateECPackageResp, *mq.CodeMessage)
+	UpdateECPackage(msg *UpdatePackage) (*UpdatePackageResp, *mq.CodeMessage)
 
 	DeletePackage(msg *DeletePackage) (*DeletePackageResp, *mq.CodeMessage)
 
@@ -28,15 +27,15 @@ var _ = Register(Service.GetPackage)
 
 type GetPackage struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type GetPackageResp struct {
 	mq.MessageBodyBase
 	model.Package
 }
 
-func NewGetPackage(userID int64, packageID int64) *GetPackage {
+func NewGetPackage(userID cdssdk.UserID, packageID cdssdk.PackageID) *GetPackage {
 	return &GetPackage{
 		UserID:    userID,
 		PackageID: packageID,
@@ -56,25 +55,23 @@ var _ = Register(Service.CreatePackage)
 
 type CreatePackage struct {
 	mq.MessageBodyBase
-	UserID     int64                      `json:"userID"`
-	BucketID   int64                      `json:"bucketID"`
-	Name       string                     `json:"name"`
-	Redundancy cdssdk.TypedRedundancyInfo `json:"redundancy"`
+	UserID   cdssdk.UserID   `json:"userID"`
+	BucketID cdssdk.BucketID `json:"bucketID"`
+	Name     string          `json:"name"`
 }
 type CreatePackageResp struct {
 	mq.MessageBodyBase
-	PackageID int64 `json:"packageID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 
-func NewCreatePackage(userID int64, bucketID int64, name string, redundancy cdssdk.TypedRedundancyInfo) *CreatePackage {
+func NewCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string) *CreatePackage {
 	return &CreatePackage{
-		UserID:     userID,
-		BucketID:   bucketID,
-		Name:       name,
-		Redundancy: redundancy,
+		UserID:   userID,
+		BucketID: bucketID,
+		Name:     name,
 	}
 }
-func NewCreatePackageResp(packageID int64) *CreatePackageResp {
+func NewCreatePackageResp(packageID cdssdk.PackageID) *CreatePackageResp {
 	return &CreatePackageResp{
 		PackageID: packageID,
 	}
@@ -83,85 +80,44 @@ func (client *Client) CreatePackage(msg *CreatePackage) (*CreatePackageResp, err
 	return mq.Request(Service.CreatePackage, client.rabbitCli, msg)
 }
 
-// 更新Rep备份模式的Package
-var _ = Register(Service.UpdateRepPackage)
-
-type UpdateRepPackage struct {
-	mq.MessageBodyBase
-	PackageID int64              `json:"packageID"`
-	Adds      []AddRepObjectInfo `json:"objects"`
-	Deletes   []int64            `json:"deletes"`
-}
-type UpdateRepPackageResp struct {
-	mq.MessageBodyBase
-}
-type AddRepObjectInfo struct {
-	Path     string  `json:"path"`
-	Size     int64   `json:"size,string"`
-	FileHash string  `json:"fileHash"`
-	NodeIDs  []int64 `json:"nodeIDs"`
-}
-
-func NewUpdateRepPackage(packageID int64, adds []AddRepObjectInfo, deletes []int64) *UpdateRepPackage {
-	return &UpdateRepPackage{
-		PackageID: packageID,
-		Adds:      adds,
-		Deletes:   deletes,
-	}
-}
-func NewUpdateRepPackageResp() *UpdateRepPackageResp {
-	return &UpdateRepPackageResp{}
-}
-func NewAddRepObjectInfo(path string, size int64, fileHash string, nodeIDs []int64) AddRepObjectInfo {
-	return AddRepObjectInfo{
-		Path:     path,
-		Size:     size,
-		FileHash: fileHash,
-		NodeIDs:  nodeIDs,
-	}
-}
-func (client *Client) UpdateRepPackage(msg *UpdateRepPackage) (*UpdateRepPackageResp, error) {
-	return mq.Request(Service.UpdateRepPackage, client.rabbitCli, msg)
-}
-
 // 更新EC备份模式的Package
 var _ = Register(Service.UpdateECPackage)
 
-type UpdateECPackage struct {
+type UpdatePackage struct {
 	mq.MessageBodyBase
-	PackageID int64             `json:"packageID"`
-	Adds      []AddECObjectInfo `json:"objects"`
-	Deletes   []int64           `json:"deletes"`
+	PackageID cdssdk.PackageID  `json:"packageID"`
+	Adds      []AddObjectInfo   `json:"objects"`
+	Deletes   []cdssdk.ObjectID `json:"deletes"`
 }
-type UpdateECPackageResp struct {
+type UpdatePackageResp struct {
 	mq.MessageBodyBase
 }
-type AddECObjectInfo struct {
-	Path       string   `json:"path"`
-	Size       int64    `json:"size,string"`
-	FileHashes []string `json:"fileHashes"`
-	NodeIDs    []int64  `json:"nodeIDs"`
+type AddObjectInfo struct {
+	Path       string                   `json:"path"`
+	Size       int64                    `json:"size,string"`
+	Redundancy cdssdk.Redundancy        `json:"redundancy"`
+	Blocks     []stgmod.ObjectBlockData `json:"blocks"`
 }
 
-func NewUpdateECPackage(packageID int64, adds []AddECObjectInfo, deletes []int64) *UpdateECPackage {
-	return &UpdateECPackage{
+func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes []cdssdk.ObjectID) *UpdatePackage {
+	return &UpdatePackage{
 		PackageID: packageID,
 		Adds:      adds,
 		Deletes:   deletes,
 	}
 }
-func NewUpdateECPackageResp() *UpdateECPackageResp {
-	return &UpdateECPackageResp{}
+func NewUpdatePackageResp() *UpdatePackageResp {
+	return &UpdatePackageResp{}
 }
-func NewAddECObjectInfo(path string, size int64, fileHashes []string, nodeIDs []int64) AddECObjectInfo {
-	return AddECObjectInfo{
+func NewAddObjectInfo(path string, size int64, redundancy cdssdk.Redundancy, blocks []stgmod.ObjectBlockData) AddObjectInfo {
+	return AddObjectInfo{
 		Path:       path,
 		Size:       size,
-		FileHashes: fileHashes,
-		NodeIDs:    nodeIDs,
+		Redundancy: redundancy,
+		Blocks:     blocks,
 	}
 }
-func (client *Client) UpdateECPackage(msg *UpdateECPackage) (*UpdateECPackageResp, error) {
+func (client *Client) UpdateECPackage(msg *UpdatePackage) (*UpdatePackageResp, error) {
 	return mq.Request(Service.UpdateECPackage, client.rabbitCli, msg)
 }
 
@@ -170,14 +126,14 @@ var _ = Register(Service.DeletePackage)
 
 type DeletePackage struct {
 	mq.MessageBodyBase
-	UserID    int64 `db:"userID"`
-	PackageID int64 `db:"packageID"`
+	UserID    cdssdk.UserID    `db:"userID"`
+	PackageID cdssdk.PackageID `db:"packageID"`
 }
 type DeletePackageResp struct {
 	mq.MessageBodyBase
 }
 
-func NewDeletePackage(userID int64, packageID int64) *DeletePackage {
+func NewDeletePackage(userID cdssdk.UserID, packageID cdssdk.PackageID) *DeletePackage {
 	return &DeletePackage{
 		UserID:    userID,
 		PackageID: packageID,
@@ -195,8 +151,8 @@ var _ = Register(Service.GetPackageCachedNodes)
 
 type GetPackageCachedNodes struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 
 type PackageCachedNodeInfo struct {
@@ -210,7 +166,7 @@ type GetPackageCachedNodesResp struct {
 	cdssdk.PackageCachingInfo
 }
 
-func NewGetPackageCachedNodes(userID int64, packageID int64) *GetPackageCachedNodes {
+func NewGetPackageCachedNodes(userID cdssdk.UserID, packageID cdssdk.PackageID) *GetPackageCachedNodes {
 	return &GetPackageCachedNodes{
 		UserID:    userID,
 		PackageID: packageID,
@@ -236,23 +192,23 @@ var _ = Register(Service.GetPackageLoadedNodes)
 
 type GetPackageLoadedNodes struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 
 type GetPackageLoadedNodesResp struct {
 	mq.MessageBodyBase
-	NodeIDs []int64 `json:"nodeIDs"`
+	NodeIDs []cdssdk.NodeID `json:"nodeIDs"`
 }
 
-func NewGetPackageLoadedNodes(userID int64, packageID int64) *GetPackageLoadedNodes {
+func NewGetPackageLoadedNodes(userID cdssdk.UserID, packageID cdssdk.PackageID) *GetPackageLoadedNodes {
 	return &GetPackageLoadedNodes{
 		UserID:    userID,
 		PackageID: packageID,
 	}
 }
 
-func NewGetPackageLoadedNodesResp(nodeIDs []int64) *GetPackageLoadedNodesResp {
+func NewGetPackageLoadedNodesResp(nodeIDs []cdssdk.NodeID) *GetPackageLoadedNodesResp {
 	return &GetPackageLoadedNodesResp{
 		NodeIDs: nodeIDs,
 	}

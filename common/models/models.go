@@ -1,50 +1,24 @@
 package stgmod
 
-import "gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+import (
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+)
 
 /// TODO 将分散在各处的公共结构体定义集中到这里来
 
-type EC struct {
-	ID        int64 `json:"id"`
-	K         int   `json:"k"`
-	N         int   `json:"n"`
-	ChunkSize int   `json:"chunkSize"`
-}
-
-func NewEc(id int64, k int, n int, chunkSize int) EC {
-	return EC{
-		ID:        id,
-		K:         k,
-		N:         n,
-		ChunkSize: chunkSize,
-	}
-}
-
 type ObjectBlockData struct {
-	Index    int     `json:"index"`
-	FileHash string  `json:"fileHash"`
-	NodeIDs  []int64 `json:"nodeIDs"`
+	Index         int             `json:"index"`
+	FileHash      string          `json:"fileHash"`
+	NodeID        cdssdk.NodeID   `json:"nodeID"`
+	CachedNodeIDs []cdssdk.NodeID `json:"nodeIDs"`
 }
 
-func NewObjectBlockData(index int, fileHash string, nodeIDs []int64) ObjectBlockData {
+func NewObjectBlockData(index int, fileHash string, nodeID cdssdk.NodeID, cachedNodeIDs []cdssdk.NodeID) ObjectBlockData {
 	return ObjectBlockData{
-		Index:    index,
-		FileHash: fileHash,
-		NodeIDs:  nodeIDs,
-	}
-}
-
-type ObjectRepData struct {
-	Object   model.Object `json:"object"`
-	FileHash string       `json:"fileHash"`
-	NodeIDs  []int64      `json:"nodeIDs"`
-}
-
-func NewObjectRepData(object model.Object, fileHash string, nodeIDs []int64) ObjectRepData {
-	return ObjectRepData{
-		Object:   object,
-		FileHash: fileHash,
-		NodeIDs:  nodeIDs,
+		Index:         index,
+		FileHash:      fileHash,
+		CachedNodeIDs: cachedNodeIDs,
 	}
 }
 
@@ -61,7 +35,7 @@ func NewObjectECData(object model.Object, blocks []ObjectBlockData) ObjectECData
 }
 
 type LocalMachineInfo struct {
-	NodeID     *int64 `json:"nodeID"`
-	ExternalIP string `json:"externalIP"`
-	LocalIP    string `json:"localIP"`
+	NodeID     *cdssdk.NodeID `json:"nodeID"`
+	ExternalIP string         `json:"externalIP"`
+	LocalIP    string         `json:"localIP"`
 }

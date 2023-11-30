@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/task"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
@@ -16,7 +17,7 @@ type UpdateECPackage struct {
 	Result *UpdateECPackageResult
 }
 
-func NewUpdateECPackage(userID int64, packageID int64, objectIter iterator.UploadingObjectIterator) *UpdateECPackage {
+func NewUpdateECPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, objectIter iterator.UploadingObjectIterator) *UpdateECPackage {
 	return &UpdateECPackage{
 		cmd: *cmd.NewUpdateECPackage(userID, packageID, objectIter),
 	}

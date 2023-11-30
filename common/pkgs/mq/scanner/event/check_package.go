@@ -1,11 +1,13 @@
 package event
 
+import cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 type CheckPackage struct {
 	EventBase
-	PackageIDs []int64 `json:"packageIDs"`
+	PackageIDs []cdssdk.PackageID `json:"packageIDs"`
 }
 
-func NewCheckPackage(packageIDs []int64) *CheckPackage {
+func NewCheckPackage(packageIDs []cdssdk.PackageID) *CheckPackage {
 	return &CheckPackage{
 		PackageIDs: packageIDs,
 	}

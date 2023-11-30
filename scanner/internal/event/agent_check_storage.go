@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -19,7 +20,7 @@ type AgentCheckStorage struct {
 	*scevt.AgentCheckStorage
 }
 
-func NewAgentCheckStorage(storageID int64, packageIDs []int64) *AgentCheckStorage {
+func NewAgentCheckStorage(storageID cdssdk.StorageID, packageIDs []cdssdk.PackageID) *AgentCheckStorage {
 	return &AgentCheckStorage{
 		AgentCheckStorage: scevt.NewAgentCheckStorage(storageID, packageIDs),
 	}
@@ -157,7 +158,7 @@ func (t *AgentCheckStorage) startCheck(execCtx ExecuteContext, stg model.Storage
 	}
 
 	// 根据返回结果修改数据库
-	var chkObjIDs []int64
+	var chkObjIDs []cdssdk.PackageID
 	for _, entry := range checkResp.Entries {
 		switch entry.Operation {
 		case agtmq.CHECK_STORAGE_RESP_OP_DELETE:

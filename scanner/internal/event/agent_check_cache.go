@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -19,7 +20,7 @@ type AgentCheckCache struct {
 	*scevt.AgentCheckCache
 }
 
-func NewAgentCheckCache(nodeID int64, fileHashes []string) *AgentCheckCache {
+func NewAgentCheckCache(nodeID cdssdk.NodeID, fileHashes []string) *AgentCheckCache {
 	return &AgentCheckCache{
 		AgentCheckCache: scevt.NewAgentCheckCache(nodeID, fileHashes),
 	}

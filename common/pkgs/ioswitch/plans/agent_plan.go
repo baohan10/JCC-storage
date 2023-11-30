@@ -1,7 +1,7 @@
 package plans
 
 import (
-	stgmod "gitlink.org.cn/cloudream/storage/common/models"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
@@ -102,7 +102,7 @@ func (b *AgentStream) FileWrite(filePath string) {
 	})
 }
 
-func (b *AgentPlanBuilder) ECCompute(ec stgmod.EC, inBlockIndexes []int, outBlockIndexes []int, streams ...*AgentStream) *MultiStream {
+func (b *AgentPlanBuilder) ECCompute(ec cdssdk.ECRedundancy, inBlockIndexes []int, outBlockIndexes []int, streams ...*AgentStream) *MultiStream {
 	mstr := &MultiStream{}
 
 	var inputStrIDs []ioswitch.StreamID
@@ -131,7 +131,7 @@ func (b *AgentPlanBuilder) ECCompute(ec stgmod.EC, inBlockIndexes []int, outBloc
 	return mstr
 }
 
-func (b *AgentPlanBuilder) ECReconstruct(ec stgmod.EC, inBlockIndexes []int, streams ...*AgentStream) *MultiStream {
+func (b *AgentPlanBuilder) ECReconstruct(ec cdssdk.ECRedundancy, inBlockIndexes []int, streams ...*AgentStream) *MultiStream {
 	mstr := &MultiStream{}
 
 	var inputStrIDs []ioswitch.StreamID

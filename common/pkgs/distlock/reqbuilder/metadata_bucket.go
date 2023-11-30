@@ -2,6 +2,7 @@ package reqbuilder
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
@@ -13,7 +14,7 @@ func (b *MetadataLockReqBuilder) Bucket() *MetadataBucketLockReqBuilder {
 	return &MetadataBucketLockReqBuilder{MetadataLockReqBuilder: b}
 }
 
-func (b *MetadataBucketLockReqBuilder) ReadOne(bucketID int64) *MetadataBucketLockReqBuilder {
+func (b *MetadataBucketLockReqBuilder) ReadOne(bucketID cdssdk.BucketID) *MetadataBucketLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("Bucket"),
 		Name:   lockprovider.METADATA_ELEMENT_READ_LOCK,
@@ -21,7 +22,7 @@ func (b *MetadataBucketLockReqBuilder) ReadOne(bucketID int64) *MetadataBucketLo
 	})
 	return b
 }
-func (b *MetadataBucketLockReqBuilder) WriteOne(bucketID int64) *MetadataBucketLockReqBuilder {
+func (b *MetadataBucketLockReqBuilder) WriteOne(bucketID cdssdk.BucketID) *MetadataBucketLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("Bucket"),
 		Name:   lockprovider.METADATA_ELEMENT_WRITE_LOCK,
@@ -29,7 +30,7 @@ func (b *MetadataBucketLockReqBuilder) WriteOne(bucketID int64) *MetadataBucketL
 	})
 	return b
 }
-func (b *MetadataBucketLockReqBuilder) CreateOne(userID int64, bucketName string) *MetadataBucketLockReqBuilder {
+func (b *MetadataBucketLockReqBuilder) CreateOne(userID cdssdk.UserID, bucketName string) *MetadataBucketLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("Bucket"),
 		Name:   lockprovider.METADATA_ELEMENT_CREATE_LOCK,

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/task"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -13,14 +14,14 @@ import (
 
 // TODO 可以考虑不用Task来实现这些逻辑
 type StorageLoadPackage struct {
-	userID    int64
-	packageID int64
-	storageID int64
+	userID    cdssdk.UserID
+	packageID cdssdk.PackageID
+	storageID cdssdk.StorageID
 
 	ResultFullPath string
 }
 
-func NewStorageLoadPackage(userID int64, packageID int64, storageID int64) *StorageLoadPackage {
+func NewStorageLoadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, storageID cdssdk.StorageID) *StorageLoadPackage {
 	return &StorageLoadPackage{
 		userID:    userID,
 		packageID: packageID,
@@ -39,7 +40,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	mutex, err := reqbuilder.NewBuilder().
 		Metadata().
 		// 用于判断用户是否有Storage权限
-		UserStorage().ReadOne(t.packageID, t.storageID).
+		UserStorage().ReadOne(t.userID, t.storageID).
 		// 用于判断用户是否有对象权限
 		UserBucket().ReadAny().
 		// 用于读取包信息

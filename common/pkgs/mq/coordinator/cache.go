@@ -16,15 +16,15 @@ var _ = Register(Service.CachePackageMoved)
 
 type CachePackageMoved struct {
 	mq.MessageBodyBase
-	PackageID  int64    `json:"packageID"`
-	NodeID     int64    `json:"nodeID"`
-	FileHashes []string `json:"fileHashes"`
+	PackageID  cdssdk.PackageID `json:"packageID"`
+	NodeID     cdssdk.NodeID    `json:"nodeID"`
+	FileHashes []string         `json:"fileHashes"`
 }
 type CachePackageMovedResp struct {
 	mq.MessageBodyBase
 }
 
-func NewCachePackageMoved(packageID int64, nodeID int64, fileHashes []string) *CachePackageMoved {
+func NewCachePackageMoved(packageID cdssdk.PackageID, nodeID cdssdk.NodeID, fileHashes []string) *CachePackageMoved {
 	return &CachePackageMoved{
 		PackageID:  packageID,
 		NodeID:     nodeID,
@@ -43,15 +43,15 @@ var _ = Register(Service.GetPackageObjectCacheInfos)
 
 type GetPackageObjectCacheInfos struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type GetPackageObjectCacheInfosResp struct {
 	mq.MessageBodyBase
 	Infos []cdssdk.ObjectCacheInfo
 }
 
-func NewGetPackageObjectCacheInfos(userID int64, packageID int64) *GetPackageObjectCacheInfos {
+func NewGetPackageObjectCacheInfos(userID cdssdk.UserID, packageID cdssdk.PackageID) *GetPackageObjectCacheInfos {
 	return &GetPackageObjectCacheInfos{
 		UserID:    userID,
 		PackageID: packageID,

@@ -1,11 +1,13 @@
 package event
 
+import cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 type CheckCache struct {
 	EventBase
-	NodeID int64 `json:"nodeID"`
+	NodeID cdssdk.NodeID `json:"nodeID"`
 }
 
-func NewCheckCache(nodeID int64) *CheckCache {
+func NewCheckCache(nodeID cdssdk.NodeID) *CheckCache {
 	return &CheckCache{
 		NodeID: nodeID,
 	}

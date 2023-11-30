@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
@@ -21,8 +22,8 @@ func (s *Server) ObjectSvc() *ObjectService {
 }
 
 type ObjectDownloadReq struct {
-	UserID   *int64 `form:"userID" binding:"required"`
-	ObjectID *int64 `form:"objectID" binding:"required"`
+	UserID   *cdssdk.UserID   `form:"userID" binding:"required"`
+	ObjectID *cdssdk.ObjectID `form:"objectID" binding:"required"`
 }
 
 func (s *ObjectService) Download(ctx *gin.Context) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -14,7 +15,7 @@ type StreamInfo struct {
 
 type PlanBuilder struct {
 	streams    []*StreamInfo
-	agentPlans map[int64]*AgentPlanBuilder
+	agentPlans map[cdssdk.NodeID]*AgentPlanBuilder
 }
 
 func (b *PlanBuilder) Build() (*ComposedPlan, error) {
@@ -48,7 +49,7 @@ func (b *PlanBuilder) newStream() *StreamInfo {
 
 func NewPlanBuilder() PlanBuilder {
 	return PlanBuilder{
-		agentPlans: make(map[int64]*AgentPlanBuilder),
+		agentPlans: make(map[cdssdk.NodeID]*AgentPlanBuilder),
 	}
 }
 

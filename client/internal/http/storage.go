@@ -21,9 +21,9 @@ func (s *Server) StorageSvc() *StorageService {
 }
 
 type StorageLoadPackageReq struct {
-	UserID    *int64 `json:"userID" binding:"required"`
-	PackageID *int64 `json:"packageID" binding:"required"`
-	StorageID *int64 `json:"storageID" binding:"required"`
+	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
+	StorageID *cdssdk.StorageID `json:"storageID" binding:"required"`
 }
 
 type StorageLoadPackageResp struct {
@@ -73,17 +73,16 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 }
 
 type StorageCreatePackageReq struct {
-	UserID       *int64                     `json:"userID" binding:"required"`
-	StorageID    *int64                     `json:"storageID" binding:"required"`
-	Path         string                     `json:"path" binding:"required"`
-	BucketID     *int64                     `json:"bucketID" binding:"required"`
-	Name         string                     `json:"name" binding:"required"`
-	Redundancy   cdssdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
-	NodeAffinity *int64                     `json:"nodeAffinity"`
+	UserID       *cdssdk.UserID    `json:"userID" binding:"required"`
+	StorageID    *cdssdk.StorageID `json:"storageID" binding:"required"`
+	Path         string            `json:"path" binding:"required"`
+	BucketID     *cdssdk.BucketID  `json:"bucketID" binding:"required"`
+	Name         string            `json:"name" binding:"required"`
+	NodeAffinity *cdssdk.NodeID    `json:"nodeAffinity"`
 }
 
 type StorageCreatePackageResp struct {
-	PackageID int64 `json:"packageID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 
 func (s *StorageService) CreatePackage(ctx *gin.Context) {
@@ -97,7 +96,7 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 	}
 
 	nodeID, taskID, err := s.svc.StorageSvc().StartStorageCreatePackage(
-		*req.UserID, *req.BucketID, req.Name, *req.StorageID, req.Path, req.Redundancy, req.NodeAffinity)
+		*req.UserID, *req.BucketID, req.Name, *req.StorageID, req.Path, req.NodeAffinity)
 	if err != nil {
 		log.Warnf("start storage create package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage create package failed"))
@@ -128,8 +127,8 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 }
 
 type StorageGetInfoReq struct {
-	UserID    *int64 `form:"userID" binding:"required"`
-	StorageID *int64 `form:"storageID" binding:"required"`
+	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
+	StorageID *cdssdk.StorageID `form:"storageID" binding:"required"`
 }
 
 type StorageGetInfoResp struct {

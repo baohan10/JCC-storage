@@ -61,15 +61,15 @@ var _ = Register(Service.StartCacheMovePackage)
 
 type StartCacheMovePackage struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type StartCacheMovePackageResp struct {
 	mq.MessageBodyBase
 	TaskID string `json:"taskID"`
 }
 
-func NewStartCacheMovePackage(userID int64, packageID int64) *StartCacheMovePackage {
+func NewStartCacheMovePackage(userID cdssdk.UserID, packageID cdssdk.PackageID) *StartCacheMovePackage {
 	return &StartCacheMovePackage{
 		UserID:    userID,
 		PackageID: packageID,

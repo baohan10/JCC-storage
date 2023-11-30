@@ -2,6 +2,7 @@ package reqbuilder
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
@@ -13,7 +14,7 @@ func (b *MetadataLockReqBuilder) UserBucket() *MetadataUserBucketLockReqBuilder 
 	return &MetadataUserBucketLockReqBuilder{MetadataLockReqBuilder: b}
 }
 
-func (b *MetadataUserBucketLockReqBuilder) ReadOne(userID int64, bucketID int64) *MetadataUserBucketLockReqBuilder {
+func (b *MetadataUserBucketLockReqBuilder) ReadOne(userID cdssdk.UserID, bucketID cdssdk.BucketID) *MetadataUserBucketLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("UserBucket"),
 		Name:   lockprovider.METADATA_ELEMENT_READ_LOCK,
@@ -21,7 +22,7 @@ func (b *MetadataUserBucketLockReqBuilder) ReadOne(userID int64, bucketID int64)
 	})
 	return b
 }
-func (b *MetadataUserBucketLockReqBuilder) WriteOne(userID int64, bucketID int64) *MetadataUserBucketLockReqBuilder {
+func (b *MetadataUserBucketLockReqBuilder) WriteOne(userID cdssdk.UserID, bucketID cdssdk.BucketID) *MetadataUserBucketLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("UserBucket"),
 		Name:   lockprovider.METADATA_ELEMENT_WRITE_LOCK,
@@ -29,7 +30,7 @@ func (b *MetadataUserBucketLockReqBuilder) WriteOne(userID int64, bucketID int64
 	})
 	return b
 }
-func (b *MetadataUserBucketLockReqBuilder) CreateOne(userID int64, bucketID int64) *MetadataUserBucketLockReqBuilder {
+func (b *MetadataUserBucketLockReqBuilder) CreateOne(userID cdssdk.UserID, bucketID cdssdk.BucketID) *MetadataUserBucketLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("UserBucket"),
 		Name:   lockprovider.METADATA_ELEMENT_CREATE_LOCK,

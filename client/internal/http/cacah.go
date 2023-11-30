@@ -21,9 +21,9 @@ func (s *Server) CacheSvc() *CacheService {
 }
 
 type CacheMovePackageReq struct {
-	UserID    *int64 `json:"userID" binding:"required"`
-	PackageID *int64 `json:"packageID" binding:"required"`
-	NodeID    *int64 `json:"nodeID" binding:"required"`
+	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
+	NodeID    *cdssdk.NodeID    `json:"nodeID" binding:"required"`
 }
 type CacheMovePackageResp struct {
 	CacheInfos []cdssdk.ObjectCacheInfo `json:"cacheInfos"`
@@ -70,8 +70,8 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 }
 
 type CacheGetPackageObjectCacheInfosReq struct {
-	UserID    *int64 `form:"userID" binding:"required"`
-	PackageID *int64 `form:"packageID" binding:"required"`
+	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `form:"packageID" binding:"required"`
 }
 
 type CacheGetPackageObjectCacheInfosResp = cdssdk.CacheGetPackageObjectCacheInfosResp

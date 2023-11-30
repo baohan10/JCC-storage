@@ -3,8 +3,11 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -18,17 +21,17 @@ func (db *DB) ObjectBlock() *ObjectBlockDB {
 	return &ObjectBlockDB{DB: db}
 }
 
-func (db *ObjectBlockDB) Create(ctx SQLContext, objectID int64, index int, fileHash string) error {
-	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?)", objectID, index, fileHash)
+func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index int, fileHash string, nodeID cdssdk.NodeID) error {
+	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?,?)", objectID, index, fileHash, nodeID)
 	return err
 }
 
-func (db *ObjectBlockDB) DeleteObjectAll(ctx SQLContext, objectID int64) error {
+func (db *ObjectBlockDB) DeleteObjectAll(ctx SQLContext, objectID cdssdk.ObjectID) error {
 	_, err := ctx.Exec("delete from ObjectBlock where ObjectID = ?", objectID)
 	return err
 }
 
-func (db *ObjectBlockDB) DeleteInPackage(ctx SQLContext, packageID int64) error {
+func (db *ObjectBlockDB) DeleteInPackage(ctx SQLContext, packageID cdssdk.PackageID) error {
 	_, err := ctx.Exec("delete ObjectBlock from ObjectBlock inner join Object on ObjectBlock.ObjectID = Object.ObjectID where PackageID = ?", packageID)
 	return err
 }
@@ -47,44 +50,7 @@ func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (in
 	return cnt, err
 }
 
-func (db *ObjectBlockDB) GetBatchObjectBlocks(ctx SQLContext, objectIDs []int64) ([][]string, error) {
-	blocks := make([][]string, len(objectIDs))
-	var err error
-	for i, objectID := range objectIDs {
-		var x []model.ObjectBlock
-		sql := "select * from ObjectBlock where ObjectID=?"
-		err = db.d.Select(&x, sql, objectID)
-		xx := make([]string, len(x))
-		for ii := 0; ii < len(x); ii++ {
-			xx[x[ii].Index] = x[ii].FileHash
-		}
-		blocks[i] = xx
-	}
-	return blocks, err
-}
-
-func (db *ObjectBlockDB) GetBatchBlocksNodes(ctx SQLContext, hashs [][]string) ([][][]int64, error) {
-	nodes := make([][][]int64, len(hashs))
-	var err error
-	for i, hs := range hashs {
-		fileNodes := make([][]int64, len(hs))
-		for j, h := range hs {
-			var x []model.Node
-			err = sqlx.Select(ctx, &x,
-				"select Node.* from Cache, Node where"+
-					" Cache.FileHash=? and Cache.NodeID = Node.NodeID and Cache.State=?", h, consts.CacheStatePinned)
-			xx := make([]int64, len(x))
-			for ii := 0; ii < len(x); ii++ {
-				xx[ii] = x[ii].NodeID
-			}
-			fileNodes[j] = xx
-		}
-		nodes[i] = fileNodes
-	}
-	return nodes, err
-}
-
-func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64) ([]stgmod.ObjectECData, error) {
+func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID cdssdk.PackageID) ([]stgmod.ObjectECData, error) {
 	var objs []model.Object
 	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
 	if err != nil {
@@ -118,7 +84,7 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 			block.FileHash = tmp.FileHash
 
 			if tmp.NodeIDs != nil {
-				block.NodeIDs = splitIDStringUnsafe(*tmp.NodeIDs)
+				block.CachedNodeIDs = splitIDStringUnsafe(*tmp.NodeIDs)
 			}
 
 			blocks = append(blocks, block)
@@ -128,4 +94,19 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID int64)
 	}
 
 	return rets, nil
+}
+
+// 按逗号切割字符串，并将每一个部分解析为一个int64的ID。
+// 注：需要外部保证分隔的每一个部分都是正确的10进制数字格式
+func splitIDStringUnsafe(idStr string) []cdssdk.NodeID {
+	idStrs := strings.Split(idStr, ",")
+	ids := make([]cdssdk.NodeID, 0, len(idStrs))
+
+	for _, str := range idStrs {
+		// 假设传入的ID是正确的数字格式
+		id, _ := strconv.ParseInt(str, 10, 64)
+		ids = append(ids, cdssdk.NodeID(id))
+	}
+
+	return ids
 }

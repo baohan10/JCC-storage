@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -20,7 +21,7 @@ type AgentCheckState struct {
 	*scevt.AgentCheckState
 }
 
-func NewAgentCheckState(nodeID int64) *AgentCheckState {
+func NewAgentCheckState(nodeID cdssdk.NodeID) *AgentCheckState {
 	return &AgentCheckState{
 		AgentCheckState: scevt.NewAgentCheckState(nodeID),
 	}
