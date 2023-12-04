@@ -7,7 +7,7 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
-func StorageLoadPackage(ctx CommandContext, packageID int64, storageID int64) error {
+func StorageLoadPackage(ctx CommandContext, packageID cdssdk.PackageID, storageID cdssdk.StorageID) error {
 	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageLoadPackage(0, packageID, storageID)
 	if err != nil {
 		return fmt.Errorf("start loading package to storage: %w", err)
@@ -30,11 +30,10 @@ func StorageLoadPackage(ctx CommandContext, packageID int64, storageID int64) er
 	}
 }
 
-func StorageCreateRepPackage(ctx CommandContext, bucketID int64, name string, storageID int64, path string, repCount int) error {
-	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageCreatePackage(0, bucketID, name, storageID, path,
-		cdssdk.NewTypedRepRedundancyInfo(repCount), nil)
+func StorageCreatePackage(ctx CommandContext, bucketID cdssdk.BucketID, name string, storageID cdssdk.StorageID, path string) error {
+	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageCreatePackage(0, bucketID, name, storageID, path, nil)
 	if err != nil {
-		return fmt.Errorf("start storage uploading rep package: %w", err)
+		return fmt.Errorf("start storage uploading package: %w", err)
 	}
 
 	for {
@@ -55,7 +54,7 @@ func StorageCreateRepPackage(ctx CommandContext, bucketID int64, name string, st
 }
 
 func init() {
-	commands.MustAdd(StorageLoadPackage, "stg", "load", "pkg")
+	commands.MustAdd(StorageLoadPackage, "stg", "pkg", "load")
 
-	commands.MustAdd(StorageCreateRepPackage, "stg", "upload", "rep")
+	commands.MustAdd(StorageCreatePackage, "stg", "pkg", "new")
 }

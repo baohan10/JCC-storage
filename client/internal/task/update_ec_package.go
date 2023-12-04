@@ -9,21 +9,21 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
-type UpdateECPackageResult = cmd.UpdateECPackageResult
+type UpdatePackageResult = cmd.UpdatePackageResult
 
-type UpdateECPackage struct {
-	cmd cmd.UpdateECPackage
+type UpdatePackage struct {
+	cmd cmd.UpdatePackage
 
-	Result *UpdateECPackageResult
+	Result *UpdatePackageResult
 }
 
-func NewUpdateECPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, objectIter iterator.UploadingObjectIterator) *UpdateECPackage {
-	return &UpdateECPackage{
-		cmd: *cmd.NewUpdateECPackage(userID, packageID, objectIter),
+func NewUpdatePackage(userID cdssdk.UserID, packageID cdssdk.PackageID, objectIter iterator.UploadingObjectIterator) *UpdatePackage {
+	return &UpdatePackage{
+		cmd: *cmd.NewUpdatePackage(userID, packageID, objectIter),
 	}
 }
 
-func (t *UpdateECPackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
+func (t *UpdatePackage) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	ret, err := t.cmd.Execute(&cmd.UpdatePackageContext{
 		Distlock: ctx.distlock,
 	})

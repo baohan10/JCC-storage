@@ -8,7 +8,6 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/consts"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -92,7 +91,7 @@ func (db *PackageDB) Create(ctx SQLContext, bucketID cdssdk.BucketID, name strin
 	}
 
 	sql := "insert into Package(Name, BucketID, State) values(?,?,?)"
-	r, err := ctx.Exec(sql, name, bucketID, consts.PackageStateNormal)
+	r, err := ctx.Exec(sql, name, bucketID, cdssdk.PackageStateNormal)
 	if err != nil {
 		return 0, fmt.Errorf("insert package failed, err: %w", err)
 	}
@@ -114,11 +113,11 @@ func (db *PackageDB) SoftDelete(ctx SQLContext, packageID cdssdk.PackageID) erro
 
 	// 不是正常状态的Package，则不删除
 	// TODO 未来可能有其他状态
-	if obj.State != consts.PackageStateNormal {
+	if obj.State != cdssdk.PackageStateNormal {
 		return nil
 	}
 
-	err = db.ChangeState(ctx, packageID, consts.PackageStateDeleted)
+	err = db.ChangeState(ctx, packageID, cdssdk.PackageStateDeleted)
 	if err != nil {
 		return fmt.Errorf("change package state failed, err: %w", err)
 	}
@@ -145,7 +144,7 @@ func (PackageDB) DeleteUnused(ctx SQLContext, packageID cdssdk.PackageID) error 
 	_, err := ctx.Exec("delete from Package where PackageID = ? and State = ? and "+
 		"not exists(select StorageID from StoragePackage where PackageID = ?)",
 		packageID,
-		consts.PackageStateDeleted,
+		cdssdk.PackageStateDeleted,
 		packageID,
 	)
 

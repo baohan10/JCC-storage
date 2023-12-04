@@ -3,9 +3,11 @@ package utils
 import (
 	"path/filepath"
 	"strconv"
+
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 // MakeStorageLoadPackagePath Load操作时，写入的文件夹的名称
-func MakeStorageLoadPackagePath(stgDir string, userID int64, packageID int64) string {
-	return filepath.Join(stgDir, strconv.FormatInt(userID, 10), "packages", strconv.FormatInt(packageID, 10))
+func MakeStorageLoadPackagePath(stgDir string, userID cdssdk.UserID, packageID cdssdk.PackageID) string {
+	return filepath.Join(stgDir, strconv.FormatInt(int64(userID), 10), "packages", strconv.FormatInt(int64(packageID), 10))
 }

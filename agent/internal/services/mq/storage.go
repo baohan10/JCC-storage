@@ -195,27 +195,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(fullPath, uploadFilePathes)
-
-	if msg.Redundancy.IsRepInfo() {
-		repInfo, err := msg.Redundancy.ToRepInfo()
-		if err != nil {
-			logger.Warnf("getting rep redundancy info: %s", err.Error())
-
-			return nil, mq.Failed(errorcode.OperationFailed, "get rep redundancy info failed")
-		}
-
-		tsk := svc.taskManager.StartNew(mytask.NewCreateRepPackage(msg.UserID, msg.BucketID, msg.Name, objIter, repInfo, msg.NodeAffinity))
-		return mq.ReplyOK(agtmq.NewStartStorageCreatePackageResp(tsk.ID()))
-	}
-
-	ecInfo, err := msg.Redundancy.ToECInfo()
-	if err != nil {
-		logger.Warnf("getting ec redundancy info: %s", err.Error())
-
-		return nil, mq.Failed(errorcode.OperationFailed, "get ec redundancy info failed")
-	}
-
-	tsk := svc.taskManager.StartNew(mytask.NewCreateECPackage(msg.UserID, msg.BucketID, msg.Name, objIter, ecInfo, msg.NodeAffinity))
+	tsk := svc.taskManager.StartNew(mytask.NewCreatePackage(msg.UserID, msg.BucketID, msg.Name, objIter, msg.NodeAffinity))
 	return mq.ReplyOK(agtmq.NewStartStorageCreatePackageResp(tsk.ID()))
 }
 
@@ -235,14 +215,6 @@ func (svc *Service) WaitStorageCreatePackage(msg *agtmq.WaitStorageCreatePackage
 		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, tsk.Error().Error(), 0))
 	}
 
-	// TODO 避免判断类型
-	if repTask, ok := tsk.Body().(*mytask.CreateRepPackage); ok {
-		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, "", repTask.Result.PackageID))
-	}
-
-	if ecTask, ok := tsk.Body().(*mytask.CreateECPackage); ok {
-		return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, "", ecTask.Result.PackageID))
-	}
-
-	return nil, mq.Failed(errorcode.TaskNotFound, "task not found")
+	taskBody := tsk.Body().(*mytask.CreatePackage)
+	return mq.ReplyOK(agtmq.NewWaitStorageCreatePackageResp(true, "", taskBody.Result.PackageID))
 }

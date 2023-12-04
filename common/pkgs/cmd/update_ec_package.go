@@ -14,25 +14,30 @@ import (
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
-type UpdateECPackage struct {
-	userID     int64
-	packageID  int64
+type UpdatePackage struct {
+	userID     cdssdk.UserID
+	packageID  cdssdk.PackageID
 	objectIter iterator.UploadingObjectIterator
 }
 
-type UpdateECPackageResult struct {
-	ObjectResults []ECObjectUploadResult
+type UpdatePackageResult struct {
+	ObjectResults []ObjectUploadResult
 }
 
-func NewUpdateECPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator) *UpdateECPackage {
-	return &UpdateECPackage{
+type UpdateNodeInfo struct {
+	UploadNodeInfo
+	HasOldObject bool
+}
+
+func NewUpdatePackage(userID cdssdk.UserID, packageID cdssdk.PackageID, objIter iterator.UploadingObjectIterator) *UpdatePackage {
+	return &UpdatePackage{
 		userID:     userID,
 		packageID:  packageID,
 		objectIter: objIter,
 	}
 }
 
-func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageResult, error) {
+func (t *UpdatePackage) Execute(ctx *UpdatePackageContext) (*UpdatePackageResult, error) {
 	defer t.objectIter.Close()
 
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
@@ -58,37 +63,17 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 	}
 	defer mutex.Unlock()
 
-	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package: %w", err)
-	}
-
 	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
 	if err != nil {
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
-	if err != nil {
-		return nil, fmt.Errorf("finding client location: %w", err)
-	}
-
-	nodeInfos := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
+	userNodes := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
 		return UploadNodeInfo{
 			Node:           node,
-			IsSameLocation: node.LocationID == findCliLocResp.Location.LocationID,
+			IsSameLocation: node.LocationID == stgglb.Local.LocationID,
 		}
 	})
-
-	var ecInfo cdssdk.ECRedundancyInfo
-	if ecInfo, err = getPkgResp.Package.Redundancy.ToECInfo(); err != nil {
-		return nil, fmt.Errorf("get ec redundancy info: %w", err)
-	}
-
-	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecInfo.ECName))
-	if err != nil {
-		return nil, fmt.Errorf("getting ec: %w", err)
-	}
 
 	// 给上传节点的IPFS加锁
 	ipfsReqBlder := reqbuilder.NewBuilder()
@@ -96,7 +81,7 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 	if stgglb.Local.NodeID != nil {
 		ipfsReqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
 	}
-	for _, node := range nodeInfos {
+	for _, node := range userNodes {
 		if stgglb.Local.NodeID != nil && node.Node.NodeID == *stgglb.Local.NodeID {
 			continue
 		}
@@ -110,12 +95,12 @@ func (t *UpdateECPackage) Execute(ctx *UpdatePackageContext) (*UpdateECPackageRe
 	}
 	defer ipfsMutex.Unlock()
 
-	rets, err := uploadAndUpdateECPackage(t.packageID, t.objectIter, nodeInfos, ecInfo, getECResp.Config)
+	rets, err := uploadAndUpdatePackage(t.packageID, t.objectIter, userNodes, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &UpdateECPackageResult{
+	return &UpdatePackageResult{
 		ObjectResults: rets,
 	}, nil
 }

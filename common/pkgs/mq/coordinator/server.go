@@ -13,8 +13,6 @@ type Service interface {
 
 	CacheService
 
-	CommonService
-
 	NodeService
 
 	ObjectService

@@ -37,13 +37,15 @@ values
     5010,
     1,
     "alive"
-  ) create table Storage (
-    StorageID int not null auto_increment primary key comment '存储服务ID',
-    Name varchar(100) not null comment '存储服务名称',
-    NodeID int not null comment '存储服务所在节点的ID',
-    Directory varchar(4096) not null comment '存储服务所在节点的目录',
-    State varchar(100) comment '状态'
-  ) comment = "存储服务表";
+  );
+
+create table Storage (
+  StorageID int not null auto_increment primary key comment '存储服务ID',
+  Name varchar(100) not null comment '存储服务名称',
+  NodeID int not null comment '存储服务所在节点的ID',
+  Directory varchar(4096) not null comment '存储服务所在节点的目录',
+  State varchar(100) comment '状态'
+) comment = "存储服务表";
 
 insert into
   Storage (StorageID, Name, NodeID, Directory, State)
@@ -122,16 +124,12 @@ create table Object (
   UNIQUE KEY PackagePath (PackageID, Path)
 ) comment = '对象表';
 
-create table ObjectRep (
-  ObjectID int not null primary key comment '对象ID',
-  FileHash varchar(100) not null comment '副本哈希值'
-) comment = '对象副本表';
-
 create table ObjectBlock (
   ObjectID int not null comment '对象ID',
   `Index` int not null comment '编码块在条带内的排序',
+  NodeID int not null comment '此编码块应该存在的节点',
   FileHash varchar(100) not null comment '编码块哈希值',
-  primary key(ObjectID, `Index`)
+  primary key(ObjectID, `Index`, NodeID)
 ) comment = '对象编码块表';
 
 create table Cache (
@@ -151,6 +149,14 @@ create table StoragePackage (
   primary key(PackageID, StorageID, UserID)
 );
 
+create table StoragePackageLog (
+  PackageID int not null comment '包ID',
+  StorageID int not null comment '存储服务ID',
+  UserID int not null comment '调度了此文件的用户ID',
+  CreateTime timestamp not null comment '加载Package完成的时间',
+  primary key(PackageID, StorageID, UserID)
+);
+
 create table Location (
   LocationID int not null auto_increment primary key comment 'ID',
   Name varchar(128) not null comment '名称'
@@ -160,20 +166,3 @@ insert into
   Location (LocationID, Name)
 values
   (1, "Local");
-
-create table Ec (
-  EcID int not null primary key comment '纠删码ID',
-  Name varchar(128) not null comment '纠删码名称',
-  EcK int not null comment 'ecK',
-  EcN int not null comment 'ecN'
-) comment = '纠删码表';
-
-insert into
-  Ec (EcID, Name, EcK, EcN)
-values
-  (1, "rs_9_6", 6, 9);
-
-insert into
-  Ec (EcID, Name, EcK, EcN)
-values
-  (2, "rs_5_3", 3, 5);

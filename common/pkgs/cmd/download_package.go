@@ -10,14 +10,13 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type DownloadPackage struct {
-	userID     int64
-	packageID  int64
+	userID     cdssdk.UserID
+	packageID  cdssdk.PackageID
 	outputPath string
 }
 
@@ -25,7 +24,7 @@ type DownloadPackageContext struct {
 	Distlock *distlock.Service
 }
 
-func NewDownloadPackage(userID int64, packageID int64, outputPath string) *DownloadPackage {
+func NewDownloadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, outputPath string) *DownloadPackage {
 	return &DownloadPackage{
 		userID:     userID,
 		packageID:  packageID,
@@ -40,85 +39,20 @@ func (t *DownloadPackage) Execute(ctx *DownloadPackageContext) error {
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
+	getObjectDetails, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(t.packageID))
 	if err != nil {
-
-		return fmt.Errorf("getting package: %w", err)
+		return fmt.Errorf("getting package object details: %w", err)
 	}
 
-	var objIter iterator.DownloadingObjectIterator
-	if getPkgResp.Redundancy.IsRepInfo() {
-		objIter, err = t.downloadRep(ctx)
-	} else {
-		objIter, err = t.downloadEC(ctx, getPkgResp.Package)
-	}
-	if err != nil {
-		return err
-	}
+	objIter := iterator.NewObjectIterator(getObjectDetails.Objects, &iterator.DownloadContext{
+		Distlock: ctx.Distlock,
+	})
 	defer objIter.Close()
 
-	return t.writeObject(objIter)
+	return t.writeObjects(objIter)
 }
 
-func (t *DownloadPackage) downloadRep(ctx *DownloadPackageContext) (iterator.DownloadingObjectIterator, error) {
-	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
-	if err != nil {
-		return nil, fmt.Errorf("new coordinator client: %w", err)
-	}
-	defer stgglb.CoordinatorMQPool.Release(coorCli)
-
-	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package objects: %w", err)
-	}
-
-	getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(t.packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package object rep data: %w", err)
-	}
-
-	iter := iterator.NewRepObjectIterator(getObjsResp.Objects, getObjRepDataResp.Data, &iterator.DownloadContext{
-		Distlock: ctx.Distlock,
-	})
-
-	return iter, nil
-}
-
-func (t *DownloadPackage) downloadEC(ctx *DownloadPackageContext, pkg model.Package) (iterator.DownloadingObjectIterator, error) {
-	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
-	if err != nil {
-		return nil, fmt.Errorf("new coordinator client: %w", err)
-	}
-	defer stgglb.CoordinatorMQPool.Release(coorCli)
-
-	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(t.userID, t.packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package objects: %w", err)
-	}
-
-	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(t.packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package object ec data: %w", err)
-	}
-
-	var ecInfo cdssdk.ECRedundancyInfo
-	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
-		return nil, fmt.Errorf("get ec redundancy info: %w", err)
-	}
-
-	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecInfo.ECName))
-	if err != nil {
-		return nil, fmt.Errorf("getting ec: %w", err)
-	}
-
-	iter := iterator.NewECObjectIterator(getObjsResp.Objects, getObjECDataResp.Data, ecInfo, getECResp.Config, &iterator.DownloadContext{
-		Distlock: ctx.Distlock,
-	})
-
-	return iter, nil
-}
-
-func (t *DownloadPackage) writeObject(objIter iterator.DownloadingObjectIterator) error {
+func (t *DownloadPackage) writeObjects(objIter iterator.DownloadingObjectIterator) error {
 	for {
 		objInfo, err := objIter.MoveNext()
 		if err == iterator.ErrNoMoreItem {

@@ -89,7 +89,7 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 
 	objIter := mapMultiPartFileToUploadingObject(req.Files)
 
-	taskID, err := s.svc.PackageSvc().StartCreatingECPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, req.Info.NodeAffinity)
+	taskID, err := s.svc.PackageSvc().StartCreatingPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, req.Info.NodeAffinity)
 
 	if err != nil {
 		log.Warnf("start uploading ec package task: %s", err.Error())
@@ -98,7 +98,7 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 	}
 
 	for {
-		complete, createResult, err := s.svc.PackageSvc().WaitCreatingECPackage(taskID, time.Second*5)
+		complete, createResult, err := s.svc.PackageSvc().WaitCreatingPackage(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				log.Warnf("uploading ec package: %s", err.Error())

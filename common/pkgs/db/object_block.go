@@ -8,7 +8,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
@@ -42,7 +41,7 @@ func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (in
 		"select count(FileHash) from ObjectBlock, Object, Package where FileHash = ? and"+
 			" ObjectBlock.ObjectID = Object.ObjectID and"+
 			" Object.PackageID = Package.PackageID and"+
-			" Package.State = ?", fileHash, consts.PackageStateNormal)
+			" Package.State = ?", fileHash, cdssdk.PackageStateNormal)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
@@ -50,47 +49,49 @@ func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (in
 	return cnt, err
 }
 
-func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID cdssdk.PackageID) ([]stgmod.ObjectECData, error) {
+func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk.PackageID) ([]stgmod.ObjectDetail, error) {
 	var objs []model.Object
 	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
 	if err != nil {
 		return nil, fmt.Errorf("query objectIDs: %w", err)
 	}
 
-	rets := make([]stgmod.ObjectECData, 0, len(objs))
+	rets := make([]stgmod.ObjectDetail, 0, len(objs))
 
 	for _, obj := range objs {
 		var tmpRets []struct {
-			Index    int     `db:"Index"`
-			FileHash string  `db:"FileHash"`
-			NodeIDs  *string `db:"NodeIDs"`
+			Index         int     `db:"Index"`
+			FileHashes    string  `db:"FileHashes"`
+			NodeIDs       string  `db:"NodeIDs"`
+			CachedNodeIDs *string `db:"CachedNodeIDs"`
 		}
 
 		err := sqlx.Select(ctx,
 			&tmpRets,
-			"select ObjectBlock.Index, ObjectBlock.FileHash, group_concat(NodeID) as NodeIDs from ObjectBlock"+
-				" left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
-				" where ObjectID = ? group by ObjectBlock.Index, ObjectBlock.FileHash",
+			"select ObjectBlock.Index, group_concat(distinct ObjectBlock.FileHash) as FileHashes, group_concat(distinct ObjectBlock.NodeID) as NodeIDs, group_concat(distinct Cache.NodeID) as CachedNodeIDs"+
+				" from ObjectBlock left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
+				" where ObjectID = ? group by ObjectBlock.Index",
 			obj.ObjectID,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		blocks := make([]stgmod.ObjectBlockData, 0, len(tmpRets))
+		blocks := make([]stgmod.ObjectBlockDetail, 0, len(tmpRets))
 		for _, tmp := range tmpRets {
-			var block stgmod.ObjectBlockData
+			var block stgmod.ObjectBlockDetail
 			block.Index = tmp.Index
-			block.FileHash = tmp.FileHash
 
-			if tmp.NodeIDs != nil {
-				block.CachedNodeIDs = splitIDStringUnsafe(*tmp.NodeIDs)
+			block.FileHash = splitConcatedToString(tmp.FileHashes)[0]
+			block.NodeIDs = splitConcatedToNodeID(tmp.NodeIDs)
+			if tmp.CachedNodeIDs != nil {
+				block.CachedNodeIDs = splitConcatedToNodeID(*tmp.CachedNodeIDs)
 			}
 
 			blocks = append(blocks, block)
 		}
 
-		rets = append(rets, stgmod.NewObjectECData(obj, blocks))
+		rets = append(rets, stgmod.NewObjectDetail(obj, blocks))
 	}
 
 	return rets, nil
@@ -98,7 +99,7 @@ func (db *ObjectBlockDB) GetWithNodeIDInPackage(ctx SQLContext, packageID cdssdk
 
 // 按逗号切割字符串，并将每一个部分解析为一个int64的ID。
 // 注：需要外部保证分隔的每一个部分都是正确的10进制数字格式
-func splitIDStringUnsafe(idStr string) []cdssdk.NodeID {
+func splitConcatedToNodeID(idStr string) []cdssdk.NodeID {
 	idStrs := strings.Split(idStr, ",")
 	ids := make([]cdssdk.NodeID, 0, len(idStrs))
 
@@ -109,4 +110,10 @@ func splitIDStringUnsafe(idStr string) []cdssdk.NodeID {
 	}
 
 	return ids
+}
+
+// 按逗号切割字符串
+func splitConcatedToString(idStr string) []string {
+	idStrs := strings.Split(idStr, ",")
+	return idStrs
 }

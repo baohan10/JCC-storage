@@ -5,7 +5,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/consts"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -36,7 +35,7 @@ func (*StoragePackageDB) GetAllByStorageID(ctx SQLContext, storageID cdssdk.Stor
 }
 
 func (*StoragePackageDB) LoadPackage(ctx SQLContext, packageID cdssdk.PackageID, storageID cdssdk.StorageID, userID cdssdk.UserID) error {
-	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", packageID, storageID, userID, consts.StoragePackageStateNormal)
+	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", packageID, storageID, userID, model.StoragePackageStateNormal)
 	return err
 }
 
@@ -48,11 +47,11 @@ func (*StoragePackageDB) ChangeState(ctx SQLContext, storageID cdssdk.StorageID,
 // SetStateNormal 将状态设置为Normal，如果记录状态是Deleted，则不进行操作
 func (*StoragePackageDB) SetStateNormal(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
 	_, err := ctx.Exec("update StoragePackage set State = ? where StorageID = ? and PackageID = ? and UserID = ? and State <> ?",
-		consts.StoragePackageStateNormal,
+		model.StoragePackageStateNormal,
 		storageID,
 		packageID,
 		userID,
-		consts.StoragePackageStateDeleted,
+		model.StoragePackageStateDeleted,
 	)
 	return err
 }
@@ -80,8 +79,8 @@ func (*StoragePackageDB) SetAllPackageState(ctx SQLContext, packageID cdssdk.Pac
 func (*StoragePackageDB) SetAllPackageOutdated(ctx SQLContext, packageID cdssdk.PackageID) (int64, error) {
 	ret, err := ctx.Exec(
 		"update StoragePackage set State = ? where State = ? and PackageID = ?",
-		consts.StoragePackageStateOutdated,
-		consts.StoragePackageStateNormal,
+		model.StoragePackageStateOutdated,
+		model.StoragePackageStateNormal,
 		packageID,
 	)
 	if err != nil {
@@ -97,7 +96,7 @@ func (*StoragePackageDB) SetAllPackageOutdated(ctx SQLContext, packageID cdssdk.
 }
 
 func (db *StoragePackageDB) SetAllPackageDeleted(ctx SQLContext, packageID cdssdk.PackageID) (int64, error) {
-	return db.SetAllPackageState(ctx, packageID, consts.StoragePackageStateDeleted)
+	return db.SetAllPackageState(ctx, packageID, model.StoragePackageStateDeleted)
 }
 
 func (*StoragePackageDB) Delete(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {

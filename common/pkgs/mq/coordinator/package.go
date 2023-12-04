@@ -93,10 +93,10 @@ type UpdatePackageResp struct {
 	mq.MessageBodyBase
 }
 type AddObjectInfo struct {
-	Path       string                   `json:"path"`
-	Size       int64                    `json:"size,string"`
-	Redundancy cdssdk.Redundancy        `json:"redundancy"`
-	Blocks     []stgmod.ObjectBlockData `json:"blocks"`
+	Path       string                     `json:"path"`
+	Size       int64                      `json:"size,string"`
+	Redundancy cdssdk.Redundancy          `json:"redundancy"`
+	Blocks     []stgmod.ObjectBlockDetail `json:"blocks"`
 }
 
 func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes []cdssdk.ObjectID) *UpdatePackage {
@@ -109,7 +109,7 @@ func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes 
 func NewUpdatePackageResp() *UpdatePackageResp {
 	return &UpdatePackageResp{}
 }
-func NewAddObjectInfo(path string, size int64, redundancy cdssdk.Redundancy, blocks []stgmod.ObjectBlockData) AddObjectInfo {
+func NewAddObjectInfo(path string, size int64, redundancy cdssdk.Redundancy, blocks []stgmod.ObjectBlockDetail) AddObjectInfo {
 	return AddObjectInfo{
 		Path:       path,
 		Size:       size,

@@ -2,40 +2,48 @@ package stgmod
 
 import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
-/// TODO 将分散在各处的公共结构体定义集中到这里来
-
-type ObjectBlockData struct {
-	Index         int             `json:"index"`
-	FileHash      string          `json:"fileHash"`
-	NodeID        cdssdk.NodeID   `json:"nodeID"`
-	CachedNodeIDs []cdssdk.NodeID `json:"nodeIDs"`
+type ObjectBlock struct {
+	ObjectID cdssdk.ObjectID `db:"ObjectID" json:"objectID"`
+	Index    int             `db:"Index" json:"index"`
+	NodeID   cdssdk.NodeID   `db:"NodeID" json:"nodeID"` // 这个块应该在哪个节点上
+	FileHash string          `db:"FileHash" json:"fileHash"`
 }
 
-func NewObjectBlockData(index int, fileHash string, nodeID cdssdk.NodeID, cachedNodeIDs []cdssdk.NodeID) ObjectBlockData {
-	return ObjectBlockData{
+type ObjectBlockDetail struct {
+	ObjectID      cdssdk.ObjectID `json:"objectID"`
+	Index         int             `json:"index"`
+	FileHash      string          `json:"fileHash"`
+	NodeIDs       []cdssdk.NodeID `json:"nodeID"`        // 这个块应该在哪些节点上
+	CachedNodeIDs []cdssdk.NodeID `json:"cachedNodeIDs"` // 哪些节点实际缓存了这个块
+}
+
+func NewObjectBlockDetail(objID cdssdk.ObjectID, index int, fileHash string, nodeIDs []cdssdk.NodeID, cachedNodeIDs []cdssdk.NodeID) ObjectBlockDetail {
+	return ObjectBlockDetail{
+		ObjectID:      objID,
 		Index:         index,
 		FileHash:      fileHash,
+		NodeIDs:       nodeIDs,
 		CachedNodeIDs: cachedNodeIDs,
 	}
 }
 
-type ObjectECData struct {
-	Object model.Object      `json:"object"`
-	Blocks []ObjectBlockData `json:"blocks"`
+type ObjectDetail struct {
+	Object cdssdk.Object       `json:"object"`
+	Blocks []ObjectBlockDetail `json:"blocks"`
 }
 
-func NewObjectECData(object model.Object, blocks []ObjectBlockData) ObjectECData {
-	return ObjectECData{
+func NewObjectDetail(object cdssdk.Object, blocks []ObjectBlockDetail) ObjectDetail {
+	return ObjectDetail{
 		Object: object,
 		Blocks: blocks,
 	}
 }
 
 type LocalMachineInfo struct {
-	NodeID     *cdssdk.NodeID `json:"nodeID"`
-	ExternalIP string         `json:"externalIP"`
-	LocalIP    string         `json:"localIP"`
+	NodeID     *cdssdk.NodeID    `json:"nodeID"`
+	ExternalIP string            `json:"externalIP"`
+	LocalIP    string            `json:"localIP"`
+	LocationID cdssdk.LocationID `json:"locationID"`
 }

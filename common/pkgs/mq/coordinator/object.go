@@ -11,7 +11,7 @@ import (
 type ObjectService interface {
 	GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, *mq.CodeMessage)
 
-	GetPackageObjectECData(msg *GetPackageObjectECData) (*GetPackageObjectECDataResp, *mq.CodeMessage)
+	GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, *mq.CodeMessage)
 }
 
 // 查询Package中的所有Object，返回的Objects会按照ObjectID升序
@@ -42,28 +42,28 @@ func (client *Client) GetPackageObjects(msg *GetPackageObjects) (*GetPackageObje
 	return mq.Request(Service.GetPackageObjects, client.rabbitCli, msg)
 }
 
-// 获取指定Object的EC数据，返回的Objects会按照ObjectID升序
-var _ = Register(Service.GetPackageObjectECData)
+// 获取Package中所有Object以及它们的分块详细信息，返回的Objects会按照ObjectID升序
+var _ = Register(Service.GetPackageObjectDetails)
 
-type GetPackageObjectECData struct {
+type GetPackageObjectDetails struct {
 	mq.MessageBodyBase
 	PackageID cdssdk.PackageID `json:"packageID"`
 }
-type GetPackageObjectECDataResp struct {
+type GetPackageObjectDetailsResp struct {
 	mq.MessageBodyBase
-	Data []stgmod.ObjectECData `json:"data"`
+	Objects []stgmod.ObjectDetail `json:"objects"`
 }
 
-func NewGetPackageObjectECData(packageID cdssdk.PackageID) *GetPackageObjectECData {
-	return &GetPackageObjectECData{
+func NewGetPackageObjectDetails(packageID cdssdk.PackageID) *GetPackageObjectDetails {
+	return &GetPackageObjectDetails{
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectECDataResp(data []stgmod.ObjectECData) *GetPackageObjectECDataResp {
-	return &GetPackageObjectECDataResp{
-		Data: data,
+func NewGetPackageObjectDetailsResp(objects []stgmod.ObjectDetail) *GetPackageObjectDetailsResp {
+	return &GetPackageObjectDetailsResp{
+		Objects: objects,
 	}
 }
-func (client *Client) GetPackageObjectECData(msg *GetPackageObjectECData) (*GetPackageObjectECDataResp, error) {
-	return mq.Request(Service.GetPackageObjectECData, client.rabbitCli, msg)
+func (client *Client) GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, error) {
+	return mq.Request(Service.GetPackageObjectDetails, client.rabbitCli, msg)
 }
