@@ -5,14 +5,14 @@ import (
 	"io"
 	"sync"
 
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 type ECCompute struct {
-	EC                 stgmod.EC           `json:"ec"`
+	EC                 cdssdk.ECRedundancy `json:"ec"`
 	InputIDs           []ioswitch.StreamID `json:"inputIDs"`
 	OutputIDs          []ioswitch.StreamID `json:"outputIDs"`
 	InputBlockIndexes  []int               `json:"inputBlockIndexes"`
@@ -55,7 +55,7 @@ func (o *ECCompute) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 }
 
 type ECReconstruct struct {
-	EC                stgmod.EC           `json:"ec"`
+	EC                cdssdk.ECRedundancy `json:"ec"`
 	InputIDs          []ioswitch.StreamID `json:"inputIDs"`
 	OutputIDs         []ioswitch.StreamID `json:"outputIDs"`
 	InputBlockIndexes []int               `json:"inputBlockIndexes"`

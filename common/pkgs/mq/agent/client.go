@@ -2,16 +2,17 @@ package agent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
 )
 
 type Client struct {
 	rabbitCli *mq.RabbitMQTransport
-	id        int64
+	id        cdssdk.NodeID
 }
 
-func NewClient(id int64, cfg *stgmq.Config) (*Client, error) {
-	rabbitCli, err := mq.NewRabbitMQTransport(cfg.MakeConnectingURL(), stgmq.MakeAgentQueueName(id), "")
+func NewClient(id cdssdk.NodeID, cfg *stgmq.Config) (*Client, error) {
+	rabbitCli, err := mq.NewRabbitMQTransport(cfg.MakeConnectingURL(), stgmq.MakeAgentQueueName(int64(id)), "")
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +28,7 @@ func (c *Client) Close() {
 }
 
 type Pool interface {
-	Acquire(id int64) (*Client, error)
+	Acquire(id cdssdk.NodeID) (*Client, error)
 	Release(cli *Client)
 }
 
@@ -40,7 +41,7 @@ func NewPool(mqcfg *stgmq.Config) Pool {
 		mqcfg: mqcfg,
 	}
 }
-func (p *pool) Acquire(id int64) (*Client, error) {
+func (p *pool) Acquire(id cdssdk.NodeID) (*Client, error) {
 	return NewClient(id, p.mqcfg)
 }
 

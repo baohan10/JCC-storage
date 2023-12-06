@@ -21,7 +21,7 @@ func (svc *Service) StorageSvc() *StorageService {
 	return &StorageService{Service: svc}
 }
 
-func (svc *StorageService) StartStorageLoadPackage(userID int64, packageID int64, storageID int64) (string, error) {
+func (svc *StorageService) StartStorageLoadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, storageID cdssdk.StorageID) (string, error) {
 	tsk := svc.TaskMgr.StartNew(task.NewStorageLoadPackage(userID, packageID, storageID))
 	return tsk.ID(), nil
 }
@@ -41,7 +41,7 @@ func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, s
 }
 
 // 请求节点启动从Storage中上传文件的任务。会返回节点ID和任务ID
-func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy cdssdk.TypedRedundancyInfo, nodeAffinity *int64) (int64, string, error) {
+func (svc *StorageService) StartStorageCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, storageID cdssdk.StorageID, path string, nodeAffinity *cdssdk.NodeID) (cdssdk.NodeID, string, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return 0, "", fmt.Errorf("new coordinator client: %w", err)
@@ -59,7 +59,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 	}
 	defer stgglb.AgentMQPool.Release(agentCli)
 
-	startResp, err := agentCli.StartStorageCreatePackage(agtmq.NewStartStorageCreatePackage(userID, bucketID, name, storageID, path, redundancy, nodeAffinity))
+	startResp, err := agentCli.StartStorageCreatePackage(agtmq.NewStartStorageCreatePackage(userID, bucketID, name, storageID, path, nodeAffinity))
 	if err != nil {
 		return 0, "", fmt.Errorf("start storage upload package: %w", err)
 	}
@@ -67,7 +67,7 @@ func (svc *StorageService) StartStorageCreatePackage(userID int64, bucketID int6
 	return stgResp.NodeID, startResp.TaskID, nil
 }
 
-func (svc *StorageService) WaitStorageCreatePackage(nodeID int64, taskID string, waitTimeout time.Duration) (bool, int64, error) {
+func (svc *StorageService) WaitStorageCreatePackage(nodeID cdssdk.NodeID, taskID string, waitTimeout time.Duration) (bool, cdssdk.PackageID, error) {
 	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		// TODO 失败是否要当做任务已经结束？
@@ -92,7 +92,7 @@ func (svc *StorageService) WaitStorageCreatePackage(nodeID int64, taskID string,
 	return true, waitResp.PackageID, nil
 }
 
-func (svc *StorageService) GetInfo(userID int64, storageID int64) (*model.Storage, error) {
+func (svc *StorageService) GetInfo(userID cdssdk.UserID, storageID cdssdk.StorageID) (*model.Storage, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)

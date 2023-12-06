@@ -7,11 +7,12 @@ import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
-func (svc *Service) GetBucket(userID int, bucketID int) (model.Bucket, error) {
+func (svc *Service) GetBucket(userID cdssdk.UserID, bucketID cdssdk.BucketID) (model.Bucket, error) {
 	// TODO
 	panic("not implement yet")
 }
@@ -42,7 +43,7 @@ func (svc *Service) GetBucketPackages(msg *coormq.GetBucketPackages) (*coormq.Ge
 }
 
 func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucketResp, *mq.CodeMessage) {
-	var bucketID int64
+	var bucketID cdssdk.BucketID
 	var err error
 	svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
 		// 这里用的是外部的err

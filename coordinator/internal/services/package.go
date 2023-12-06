@@ -27,24 +27,11 @@ func (svc *Service) GetPackage(msg *coormq.GetPackage) (*coormq.GetPackageResp, 
 	return mq.ReplyOK(coormq.NewGetPackageResp(pkg))
 }
 
-func (svc *Service) GetPackageObjects(msg *coormq.GetPackageObjects) (*coormq.GetPackageObjectsResp, *mq.CodeMessage) {
-	// TODO 检查用户是否有权限
-	objs, err := svc.db.Object().GetPackageObjects(svc.db.SQLCtx(), msg.PackageID)
-	if err != nil {
-		logger.WithField("PackageID", msg.PackageID).
-			Warnf("get package objects: %s", err.Error())
-
-		return nil, mq.Failed(errorcode.OperationFailed, "get package objects failed")
-	}
-
-	return mq.ReplyOK(coormq.NewGetPackageObjectsResp(objs))
-}
-
 func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePackageResp, *mq.CodeMessage) {
-	var pkgID int64
+	var pkgID cdssdk.PackageID
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
 		var err error
-		pkgID, err = svc.db.Package().Create(svc.db.SQLCtx(), msg.BucketID, msg.Name, msg.Redundancy)
+		pkgID, err = svc.db.Package().Create(svc.db.SQLCtx(), msg.BucketID, msg.Name)
 		return err
 	})
 	if err != nil {
@@ -58,7 +45,7 @@ func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePack
 	return mq.ReplyOK(coormq.NewCreatePackageResp(pkgID))
 }
 
-func (svc *Service) UpdateRepPackage(msg *coormq.UpdateRepPackage) (*coormq.UpdateRepPackageResp, *mq.CodeMessage) {
+func (svc *Service) UpdateECPackage(msg *coormq.UpdatePackage) (*coormq.UpdatePackageResp, *mq.CodeMessage) {
 	_, err := svc.db.Package().GetByID(svc.db.SQLCtx(), msg.PackageID)
 	if err != nil {
 		logger.WithField("PackageID", msg.PackageID).
@@ -77,7 +64,7 @@ func (svc *Service) UpdateRepPackage(msg *coormq.UpdateRepPackage) (*coormq.Upda
 
 		// 再执行添加操作
 		if len(msg.Adds) > 0 {
-			if _, err := svc.db.Object().BatchAddRep(tx, msg.PackageID, msg.Adds); err != nil {
+			if _, err := svc.db.Object().BatchAdd(tx, msg.PackageID, msg.Adds); err != nil {
 				return fmt.Errorf("adding objects: %w", err)
 			}
 		}
@@ -86,55 +73,10 @@ func (svc *Service) UpdateRepPackage(msg *coormq.UpdateRepPackage) (*coormq.Upda
 	})
 	if err != nil {
 		logger.Warn(err.Error())
-		return nil, mq.Failed(errorcode.OperationFailed, "update rep package failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "update package failed")
 	}
 
-	// 紧急任务
-	var affectFileHashes []string
-	for _, add := range msg.Adds {
-		affectFileHashes = append(affectFileHashes, add.FileHash)
-	}
-
-	err = svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewCheckRepCount(affectFileHashes), true, true))
-	if err != nil {
-		logger.Warnf("post event to scanner failed, but this will not affect creating, err: %s", err.Error())
-	}
-
-	return mq.ReplyOK(coormq.NewUpdateRepPackageResp())
-}
-
-func (svc *Service) UpdateECPackage(msg *coormq.UpdateECPackage) (*coormq.UpdateECPackageResp, *mq.CodeMessage) {
-	_, err := svc.db.Package().GetByID(svc.db.SQLCtx(), msg.PackageID)
-	if err != nil {
-		logger.WithField("PackageID", msg.PackageID).
-			Warnf("get package: %s", err.Error())
-
-		return nil, mq.Failed(errorcode.OperationFailed, "get package failed")
-	}
-
-	err = svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		// 先执行删除操作
-		if len(msg.Deletes) > 0 {
-			if err := svc.db.Object().BatchDelete(tx, msg.Deletes); err != nil {
-				return fmt.Errorf("deleting objects: %w", err)
-			}
-		}
-
-		// 再执行添加操作
-		if len(msg.Adds) > 0 {
-			if _, err := svc.db.Object().BatchAddEC(tx, msg.PackageID, msg.Adds); err != nil {
-				return fmt.Errorf("adding objects: %w", err)
-			}
-		}
-
-		return nil
-	})
-	if err != nil {
-		logger.Warn(err.Error())
-		return nil, mq.Failed(errorcode.OperationFailed, "update ec package failed")
-	}
-
-	return mq.ReplyOK(coormq.NewUpdateECPackageResp())
+	return mq.ReplyOK(coormq.NewUpdatePackageResp())
 }
 
 func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePackageResp, *mq.CodeMessage) {
@@ -171,7 +113,7 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 	// 不追求及时、准确
 	if len(stgs) == 0 {
 		// 如果没有被引用，直接投递CheckPackage的任务
-		err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewCheckPackage([]int64{msg.PackageID}), false, false))
+		err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewCheckPackage([]cdssdk.PackageID{msg.PackageID}), false, false))
 		if err != nil {
 			logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
 		}
@@ -180,7 +122,7 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 	} else {
 		// 有引用则让Agent去检查StoragePackage
 		for _, stg := range stgs {
-			err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []int64{msg.PackageID}), false, false))
+			err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []cdssdk.PackageID{msg.PackageID}), false, false))
 			if err != nil {
 				logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
 			}
@@ -206,76 +148,33 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 		return nil, mq.Failed(errorcode.OperationFailed, "package is not available to the user")
 	}
 
-	pkg, err := svc.db.Package().GetByID(svc.db.SQLCtx(), msg.PackageID)
+	objDetails, err := svc.db.ObjectBlock().GetPackageBlockDetails(svc.db.SQLCtx(), msg.PackageID)
 	if err != nil {
 		logger.WithField("PackageID", msg.PackageID).
-			Warnf("get package: %s", err.Error())
+			Warnf("get package block details: %s", err.Error())
 
-		return nil, mq.Failed(errorcode.OperationFailed, "get package failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "get package block details failed")
 	}
 
 	var packageSize int64
-	nodeInfoMap := make(map[int64]*cdssdk.NodePackageCachingInfo)
-	if pkg.Redundancy.IsRepInfo() {
-		// 备份方式为rep
-		objectRepDatas, err := svc.db.ObjectRep().GetWithNodeIDInPackage(svc.db.SQLCtx(), msg.PackageID)
-		if err != nil {
-			logger.WithField("PackageID", msg.PackageID).
-				Warnf("get objectRepDatas by packageID failed, err: %s", err.Error())
-			return nil, mq.Failed(errorcode.OperationFailed, "get objectRepDatas by packageID failed")
-		}
-
-		for _, data := range objectRepDatas {
-			packageSize += data.Object.Size
-			for _, nodeID := range data.NodeIDs {
-
-				nodeInfo, exists := nodeInfoMap[nodeID]
-				if !exists {
-					nodeInfo = &cdssdk.NodePackageCachingInfo{
-						NodeID:      nodeID,
-						FileSize:    data.Object.Size,
-						ObjectCount: 1,
+	nodeInfoMap := make(map[cdssdk.NodeID]*cdssdk.NodePackageCachingInfo)
+	for _, obj := range objDetails {
+		// 只要存了文件的一个块，就认为此节点存了整个文件
+		for _, block := range obj.Blocks {
+			for _, nodeID := range block.CachedNodeIDs {
+				info, ok := nodeInfoMap[nodeID]
+				if !ok {
+					info = &cdssdk.NodePackageCachingInfo{
+						NodeID: nodeID,
 					}
-				} else {
-					nodeInfo.FileSize += data.Object.Size
-					nodeInfo.ObjectCount++
+					nodeInfoMap[nodeID] = info
+
 				}
-				nodeInfoMap[nodeID] = nodeInfo
+
+				info.FileSize += obj.Object.Size
+				info.ObjectCount++
 			}
 		}
-	} else if pkg.Redundancy.IsECInfo() {
-		// 备份方式为ec
-		objectECDatas, err := svc.db.ObjectBlock().GetWithNodeIDInPackage(svc.db.SQLCtx(), msg.PackageID)
-		if err != nil {
-			logger.WithField("PackageID", msg.PackageID).
-				Warnf("get objectECDatas by packageID failed, err: %s", err.Error())
-			return nil, mq.Failed(errorcode.OperationFailed, "get objectECDatas by packageID failed")
-		}
-
-		for _, ecData := range objectECDatas {
-			packageSize += ecData.Object.Size
-			for _, block := range ecData.Blocks {
-				for _, nodeID := range block.NodeIDs {
-
-					nodeInfo, exists := nodeInfoMap[nodeID]
-					if !exists {
-						nodeInfo = &cdssdk.NodePackageCachingInfo{
-							NodeID:      nodeID,
-							FileSize:    ecData.Object.Size,
-							ObjectCount: 1,
-						}
-					} else {
-						nodeInfo.FileSize += ecData.Object.Size
-						nodeInfo.ObjectCount++
-					}
-					nodeInfoMap[nodeID] = nodeInfo
-				}
-			}
-		}
-	} else {
-		logger.WithField("PackageID", msg.PackageID).
-			Warnf("Redundancy type %s is wrong", pkg.Redundancy.Type)
-		return nil, mq.Failed(errorcode.OperationFailed, "redundancy type is wrong")
 	}
 
 	var nodeInfos []cdssdk.NodePackageCachingInfo
@@ -286,7 +185,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 	sort.Slice(nodeInfos, func(i, j int) bool {
 		return nodeInfos[i].NodeID < nodeInfos[j].NodeID
 	})
-	return mq.ReplyOK(coormq.NewGetPackageCachedNodesResp(nodeInfos, packageSize, pkg.Redundancy.Type))
+	return mq.ReplyOK(coormq.NewGetPackageCachedNodesResp(nodeInfos, packageSize))
 }
 
 func (svc *Service) GetPackageLoadedNodes(msg *coormq.GetPackageLoadedNodes) (*coormq.GetPackageLoadedNodesResp, *mq.CodeMessage) {
@@ -297,8 +196,8 @@ func (svc *Service) GetPackageLoadedNodes(msg *coormq.GetPackageLoadedNodes) (*c
 		return nil, mq.Failed(errorcode.OperationFailed, "get storages by packageID failed")
 	}
 
-	uniqueNodeIDs := make(map[int64]bool)
-	var nodeIDs []int64
+	uniqueNodeIDs := make(map[cdssdk.NodeID]bool)
+	var nodeIDs []cdssdk.NodeID
 	for _, stg := range storages {
 		if !uniqueNodeIDs[stg.NodeID] {
 			uniqueNodeIDs[stg.NodeID] = true

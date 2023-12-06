@@ -26,8 +26,8 @@ func (s *Server) PackageSvc() *PackageService {
 }
 
 type PackageGetReq struct {
-	UserID    *int64 `form:"userID" binding:"required"`
-	PackageID *int64 `form:"packageID" binding:"required"`
+	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `form:"packageID" binding:"required"`
 }
 type PackageGetResp struct {
 	model.Package
@@ -59,15 +59,14 @@ type PackageUploadReq struct {
 }
 
 type PackageUploadInfo struct {
-	UserID       *int64                     `json:"userID" binding:"required"`
-	BucketID     *int64                     `json:"bucketID" binding:"required"`
-	Name         string                     `json:"name" binding:"required"`
-	Redundancy   cdssdk.TypedRedundancyInfo `json:"redundancy" binding:"required"`
-	NodeAffinity *int64                     `json:"nodeAffinity"`
+	UserID       *cdssdk.UserID   `json:"userID" binding:"required"`
+	BucketID     *cdssdk.BucketID `json:"bucketID" binding:"required"`
+	Name         string           `json:"name" binding:"required"`
+	NodeAffinity *cdssdk.NodeID   `json:"nodeAffinity"`
 }
 
 type PackageUploadResp struct {
-	PackageID int64 `json:"packageID,string"`
+	PackageID cdssdk.PackageID `json:"packageID,string"`
 }
 
 func (s *PackageService) Upload(ctx *gin.Context) {
@@ -80,77 +79,17 @@ func (s *PackageService) Upload(ctx *gin.Context) {
 		return
 	}
 
-	if req.Info.Redundancy.IsRepInfo() {
-		s.uploadRep(ctx, &req)
-		return
-	}
-
-	if req.Info.Redundancy.IsECInfo() {
-		s.uploadEC(ctx, &req)
-		return
-	}
-
-	ctx.JSON(http.StatusForbidden, Failed(errorcode.OperationFailed, "not supported yet"))
-}
-
-func (s *PackageService) uploadRep(ctx *gin.Context, req *PackageUploadReq) {
-	log := logger.WithField("HTTP", "Package.Upload")
-
-	var err error
-	var repInfo cdssdk.RepRedundancyInfo
-	if repInfo, err = req.Info.Redundancy.ToRepInfo(); err != nil {
-		log.Warnf("parsing rep redundancy config: %s", err.Error())
-		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
-		return
-	}
-
-	objIter := mapMultiPartFileToUploadingObject(req.Files)
-
-	taskID, err := s.svc.PackageSvc().StartCreatingRepPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, repInfo, req.Info.NodeAffinity)
-
-	if err != nil {
-		log.Warnf("start uploading rep package task: %s", err.Error())
-		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "start uploading task failed"))
-		return
-	}
-
-	for {
-		complete, createResult, err := s.svc.PackageSvc().WaitCreatingRepPackage(taskID, time.Second*5)
-		if complete {
-			if err != nil {
-				log.Warnf("uploading rep package: %s", err.Error())
-				ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "uploading rep package failed"))
-				return
-			}
-
-			ctx.JSON(http.StatusOK, OK(PackageUploadResp{
-				PackageID: createResult.PackageID,
-			}))
-			return
-		}
-
-		if err != nil {
-			log.Warnf("waiting task: %s", err.Error())
-			ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "wait uploading task failed"))
-			return
-		}
-	}
+	s.uploadEC(ctx, &req)
 }
 
 func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 	log := logger.WithField("HTTP", "Package.Upload")
 
 	var err error
-	var ecInfo cdssdk.ECRedundancyInfo
-	if ecInfo, err = req.Info.Redundancy.ToECInfo(); err != nil {
-		log.Warnf("parsing ec redundancy config: %s", err.Error())
-		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "invalid rep redundancy config"))
-		return
-	}
 
 	objIter := mapMultiPartFileToUploadingObject(req.Files)
 
-	taskID, err := s.svc.PackageSvc().StartCreatingECPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, ecInfo, req.Info.NodeAffinity)
+	taskID, err := s.svc.PackageSvc().StartCreatingPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, req.Info.NodeAffinity)
 
 	if err != nil {
 		log.Warnf("start uploading ec package task: %s", err.Error())
@@ -159,7 +98,7 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 	}
 
 	for {
-		complete, createResult, err := s.svc.PackageSvc().WaitCreatingECPackage(taskID, time.Second*5)
+		complete, createResult, err := s.svc.PackageSvc().WaitCreatingPackage(taskID, time.Second*5)
 		if complete {
 			if err != nil {
 				log.Warnf("uploading ec package: %s", err.Error())
@@ -182,8 +121,8 @@ func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
 }
 
 type PackageDeleteReq struct {
-	UserID    *int64 `json:"userID" binding:"required"`
-	PackageID *int64 `json:"packageID" binding:"required"`
+	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
 }
 
 func (s *PackageService) Delete(ctx *gin.Context) {
@@ -207,8 +146,8 @@ func (s *PackageService) Delete(ctx *gin.Context) {
 }
 
 type GetCachedNodesReq struct {
-	UserID    *int64 `json:"userID" binding:"required"`
-	PackageID *int64 `json:"packageID" binding:"required"`
+	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
 }
 type GetCachedNodesResp struct {
 	cdssdk.PackageCachingInfo
@@ -235,12 +174,12 @@ func (s *PackageService) GetCachedNodes(ctx *gin.Context) {
 }
 
 type GetLoadedNodesReq struct {
-	UserID    *int64 `json:"userID" binding:"required"`
-	PackageID *int64 `json:"packageID" binding:"required"`
+	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
 }
 
 type GetLoadedNodesResp struct {
-	NodeIDs []int64 `json:"nodeIDs"`
+	NodeIDs []cdssdk.NodeID `json:"nodeIDs"`
 }
 
 func (s *PackageService) GetLoadedNodes(ctx *gin.Context) {

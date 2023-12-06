@@ -23,7 +23,7 @@ func (svc *Service) PackageSvc() *PackageService {
 	return &PackageService{Service: svc}
 }
 
-func (svc *PackageService) Get(userID int64, packageID int64) (*model.Package, error) {
+func (svc *PackageService) Get(userID cdssdk.UserID, packageID cdssdk.PackageID) (*model.Package, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -38,7 +38,7 @@ func (svc *PackageService) Get(userID int64, packageID int64) (*model.Package, e
 	return &getResp.Package, nil
 }
 
-func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (iterator.DownloadingObjectIterator, error) {
+func (svc *PackageService) DownloadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID) (iterator.DownloadingObjectIterator, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -65,137 +65,50 @@ func (svc *PackageService) DownloadPackage(userID int64, packageID int64) (itera
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 
-	getPkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(userID, packageID))
+	getObjsResp, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(packageID))
 	if err != nil {
-		return nil, fmt.Errorf("getting package: %w", err)
+		return nil, fmt.Errorf("getting package object details: %w", err)
 	}
 
-	getObjsResp, err := coorCli.GetPackageObjects(coormq.NewGetPackageObjects(userID, packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package objects: %w", err)
-	}
-
-	if getPkgResp.Redundancy.IsRepInfo() {
-		iter, err := svc.downloadRepPackage(packageID, getObjsResp.Objects, coorCli)
-
-		if err != nil {
-			mutex.Unlock()
-			return nil, err
-		}
-
-		iter.OnClosing = func() {
-			mutex.Unlock()
-		}
-
-		return iter, nil
-	} else {
-		iter, err := svc.downloadECPackage(getPkgResp.Package, getObjsResp.Objects, coorCli)
-
-		if err != nil {
-			mutex.Unlock()
-			return nil, err
-		}
-
-		iter.OnClosing = func() {
-			mutex.Unlock()
-		}
-
-		return iter, nil
-	}
-}
-
-func (svc *PackageService) downloadRepPackage(packageID int64, objects []model.Object, coorCli *coormq.Client) (*iterator.RepObjectIterator, error) {
-	getObjRepDataResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(packageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package object rep data: %w", err)
-	}
-
-	iter := iterator.NewRepObjectIterator(objects, getObjRepDataResp.Data, &iterator.DownloadContext{
+	iter := iterator.NewDownloadObjectIterator(getObjsResp.Objects, &iterator.DownloadContext{
 		Distlock: svc.DistLock,
 	})
 
-	return iter, nil
-}
-func (svc *PackageService) downloadECPackage(pkg model.Package, objects []model.Object, coorCli *coormq.Client) (*iterator.ECObjectIterator, error) {
-	getObjECDataResp, err := coorCli.GetPackageObjectECData(coormq.NewGetPackageObjectECData(pkg.PackageID))
-	if err != nil {
-		return nil, fmt.Errorf("getting package object ec data: %w", err)
+	iter.OnClosing = func() {
+		mutex.Unlock()
 	}
-
-	var ecInfo cdssdk.ECRedundancyInfo
-	if ecInfo, err = pkg.Redundancy.ToECInfo(); err != nil {
-		return nil, fmt.Errorf("get ec redundancy info: %w", err)
-	}
-
-	getECResp, err := coorCli.GetECConfig(coormq.NewGetECConfig(ecInfo.ECName))
-	if err != nil {
-		return nil, fmt.Errorf("getting ec: %w", err)
-	}
-
-	iter := iterator.NewECObjectIterator(objects, getObjECDataResp.Data, ecInfo, getECResp.Config, &iterator.DownloadContext{
-		Distlock: svc.DistLock,
-	})
-
 	return iter, nil
 }
 
-func (svc *PackageService) StartCreatingRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, repInfo cdssdk.RepRedundancyInfo, nodeAffinity *int64) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewCreateRepPackage(userID, bucketID, name, objIter, repInfo, nodeAffinity))
+func (svc *PackageService) StartCreatingPackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) (string, error) {
+	tsk := svc.TaskMgr.StartNew(mytask.NewCreatePackage(userID, bucketID, name, objIter, nodeAffinity))
 	return tsk.ID(), nil
 }
 
-func (svc *PackageService) WaitCreatingRepPackage(taskID string, waitTimeout time.Duration) (bool, *mytask.CreateRepPackageResult, error) {
+func (svc *PackageService) WaitCreatingPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreatePackageResult, error) {
 	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		cteatePkgTask := tsk.Body().(*mytask.CreateRepPackage)
+		cteatePkgTask := tsk.Body().(*mytask.CreatePackage)
 		return true, cteatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil
 }
 
-func (svc *PackageService) StartUpdatingRepPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewUpdateRepPackage(userID, packageID, objIter))
+func (svc *PackageService) StartUpdatingPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, objIter iterator.UploadingObjectIterator) (string, error) {
+	tsk := svc.TaskMgr.StartNew(mytask.NewUpdatePackage(userID, packageID, objIter))
 	return tsk.ID(), nil
 }
 
-func (svc *PackageService) WaitUpdatingRepPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.UpdateRepPackageResult, error) {
+func (svc *PackageService) WaitUpdatingPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.UpdatePackageResult, error) {
 	tsk := svc.TaskMgr.FindByID(taskID)
 	if tsk.WaitTimeout(waitTimeout) {
-		updatePkgTask := tsk.Body().(*mytask.UpdateRepPackage)
+		updatePkgTask := tsk.Body().(*mytask.UpdatePackage)
 		return true, updatePkgTask.Result, tsk.Error()
 	}
 	return false, nil, nil
 }
 
-func (svc *PackageService) StartCreatingECPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, ecInfo cdssdk.ECRedundancyInfo, nodeAffinity *int64) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewCreateECPackage(userID, bucketID, name, objIter, ecInfo, nodeAffinity))
-	return tsk.ID(), nil
-}
-
-func (svc *PackageService) WaitCreatingECPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreateECPackageResult, error) {
-	tsk := svc.TaskMgr.FindByID(taskID)
-	if tsk.WaitTimeout(waitTimeout) {
-		cteatePkgTask := tsk.Body().(*mytask.CreateECPackage)
-		return true, cteatePkgTask.Result, tsk.Error()
-	}
-	return false, nil, nil
-}
-
-func (svc *PackageService) StartUpdatingECPackage(userID int64, packageID int64, objIter iterator.UploadingObjectIterator) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewUpdateECPackage(userID, packageID, objIter))
-	return tsk.ID(), nil
-}
-
-func (svc *PackageService) WaitUpdatingECPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.UpdateECPackageResult, error) {
-	tsk := svc.TaskMgr.FindByID(taskID)
-	if tsk.WaitTimeout(waitTimeout) {
-		updatePkgTask := tsk.Body().(*mytask.UpdateECPackage)
-		return true, updatePkgTask.Result, tsk.Error()
-	}
-	return false, nil, nil
-}
-
-func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
+func (svc *PackageService) DeletePackage(userID cdssdk.UserID, packageID cdssdk.PackageID) error {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)
@@ -230,7 +143,7 @@ func (svc *PackageService) DeletePackage(userID int64, packageID int64) error {
 	return nil
 }
 
-func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (cdssdk.PackageCachingInfo, error) {
+func (svc *PackageService) GetCachedNodes(userID cdssdk.UserID, packageID cdssdk.PackageID) (cdssdk.PackageCachingInfo, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return cdssdk.PackageCachingInfo{}, fmt.Errorf("new coordinator client: %w", err)
@@ -243,14 +156,13 @@ func (svc *PackageService) GetCachedNodes(userID int64, packageID int64) (cdssdk
 	}
 
 	tmp := cdssdk.PackageCachingInfo{
-		NodeInfos:     resp.NodeInfos,
-		PackageSize:   resp.PackageSize,
-		RedunancyType: resp.RedunancyType,
+		NodeInfos:   resp.NodeInfos,
+		PackageSize: resp.PackageSize,
 	}
 	return tmp, nil
 }
 
-func (svc *PackageService) GetLoadedNodes(userID int64, packageID int64) ([]int64, error) {
+func (svc *PackageService) GetLoadedNodes(userID cdssdk.UserID, packageID cdssdk.PackageID) ([]cdssdk.NodeID, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)

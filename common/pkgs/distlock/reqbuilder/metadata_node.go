@@ -2,6 +2,7 @@ package reqbuilder
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/lockprovider"
 )
 
@@ -13,7 +14,7 @@ func (b *MetadataLockReqBuilder) Node() *MetadataNodeLockReqBuilder {
 	return &MetadataNodeLockReqBuilder{MetadataLockReqBuilder: b}
 }
 
-func (b *MetadataNodeLockReqBuilder) ReadOne(nodeID int64) *MetadataNodeLockReqBuilder {
+func (b *MetadataNodeLockReqBuilder) ReadOne(nodeID cdssdk.NodeID) *MetadataNodeLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("Node"),
 		Name:   lockprovider.METADATA_ELEMENT_READ_LOCK,
@@ -21,7 +22,7 @@ func (b *MetadataNodeLockReqBuilder) ReadOne(nodeID int64) *MetadataNodeLockReqB
 	})
 	return b
 }
-func (b *MetadataNodeLockReqBuilder) WriteOne(nodeID int64) *MetadataNodeLockReqBuilder {
+func (b *MetadataNodeLockReqBuilder) WriteOne(nodeID cdssdk.NodeID) *MetadataNodeLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("Node"),
 		Name:   lockprovider.METADATA_ELEMENT_WRITE_LOCK,

@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 )
 
@@ -21,8 +22,8 @@ func (s *Server) ObjectSvc() *ObjectService {
 }
 
 type ObjectDownloadReq struct {
-	UserID   *int64 `form:"userID" binding:"required"`
-	ObjectID *int64 `form:"objectID" binding:"required"`
+	UserID   *cdssdk.UserID   `form:"userID" binding:"required"`
+	ObjectID *cdssdk.ObjectID `form:"objectID" binding:"required"`
 }
 
 func (s *ObjectService) Download(ctx *gin.Context) {
@@ -71,4 +72,30 @@ func (s *ObjectService) Download(ctx *gin.Context) {
 
 		return true
 	})
+}
+
+type GetPackageObjectsReq struct {
+	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
+	PackageID *cdssdk.PackageID `form:"packageID" binding:"required"`
+}
+type GetPackageObjectsResp = cdssdk.ObjectGetPackageObjectsResp
+
+func (s *ObjectService) GetPackageObjects(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Object.GetPackageObjects")
+
+	var req GetPackageObjectsReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	objs, err := s.svc.ObjectSvc().GetPackageObjects(*req.UserID, *req.PackageID)
+	if err != nil {
+		log.Warnf("getting package objects: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package object failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(GetPackageObjectsResp{Objects: objs}))
 }

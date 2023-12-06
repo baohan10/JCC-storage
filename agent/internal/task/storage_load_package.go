@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gitlink.org.cn/cloudream/common/pkgs/task"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 )
 
@@ -12,7 +13,7 @@ type StorageLoadPackage struct {
 	FullPath string
 }
 
-func NewStorageLoadPackage(userID int64, packageID int64, outputPath string) *StorageLoadPackage {
+func NewStorageLoadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, outputPath string) *StorageLoadPackage {
 	return &StorageLoadPackage{
 		cmd:      cmd.NewDownloadPackage(userID, packageID, outputPath),
 		FullPath: outputPath,

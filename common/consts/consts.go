@@ -11,17 +11,6 @@ const (
 )
 
 const (
-	PackageStateNormal  = "Normal"
-	PackageStateDeleted = "Deleted"
-)
-
-const (
-	StoragePackageStateNormal   = "Normal"
-	StoragePackageStateDeleted  = "Deleted"
-	StoragePackageStateOutdated = "Outdated"
-)
-
-const (
 	CacheStatePinned = "Pinned"
 	CacheStateTemp   = "Temp"
 )

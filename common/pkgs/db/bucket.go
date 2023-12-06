@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -34,7 +35,7 @@ func (db *BucketDB) GetIDByName(bucketName string) (int64, error) {
 }
 
 // IsAvailable 判断用户是否有指定Bucekt的权限
-func (db *BucketDB) IsAvailable(ctx SQLContext, bucketID int64, userID int64) (bool, error) {
+func (db *BucketDB) IsAvailable(ctx SQLContext, bucketID cdssdk.BucketID, userID cdssdk.UserID) (bool, error) {
 	_, err := db.GetUserBucket(ctx, userID, bucketID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
@@ -47,7 +48,7 @@ func (db *BucketDB) IsAvailable(ctx SQLContext, bucketID int64, userID int64) (b
 	return true, nil
 }
 
-func (*BucketDB) GetUserBucket(ctx SQLContext, userID int64, bucketID int64) (model.Bucket, error) {
+func (*BucketDB) GetUserBucket(ctx SQLContext, userID cdssdk.UserID, bucketID cdssdk.BucketID) (model.Bucket, error) {
 	var ret model.Bucket
 	err := sqlx.Get(ctx, &ret,
 		"select Bucket.* from UserBucket, Bucket where UserID = ? and"+
@@ -56,13 +57,13 @@ func (*BucketDB) GetUserBucket(ctx SQLContext, userID int64, bucketID int64) (mo
 	return ret, err
 }
 
-func (*BucketDB) GetUserBuckets(ctx SQLContext, userID int64) ([]model.Bucket, error) {
+func (*BucketDB) GetUserBuckets(ctx SQLContext, userID cdssdk.UserID) ([]model.Bucket, error) {
 	var ret []model.Bucket
 	err := sqlx.Select(ctx, &ret, "select Bucket.* from UserBucket, Bucket where UserID = ? and UserBucket.BucketID = Bucket.BucketID", userID)
 	return ret, err
 }
 
-func (db *BucketDB) Create(ctx SQLContext, userID int64, bucketName string) (int64, error) {
+func (db *BucketDB) Create(ctx SQLContext, userID cdssdk.UserID, bucketName string) (cdssdk.BucketID, error) {
 	var bucketID int64
 	err := sqlx.Get(ctx, &bucketID, "select Bucket.BucketID from UserBucket, Bucket where UserBucket.UserID = ? and UserBucket.BucketID = Bucket.BucketID and Bucket.Name = ?", userID, bucketName)
 	if err == nil {
@@ -88,10 +89,10 @@ func (db *BucketDB) Create(ctx SQLContext, userID int64, bucketName string) (int
 		return 0, fmt.Errorf("insert into user bucket failed, err: %w", err)
 	}
 
-	return bucketID, err
+	return cdssdk.BucketID(bucketID), err
 }
 
-func (db *BucketDB) Delete(ctx SQLContext, bucketID int64) error {
+func (db *BucketDB) Delete(ctx SQLContext, bucketID cdssdk.BucketID) error {
 	_, err := ctx.Exec("delete from UserBucket where BucketID = ?", bucketID)
 	if err != nil {
 		return fmt.Errorf("delete user bucket failed, err: %w", err)
@@ -103,15 +104,15 @@ func (db *BucketDB) Delete(ctx SQLContext, bucketID int64) error {
 	}
 
 	// 删除Bucket内的Package
-	var objIDs []int64
-	err = sqlx.Select(ctx, &objIDs, "select PackageID from Package where BucketID = ?", bucketID)
+	var pkgIDs []cdssdk.PackageID
+	err = sqlx.Select(ctx, &pkgIDs, "select PackageID from Package where BucketID = ?", bucketID)
 	if err != nil {
 		return fmt.Errorf("query package failed, err: %w", err)
 	}
 
-	for _, objID := range objIDs {
+	for _, pkgID := range pkgIDs {
 		// TODO 不一定所有的错误都要中断后续过程
-		err = db.Package().SoftDelete(ctx, objID)
+		err = db.Package().SoftDelete(ctx, pkgID)
 		if err != nil {
 			return fmt.Errorf("set package seleted failed, err: %w", err)
 		}

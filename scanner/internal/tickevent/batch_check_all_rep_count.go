@@ -1,5 +1,6 @@
 package tickevent
 
+/*
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
@@ -37,3 +38,4 @@ func (e *BatchCheckAllRepCount) Execute(ctx ExecuteContext) {
 		e.lastCheckStart += CHECK_CACHE_BATCH_SIZE
 	}
 }
+*/

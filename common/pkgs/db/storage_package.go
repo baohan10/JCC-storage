@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	"gitlink.org.cn/cloudream/storage/common/consts"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -16,47 +16,47 @@ func (db *DB) StoragePackage() *StoragePackageDB {
 	return &StoragePackageDB{DB: db}
 }
 
-func (*StoragePackageDB) Get(ctx SQLContext, storageID int64, packageID int64, userID int64) (model.StoragePackage, error) {
+func (*StoragePackageDB) Get(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) (model.StoragePackage, error) {
 	var ret model.StoragePackage
 	err := sqlx.Get(ctx, &ret, "select * from StoragePackage where StorageID = ? and PackageID = ? and UserID = ?", storageID, packageID, userID)
 	return ret, err
 }
 
-func (*StoragePackageDB) GetAllByStorageAndPackageID(ctx SQLContext, storageID int64, packageID int64) ([]model.StoragePackage, error) {
+func (*StoragePackageDB) GetAllByStorageAndPackageID(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID) ([]model.StoragePackage, error) {
 	var ret []model.StoragePackage
 	err := sqlx.Select(ctx, &ret, "select * from StoragePackage where StorageID = ? and PackageID = ?", storageID, packageID)
 	return ret, err
 }
 
-func (*StoragePackageDB) GetAllByStorageID(ctx SQLContext, storageID int64) ([]model.StoragePackage, error) {
+func (*StoragePackageDB) GetAllByStorageID(ctx SQLContext, storageID cdssdk.StorageID) ([]model.StoragePackage, error) {
 	var ret []model.StoragePackage
 	err := sqlx.Select(ctx, &ret, "select * from StoragePackage where StorageID = ?", storageID)
 	return ret, err
 }
 
-func (*StoragePackageDB) LoadPackage(ctx SQLContext, packageID int64, storageID int64, userID int64) error {
-	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", packageID, storageID, userID, consts.StoragePackageStateNormal)
+func (*StoragePackageDB) Create(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
+	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", storageID, packageID, userID, model.StoragePackageStateNormal)
 	return err
 }
 
-func (*StoragePackageDB) ChangeState(ctx SQLContext, storageID int64, packageID int64, userID int64, state string) error {
+func (*StoragePackageDB) ChangeState(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID, state string) error {
 	_, err := ctx.Exec("update StoragePackage set State = ? where StorageID = ? and PackageID = ? and UserID = ?", state, storageID, packageID, userID)
 	return err
 }
 
 // SetStateNormal 将状态设置为Normal，如果记录状态是Deleted，则不进行操作
-func (*StoragePackageDB) SetStateNormal(ctx SQLContext, storageID int64, packageID int64, userID int64) error {
+func (*StoragePackageDB) SetStateNormal(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
 	_, err := ctx.Exec("update StoragePackage set State = ? where StorageID = ? and PackageID = ? and UserID = ? and State <> ?",
-		consts.StoragePackageStateNormal,
+		model.StoragePackageStateNormal,
 		storageID,
 		packageID,
 		userID,
-		consts.StoragePackageStateDeleted,
+		model.StoragePackageStateDeleted,
 	)
 	return err
 }
 
-func (*StoragePackageDB) SetAllPackageState(ctx SQLContext, packageID int64, state string) (int64, error) {
+func (*StoragePackageDB) SetAllPackageState(ctx SQLContext, packageID cdssdk.PackageID, state string) (int64, error) {
 	ret, err := ctx.Exec(
 		"update StoragePackage set State = ? where PackageID = ?",
 		state,
@@ -76,11 +76,11 @@ func (*StoragePackageDB) SetAllPackageState(ctx SQLContext, packageID int64, sta
 
 // SetAllPackageOutdated 将Storage中指定对象设置为已过期。
 // 注：只会设置Normal状态的对象
-func (*StoragePackageDB) SetAllPackageOutdated(ctx SQLContext, packageID int64) (int64, error) {
+func (*StoragePackageDB) SetAllPackageOutdated(ctx SQLContext, packageID cdssdk.PackageID) (int64, error) {
 	ret, err := ctx.Exec(
 		"update StoragePackage set State = ? where State = ? and PackageID = ?",
-		consts.StoragePackageStateOutdated,
-		consts.StoragePackageStateNormal,
+		model.StoragePackageStateOutdated,
+		model.StoragePackageStateNormal,
 		packageID,
 	)
 	if err != nil {
@@ -95,17 +95,17 @@ func (*StoragePackageDB) SetAllPackageOutdated(ctx SQLContext, packageID int64) 
 	return cnt, nil
 }
 
-func (db *StoragePackageDB) SetAllPackageDeleted(ctx SQLContext, packageID int64) (int64, error) {
-	return db.SetAllPackageState(ctx, packageID, consts.StoragePackageStateDeleted)
+func (db *StoragePackageDB) SetAllPackageDeleted(ctx SQLContext, packageID cdssdk.PackageID) (int64, error) {
+	return db.SetAllPackageState(ctx, packageID, model.StoragePackageStateDeleted)
 }
 
-func (*StoragePackageDB) Delete(ctx SQLContext, storageID int64, packageID int64, userID int64) error {
+func (*StoragePackageDB) Delete(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
 	_, err := ctx.Exec("delete from StoragePackage where StorageID = ? and PackageID = ? and UserID = ?", storageID, packageID, userID)
 	return err
 }
 
 // FindPackageStorages 查询存储了指定对象的Storage
-func (*StoragePackageDB) FindPackageStorages(ctx SQLContext, packageID int64) ([]model.Storage, error) {
+func (*StoragePackageDB) FindPackageStorages(ctx SQLContext, packageID cdssdk.PackageID) ([]model.Storage, error) {
 	var ret []model.Storage
 	err := sqlx.Select(ctx, &ret,
 		"select Storage.* from StoragePackage, Storage where PackageID = ? and"+

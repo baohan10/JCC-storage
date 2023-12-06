@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -19,48 +20,46 @@ import (
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
+type CreatePackage struct {
+	userID       cdssdk.UserID
+	bucketID     cdssdk.BucketID
+	name         string
+	objectIter   iterator.UploadingObjectIterator
+	nodeAffinity *cdssdk.NodeID
+}
+
+type CreatePackageResult struct {
+	PackageID     cdssdk.PackageID
+	ObjectResults []ObjectUploadResult
+}
+
+type ObjectUploadResult struct {
+	Info  *iterator.IterUploadingObject
+	Error error
+	// TODO 这个字段没有被赋值
+	ObjectID cdssdk.ObjectID
+}
+
 type UploadNodeInfo struct {
 	Node           model.Node
 	IsSameLocation bool
-}
-
-type CreateRepPackage struct {
-	userID       int64
-	bucketID     int64
-	name         string
-	objectIter   iterator.UploadingObjectIterator
-	redundancy   cdssdk.RepRedundancyInfo
-	nodeAffinity *int64
 }
 
 type UpdatePackageContext struct {
 	Distlock *distlock.Service
 }
 
-type CreateRepPackageResult struct {
-	PackageID     int64
-	ObjectResults []RepObjectUploadResult
-}
-
-type RepObjectUploadResult struct {
-	Info     *iterator.IterUploadingObject
-	Error    error
-	FileHash string
-	ObjectID int64
-}
-
-func NewCreateRepPackage(userID int64, bucketID int64, name string, objIter iterator.UploadingObjectIterator, redundancy cdssdk.RepRedundancyInfo, nodeAffinity *int64) *CreateRepPackage {
-	return &CreateRepPackage{
+func NewCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) *CreatePackage {
+	return &CreatePackage{
 		userID:       userID,
 		bucketID:     bucketID,
 		name:         name,
 		objectIter:   objIter,
-		redundancy:   redundancy,
 		nodeAffinity: nodeAffinity,
 	}
 }
 
-func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackageResult, error) {
+func (t *CreatePackage) Execute(ctx *UpdatePackageContext) (*CreatePackageResult, error) {
 	defer t.objectIter.Close()
 
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
@@ -68,12 +67,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
-	reqBlder := reqbuilder.NewBuilder()
-	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
-	if stgglb.Local.NodeID != nil {
-		reqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
-	}
-	mutex, err := reqBlder.
+	mutex, err := reqbuilder.NewBuilder().
 		Metadata().
 		// 用于判断用户是否有桶的权限
 		UserBucket().ReadOne(t.userID, t.bucketID).
@@ -93,8 +87,7 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 	}
 	defer mutex.Unlock()
 
-	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name,
-		cdssdk.NewTypedRedundancyInfo(t.redundancy)))
+	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
 	}
@@ -104,47 +97,73 @@ func (t *CreateRepPackage) Execute(ctx *UpdatePackageContext) (*CreateRepPackage
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	findCliLocResp, err := coorCli.FindClientLocation(coormq.NewFindClientLocation(stgglb.Local.ExternalIP))
-	if err != nil {
-		return nil, fmt.Errorf("finding client location: %w", err)
-	}
-
-	nodeInfos := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
+	userNodes := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
 		return UploadNodeInfo{
 			Node:           node,
-			IsSameLocation: node.LocationID == findCliLocResp.Location.LocationID,
+			IsSameLocation: node.LocationID == stgglb.Local.LocationID,
 		}
 	})
-	uploadNode := t.chooseUploadNode(nodeInfos, t.nodeAffinity)
 
+	// 给上传节点的IPFS加锁
+	ipfsReqBlder := reqbuilder.NewBuilder()
+	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
+	if stgglb.Local.NodeID != nil {
+		ipfsReqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
+	}
+	for _, node := range userNodes {
+		if stgglb.Local.NodeID != nil && node.Node.NodeID == *stgglb.Local.NodeID {
+			continue
+		}
+
+		ipfsReqBlder.IPFS().CreateAnyRep(node.Node.NodeID)
+	}
 	// 防止上传的副本被清除
-	ipfsMutex, err := reqbuilder.NewBuilder().
-		IPFS().CreateAnyRep(uploadNode.Node.NodeID).
-		MutexLock(ctx.Distlock)
+	ipfsMutex, err := ipfsReqBlder.MutexLock(ctx.Distlock)
 	if err != nil {
 		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
 	}
 	defer ipfsMutex.Unlock()
 
-	rets, err := uploadAndUpdateRepPackage(createPkgResp.PackageID, t.objectIter, uploadNode)
+	rets, err := uploadAndUpdatePackage(createPkgResp.PackageID, t.objectIter, userNodes, t.nodeAffinity)
 	if err != nil {
 		return nil, err
 	}
 
-	return &CreateRepPackageResult{
+	return &CreatePackageResult{
 		PackageID:     createPkgResp.PackageID,
 		ObjectResults: rets,
 	}, nil
 }
 
-func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObjectIterator, uploadNode UploadNodeInfo) ([]RepObjectUploadResult, error) {
+// chooseUploadNode 选择一个上传文件的节点
+// 1. 选择设置了亲和性的节点
+// 2. 从与当前客户端相同地域的节点中随机选一个
+// 3. 没有用的话从所有节点中随机选一个
+func chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) UploadNodeInfo {
+	if nodeAffinity != nil {
+		aff, ok := lo.Find(nodes, func(node UploadNodeInfo) bool { return node.Node.NodeID == *nodeAffinity })
+		if ok {
+			return aff
+		}
+	}
+
+	sameLocationNodes := lo.Filter(nodes, func(e UploadNodeInfo, i int) bool { return e.IsSameLocation })
+	if len(sameLocationNodes) > 0 {
+		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]
+	}
+
+	return nodes[rand.Intn(len(nodes))]
+}
+
+func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.UploadingObjectIterator, userNodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) ([]ObjectUploadResult, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
-	var uploadRets []RepObjectUploadResult
-	var adds []coormq.AddRepObjectInfo
+	var uploadRets []ObjectUploadResult
+	//上传文件夹
+	var adds []coormq.AddObjectInfo
 	for {
 		objInfo, err := objectIter.MoveNext()
 		if err == iterator.ErrNoMoreItem {
@@ -153,20 +172,25 @@ func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObj
 		if err != nil {
 			return nil, fmt.Errorf("reading object: %w", err)
 		}
-
 		err = func() error {
 			defer objInfo.File.Close()
+
+			uploadNode := chooseUploadNode(userNodes, nodeAffinity)
+
 			fileHash, err := uploadFile(objInfo.File, uploadNode)
-			uploadRets = append(uploadRets, RepObjectUploadResult{
-				Info:     objInfo,
-				Error:    err,
-				FileHash: fileHash,
+			if err != nil {
+				return fmt.Errorf("uploading file: %w", err)
+			}
+
+			uploadRets = append(uploadRets, ObjectUploadResult{
+				Info:  objInfo,
+				Error: err,
 			})
 			if err != nil {
 				return fmt.Errorf("uploading object: %w", err)
 			}
 
-			adds = append(adds, coormq.NewAddRepObjectInfo(objInfo.Path, objInfo.Size, fileHash, []int64{uploadNode.Node.NodeID}))
+			adds = append(adds, coormq.NewAddObjectInfo(objInfo.Path, objInfo.Size, fileHash, uploadNode.Node.NodeID))
 			return nil
 		}()
 		if err != nil {
@@ -174,7 +198,7 @@ func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObj
 		}
 	}
 
-	_, err = coorCli.UpdateRepPackage(coormq.NewUpdateRepPackage(packageID, adds, nil))
+	_, err = coorCli.UpdateECPackage(coormq.NewUpdatePackage(packageID, adds, nil))
 	if err != nil {
 		return nil, fmt.Errorf("updating package: %w", err)
 	}
@@ -182,7 +206,6 @@ func uploadAndUpdateRepPackage(packageID int64, objectIter iterator.UploadingObj
 	return uploadRets, nil
 }
 
-// 上传文件
 func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	// 本地有IPFS，则直接从本地IPFS上传
 	if stgglb.IPFSPool != nil {
@@ -217,26 +240,6 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	return fileHash, nil
 }
 
-// chooseUploadNode 选择一个上传文件的节点
-// 1. 选择设置了亲和性的节点
-// 2. 从与当前客户端相同地域的节点中随机选一个
-// 3. 没有用的话从所有节点中随机选一个
-func (t *CreateRepPackage) chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity *int64) UploadNodeInfo {
-	if nodeAffinity != nil {
-		aff, ok := lo.Find(nodes, func(node UploadNodeInfo) bool { return node.Node.NodeID == *nodeAffinity })
-		if ok {
-			return aff
-		}
-	}
-
-	sameLocationNodes := lo.Filter(nodes, func(e UploadNodeInfo, i int) bool { return e.IsSameLocation })
-	if len(sameLocationNodes) > 0 {
-		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]
-	}
-
-	return nodes[rand.Intn(len(nodes))]
-}
-
 func uploadToNode(file io.Reader, nodeIP string, grpcPort int) (string, error) {
 	rpcCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
@@ -247,7 +250,7 @@ func uploadToNode(file io.Reader, nodeIP string, grpcPort int) (string, error) {
 	return rpcCli.SendIPFSFile(file)
 }
 
-func uploadToLocalIPFS(file io.Reader, nodeID int64, shouldPin bool) (string, error) {
+func uploadToLocalIPFS(file io.Reader, nodeID cdssdk.NodeID, shouldPin bool) (string, error) {
 	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return "", fmt.Errorf("new ipfs client: %w", err)
@@ -272,7 +275,7 @@ func uploadToLocalIPFS(file io.Reader, nodeID int64, shouldPin bool) (string, er
 	return fileHash, nil
 }
 
-func pinIPFSFile(nodeID int64, fileHash string) error {
+func pinIPFSFile(nodeID cdssdk.NodeID, fileHash string) error {
 	agtCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		return fmt.Errorf("new agent client: %w", err)

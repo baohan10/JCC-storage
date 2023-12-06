@@ -12,8 +12,8 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
-func PackageListBucketPackages(ctx CommandContext, bucketID int64) error {
-	userID := int64(0)
+func PackageListBucketPackages(ctx CommandContext, bucketID cdssdk.BucketID) error {
+	userID := cdssdk.UserID(0)
 
 	packages, err := ctx.Cmdline.Svc.BucketSvc().GetBucketPackages(userID, bucketID)
 	if err != nil {
@@ -23,17 +23,17 @@ func PackageListBucketPackages(ctx CommandContext, bucketID int64) error {
 	fmt.Printf("Find %d packages in bucket %d for user %d:\n", len(packages), bucketID, userID)
 
 	tb := table.NewWriter()
-	tb.AppendHeader(table.Row{"ID", "Name", "BucketID", "State", "Redundancy"})
+	tb.AppendHeader(table.Row{"ID", "Name", "BucketID", "State"})
 
 	for _, obj := range packages {
-		tb.AppendRow(table.Row{obj.PackageID, obj.Name, obj.BucketID, obj.State, obj.Redundancy})
+		tb.AppendRow(table.Row{obj.PackageID, obj.Name, obj.BucketID, obj.State})
 	}
 
-	fmt.Print(tb.Render())
+	fmt.Println(tb.Render())
 	return nil
 }
 
-func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int64) error {
+func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outputDir string) error {
 	err := os.MkdirAll(outputDir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("create output directory %s failed, err: %w", outputDir, err)
@@ -86,7 +86,7 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID int6
 	return nil
 }
 
-func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64, name string, repCount int, nodeAffinity []int64) error {
+func PackageCreatePackage(ctx CommandContext, name string, rootPath string, bucketID cdssdk.BucketID, nodeAffinity []cdssdk.NodeID) error {
 	rootPath = filepath.Clean(rootPath)
 
 	var uploadFilePathes []string
@@ -105,122 +105,24 @@ func PackageUploadRepPackage(ctx CommandContext, rootPath string, bucketID int64
 		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
 	}
 
-	var nodeAff *int64
+	var nodeAff *cdssdk.NodeID
 	if len(nodeAffinity) > 0 {
-		nodeAff = &nodeAffinity[0]
+		n := cdssdk.NodeID(nodeAffinity[0])
+		nodeAff = &n
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingRepPackage(0, bucketID, name, objIter, cdssdk.NewRepRedundancyInfo(repCount), nodeAff)
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingPackage(0, bucketID, name, objIter, nodeAff)
 
 	if err != nil {
 		return fmt.Errorf("upload file data failed, err: %w", err)
 	}
 
 	for {
-		complete, uploadObjectResult, err := ctx.Cmdline.Svc.PackageSvc().WaitCreatingRepPackage(taskID, time.Second*5)
+		complete, uploadObjectResult, err := ctx.Cmdline.Svc.PackageSvc().WaitCreatingPackage(taskID, time.Second*5)
 		if complete {
 			if err != nil {
-				return fmt.Errorf("uploading rep object: %w", err)
-			}
-
-			tb := table.NewWriter()
-
-			tb.AppendHeader(table.Row{"Path", "ObjectID", "FileHash"})
-			for i := 0; i < len(uploadObjectResult.ObjectResults); i++ {
-				tb.AppendRow(table.Row{
-					uploadObjectResult.ObjectResults[i].Info.Path,
-					uploadObjectResult.ObjectResults[i].ObjectID,
-					uploadObjectResult.ObjectResults[i].FileHash,
-				})
-			}
-			fmt.Print(tb.Render())
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("wait uploading: %w", err)
-		}
-	}
-}
-
-func PackageUpdateRepPackage(ctx CommandContext, packageID int64, rootPath string) error {
-	//userID := int64(0)
-
-	var uploadFilePathes []string
-	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if !fi.IsDir() {
-			uploadFilePathes = append(uploadFilePathes, fname)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
-	}
-
-	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartUpdatingRepPackage(0, packageID, objIter)
-	if err != nil {
-		return fmt.Errorf("update object %d failed, err: %w", packageID, err)
-	}
-
-	for {
-		complete, _, err := ctx.Cmdline.Svc.PackageSvc().WaitUpdatingRepPackage(taskID, time.Second*5)
-		if complete {
-			if err != nil {
-				return fmt.Errorf("updating rep object: %w", err)
-			}
-
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("wait updating: %w", err)
-		}
-	}
-}
-
-func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64, name string, ecName string, chunkSize int, nodeAffinity []int64) error {
-	rootPath = filepath.Clean(rootPath)
-
-	var uploadFilePathes []string
-	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if !fi.IsDir() {
-			uploadFilePathes = append(uploadFilePathes, fname)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
-	}
-
-	var nodeAff *int64
-	if len(nodeAffinity) > 0 {
-		nodeAff = &nodeAffinity[0]
-	}
-
-	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingECPackage(0, bucketID, name, objIter, cdssdk.NewECRedundancyInfo(ecName, chunkSize), nodeAff)
-
-	if err != nil {
-		return fmt.Errorf("upload file data failed, err: %w", err)
-	}
-
-	for {
-		complete, uploadObjectResult, err := ctx.Cmdline.Svc.PackageSvc().WaitCreatingECPackage(taskID, time.Second*5)
-		if complete {
-			if err != nil {
-				return fmt.Errorf("uploading ec package: %w", err)
+				return fmt.Errorf("uploading package: %w", err)
 			}
 
 			tb := table.NewWriter()
@@ -242,7 +144,7 @@ func PackageUploadECPackage(ctx CommandContext, rootPath string, bucketID int64,
 	}
 }
 
-func PackageUpdateECPackage(ctx CommandContext, packageID int64, rootPath string) error {
+func PackageUpdatePackage(ctx CommandContext, packageID cdssdk.PackageID, rootPath string) error {
 	//userID := int64(0)
 
 	var uploadFilePathes []string
@@ -262,16 +164,16 @@ func PackageUpdateECPackage(ctx CommandContext, packageID int64, rootPath string
 	}
 
 	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartUpdatingECPackage(0, packageID, objIter)
+	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartUpdatingPackage(0, packageID, objIter)
 	if err != nil {
 		return fmt.Errorf("update package %d failed, err: %w", packageID, err)
 	}
 
 	for {
-		complete, _, err := ctx.Cmdline.Svc.PackageSvc().WaitUpdatingECPackage(taskID, time.Second*5)
+		complete, _, err := ctx.Cmdline.Svc.PackageSvc().WaitUpdatingPackage(taskID, time.Second*5)
 		if complete {
 			if err != nil {
-				return fmt.Errorf("updating ec package: %w", err)
+				return fmt.Errorf("updating package: %w", err)
 			}
 
 			return nil
@@ -283,8 +185,8 @@ func PackageUpdateECPackage(ctx CommandContext, packageID int64, rootPath string
 	}
 }
 
-func PackageDeletePackage(ctx CommandContext, packageID int64) error {
-	userID := int64(0)
+func PackageDeletePackage(ctx CommandContext, packageID cdssdk.PackageID) error {
+	userID := cdssdk.UserID(0)
 	err := ctx.Cmdline.Svc.PackageSvc().DeletePackage(userID, packageID)
 	if err != nil {
 		return fmt.Errorf("delete package %d failed, err: %w", packageID, err)
@@ -292,7 +194,8 @@ func PackageDeletePackage(ctx CommandContext, packageID int64) error {
 	return nil
 }
 
-func PackageGetCachedNodes(ctx CommandContext, packageID int64, userID int64) error {
+func PackageGetCachedNodes(ctx CommandContext, packageID cdssdk.PackageID) error {
+	userID := cdssdk.UserID(0)
 	resp, err := ctx.Cmdline.Svc.PackageSvc().GetCachedNodes(userID, packageID)
 	fmt.Printf("resp: %v\n", resp)
 	if err != nil {
@@ -301,7 +204,8 @@ func PackageGetCachedNodes(ctx CommandContext, packageID int64, userID int64) er
 	return nil
 }
 
-func PackageGetLoadedNodes(ctx CommandContext, packageID int64, userID int64) error {
+func PackageGetLoadedNodes(ctx CommandContext, packageID cdssdk.PackageID) error {
+	userID := cdssdk.UserID(0)
 	nodeIDs, err := ctx.Cmdline.Svc.PackageSvc().GetLoadedNodes(userID, packageID)
 	fmt.Printf("nodeIDs: %v\n", nodeIDs)
 	if err != nil {
@@ -315,13 +219,9 @@ func init() {
 
 	commands.MustAdd(PackageDownloadPackage, "pkg", "get")
 
-	commands.MustAdd(PackageUploadRepPackage, "pkg", "new", "rep")
+	commands.MustAdd(PackageCreatePackage, "pkg", "new")
 
-	commands.MustAdd(PackageUpdateRepPackage, "pkg", "update", "rep")
-
-	commands.MustAdd(PackageUploadECPackage, "pkg", "new", "ec")
-
-	commands.MustAdd(PackageUpdateECPackage, "pkg", "update", "ec")
+	commands.MustAdd(PackageUpdatePackage, "pkg", "update")
 
 	commands.MustAdd(PackageDeletePackage, "pkg", "delete")
 

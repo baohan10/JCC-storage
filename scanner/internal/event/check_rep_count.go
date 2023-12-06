@@ -1,5 +1,7 @@
 package event
 
+/*
+// TODO 可作为新逻辑的参考
 import (
 	"fmt"
 	"math"
@@ -213,3 +215,4 @@ func chooseDeleteAvaiRepNodes(allNodes []model.Node, curAvaiRepNodes []model.Nod
 func init() {
 	RegisterMessageConvertor(func(msg *scevt.CheckRepCount) Event { return NewCheckRepCount(msg.FileHashes) })
 }
+*/

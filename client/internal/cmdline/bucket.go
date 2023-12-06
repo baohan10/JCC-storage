@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
 func BucketListUserBuckets(ctx CommandContext) error {
-	userID := int64(0)
+	userID := cdssdk.UserID(0)
 
 	buckets, err := ctx.Cmdline.Svc.BucketSvc().GetUserBuckets(userID)
 	if err != nil {
@@ -28,7 +29,7 @@ func BucketListUserBuckets(ctx CommandContext) error {
 }
 
 func BucketCreateBucket(ctx CommandContext, bucketName string) error {
-	userID := int64(0)
+	userID := cdssdk.UserID(0)
 
 	bucketID, err := ctx.Cmdline.Svc.BucketSvc().CreateBucket(userID, bucketName)
 	if err != nil {
@@ -39,8 +40,8 @@ func BucketCreateBucket(ctx CommandContext, bucketName string) error {
 	return nil
 }
 
-func BucketDeleteBucket(ctx CommandContext, bucketID int64) error {
-	userID := int64(0)
+func BucketDeleteBucket(ctx CommandContext, bucketID cdssdk.BucketID) error {
+	userID := cdssdk.UserID(0)
 
 	err := ctx.Cmdline.Svc.BucketSvc().DeleteBucket(userID, bucketID)
 	if err != nil {

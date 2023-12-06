@@ -1,11 +1,13 @@
 package event
 
+import cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+
 type AgentCheckState struct {
 	EventBase
-	NodeID int64 `json:"nodeID"`
+	NodeID cdssdk.NodeID `json:"nodeID"`
 }
 
-func NewAgentCheckState(nodeID int64) *AgentCheckState {
+func NewAgentCheckState(nodeID cdssdk.NodeID) *AgentCheckState {
 	return &AgentCheckState{
 		NodeID: nodeID,
 	}

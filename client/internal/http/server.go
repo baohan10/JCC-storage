@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/client/internal/services"
 )
 
@@ -39,6 +40,7 @@ func (s *Server) Serve() error {
 
 func (s *Server) initRouters() {
 	s.engine.GET("/object/download", s.ObjectSvc().Download)
+	s.engine.GET(cdssdk.ObjectGetPackageObjectsPath, s.ObjectSvc().GetPackageObjects)
 
 	s.engine.GET("/package/get", s.PackageSvc().Get)
 	s.engine.POST("/package/upload", s.PackageSvc().Upload)
@@ -50,6 +52,5 @@ func (s *Server) initRouters() {
 	s.engine.POST("/storage/createPackage", s.StorageSvc().CreatePackage)
 	s.engine.GET("/storage/getInfo", s.StorageSvc().GetInfo)
 
-	s.engine.POST("/cache/movePackage", s.CacheSvc().MovePackage)
-	s.engine.GET("/cache/getPackageObjectCacheInfos", s.CacheSvc().GetPackageObjectCacheInfos)
+	s.engine.POST(cdssdk.CacheMovePackagePath, s.CacheSvc().MovePackage)
 }

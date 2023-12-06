@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -17,12 +18,12 @@ func (svc *Service) BucketSvc() *BucketService {
 	return &BucketService{Service: svc}
 }
 
-func (svc *BucketService) GetBucket(userID int64, bucketID int64) (model.Bucket, error) {
+func (svc *BucketService) GetBucket(userID cdssdk.UserID, bucketID cdssdk.BucketID) (model.Bucket, error) {
 	// TODO
 	panic("not implement yet")
 }
 
-func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
+func (svc *BucketService) GetUserBuckets(userID cdssdk.UserID) ([]model.Bucket, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -37,7 +38,7 @@ func (svc *BucketService) GetUserBuckets(userID int64) ([]model.Bucket, error) {
 	return resp.Buckets, nil
 }
 
-func (svc *BucketService) GetBucketPackages(userID int64, bucketID int64) ([]model.Package, error) {
+func (svc *BucketService) GetBucketPackages(userID cdssdk.UserID, bucketID cdssdk.BucketID) ([]model.Package, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -52,7 +53,7 @@ func (svc *BucketService) GetBucketPackages(userID int64, bucketID int64) ([]mod
 	return resp.Packages, nil
 }
 
-func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, error) {
+func (svc *BucketService) CreateBucket(userID cdssdk.UserID, bucketName string) (cdssdk.BucketID, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return 0, fmt.Errorf("new coordinator client: %w", err)
@@ -80,7 +81,7 @@ func (svc *BucketService) CreateBucket(userID int64, bucketName string) (int64, 
 	return resp.BucketID, nil
 }
 
-func (svc *BucketService) DeleteBucket(userID int64, bucketID int64) error {
+func (svc *BucketService) DeleteBucket(userID cdssdk.UserID, bucketID cdssdk.BucketID) error {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new coordinator client: %w", err)

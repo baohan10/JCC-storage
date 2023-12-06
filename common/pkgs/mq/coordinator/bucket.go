@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -20,14 +21,14 @@ var _ = Register(Service.GetUserBuckets)
 
 type GetUserBuckets struct {
 	mq.MessageBodyBase
-	UserID int64 `json:"userID"`
+	UserID cdssdk.UserID `json:"userID"`
 }
 type GetUserBucketsResp struct {
 	mq.MessageBodyBase
 	Buckets []model.Bucket `json:"buckets"`
 }
 
-func NewGetUserBuckets(userID int64) *GetUserBuckets {
+func NewGetUserBuckets(userID cdssdk.UserID) *GetUserBuckets {
 	return &GetUserBuckets{
 		UserID: userID,
 	}
@@ -46,15 +47,15 @@ var _ = Register(Service.GetBucketPackages)
 
 type GetBucketPackages struct {
 	mq.MessageBodyBase
-	UserID   int64 `json:"userID"`
-	BucketID int64 `json:"bucketID"`
+	UserID   cdssdk.UserID   `json:"userID"`
+	BucketID cdssdk.BucketID `json:"bucketID"`
 }
 type GetBucketPackagesResp struct {
 	mq.MessageBodyBase
 	Packages []model.Package `json:"packages"`
 }
 
-func NewGetBucketPackages(userID int64, bucketID int64) *GetBucketPackages {
+func NewGetBucketPackages(userID cdssdk.UserID, bucketID cdssdk.BucketID) *GetBucketPackages {
 	return &GetBucketPackages{
 		UserID:   userID,
 		BucketID: bucketID,
@@ -74,21 +75,21 @@ var _ = Register(Service.CreateBucket)
 
 type CreateBucket struct {
 	mq.MessageBodyBase
-	UserID     int64  `json:"userID"`
-	BucketName string `json:"bucketName"`
+	UserID     cdssdk.UserID `json:"userID"`
+	BucketName string        `json:"bucketName"`
 }
 type CreateBucketResp struct {
 	mq.MessageBodyBase
-	BucketID int64 `json:"bucketID"`
+	BucketID cdssdk.BucketID `json:"bucketID"`
 }
 
-func NewCreateBucket(userID int64, bucketName string) *CreateBucket {
+func NewCreateBucket(userID cdssdk.UserID, bucketName string) *CreateBucket {
 	return &CreateBucket{
 		UserID:     userID,
 		BucketName: bucketName,
 	}
 }
-func NewCreateBucketResp(bucketID int64) *CreateBucketResp {
+func NewCreateBucketResp(bucketID cdssdk.BucketID) *CreateBucketResp {
 	return &CreateBucketResp{
 		BucketID: bucketID,
 	}
@@ -102,14 +103,14 @@ var _ = Register(Service.DeleteBucket)
 
 type DeleteBucket struct {
 	mq.MessageBodyBase
-	UserID   int64 `json:"userID"`
-	BucketID int64 `json:"bucketID"`
+	UserID   cdssdk.UserID   `json:"userID"`
+	BucketID cdssdk.BucketID `json:"bucketID"`
 }
 type DeleteBucketResp struct {
 	mq.MessageBodyBase
 }
 
-func NewDeleteBucket(userID int64, bucketID int64) *DeleteBucket {
+func NewDeleteBucket(userID cdssdk.UserID, bucketID cdssdk.BucketID) *DeleteBucket {
 	return &DeleteBucket{
 		UserID:   userID,
 		BucketID: bucketID,

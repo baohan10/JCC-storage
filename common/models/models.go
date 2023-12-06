@@ -1,67 +1,51 @@
 package stgmod
 
-import "gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+import (
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+)
 
-/// TODO 将分散在各处的公共结构体定义集中到这里来
-
-type EC struct {
-	ID        int64 `json:"id"`
-	K         int   `json:"k"`
-	N         int   `json:"n"`
-	ChunkSize int   `json:"chunkSize"`
+type ObjectBlock struct {
+	ObjectID cdssdk.ObjectID `db:"ObjectID" json:"objectID"`
+	Index    int             `db:"Index" json:"index"`
+	NodeID   cdssdk.NodeID   `db:"NodeID" json:"nodeID"` // 这个块应该在哪个节点上
+	FileHash string          `db:"FileHash" json:"fileHash"`
 }
 
-func NewEc(id int64, k int, n int, chunkSize int) EC {
-	return EC{
-		ID:        id,
-		K:         k,
-		N:         n,
-		ChunkSize: chunkSize,
+type ObjectBlockDetail struct {
+	ObjectID      cdssdk.ObjectID `json:"objectID"`
+	Index         int             `json:"index"`
+	FileHash      string          `json:"fileHash"`
+	NodeIDs       []cdssdk.NodeID `json:"nodeID"`        // 这个块应该在哪些节点上
+	CachedNodeIDs []cdssdk.NodeID `json:"cachedNodeIDs"` // 哪些节点实际缓存了这个块
+}
+
+func NewObjectBlockDetail(objID cdssdk.ObjectID, index int, fileHash string, nodeIDs []cdssdk.NodeID, cachedNodeIDs []cdssdk.NodeID) ObjectBlockDetail {
+	return ObjectBlockDetail{
+		ObjectID:      objID,
+		Index:         index,
+		FileHash:      fileHash,
+		NodeIDs:       nodeIDs,
+		CachedNodeIDs: cachedNodeIDs,
 	}
 }
 
-type ObjectBlockData struct {
-	Index    int     `json:"index"`
-	FileHash string  `json:"fileHash"`
-	NodeIDs  []int64 `json:"nodeIDs"`
+type ObjectDetail struct {
+	Object        cdssdk.Object       `json:"object"`
+	CachedNodeIDs []cdssdk.NodeID     `json:"cachedNodeIDs"` // 文件的完整数据在哪些节点上缓存
+	Blocks        []ObjectBlockDetail `json:"blocks"`
 }
 
-func NewObjectBlockData(index int, fileHash string, nodeIDs []int64) ObjectBlockData {
-	return ObjectBlockData{
-		Index:    index,
-		FileHash: fileHash,
-		NodeIDs:  nodeIDs,
-	}
-}
-
-type ObjectRepData struct {
-	Object   model.Object `json:"object"`
-	FileHash string       `json:"fileHash"`
-	NodeIDs  []int64      `json:"nodeIDs"`
-}
-
-func NewObjectRepData(object model.Object, fileHash string, nodeIDs []int64) ObjectRepData {
-	return ObjectRepData{
-		Object:   object,
-		FileHash: fileHash,
-		NodeIDs:  nodeIDs,
-	}
-}
-
-type ObjectECData struct {
-	Object model.Object      `json:"object"`
-	Blocks []ObjectBlockData `json:"blocks"`
-}
-
-func NewObjectECData(object model.Object, blocks []ObjectBlockData) ObjectECData {
-	return ObjectECData{
-		Object: object,
-		Blocks: blocks,
+func NewObjectDetail(object cdssdk.Object, cachedNodeIDs []cdssdk.NodeID, blocks []ObjectBlockDetail) ObjectDetail {
+	return ObjectDetail{
+		Object:        object,
+		CachedNodeIDs: cachedNodeIDs,
+		Blocks:        blocks,
 	}
 }
 
 type LocalMachineInfo struct {
-	NodeID     *int64 `json:"nodeID"`
-	ExternalIP string `json:"externalIP"`
-	LocalIP    string `json:"localIP"`
+	NodeID     *cdssdk.NodeID    `json:"nodeID"`
+	ExternalIP string            `json:"externalIP"`
+	LocalIP    string            `json:"localIP"`
+	LocationID cdssdk.LocationID `json:"locationID"`
 }

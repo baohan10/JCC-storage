@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -10,9 +11,7 @@ import (
 type ObjectService interface {
 	GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, *mq.CodeMessage)
 
-	GetPackageObjectRepData(msg *GetPackageObjectRepData) (*GetPackageObjectRepDataResp, *mq.CodeMessage)
-
-	GetPackageObjectECData(msg *GetPackageObjectECData) (*GetPackageObjectECDataResp, *mq.CodeMessage)
+	GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, *mq.CodeMessage)
 }
 
 // 查询Package中的所有Object，返回的Objects会按照ObjectID升序
@@ -20,15 +19,15 @@ var _ = Register(Service.GetPackageObjects)
 
 type GetPackageObjects struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type GetPackageObjectsResp struct {
 	mq.MessageBodyBase
 	Objects []model.Object `json:"objects"`
 }
 
-func NewGetPackageObjects(userID int64, packageID int64) *GetPackageObjects {
+func NewGetPackageObjects(userID cdssdk.UserID, packageID cdssdk.PackageID) *GetPackageObjects {
 	return &GetPackageObjects{
 		UserID:    userID,
 		PackageID: packageID,
@@ -43,54 +42,28 @@ func (client *Client) GetPackageObjects(msg *GetPackageObjects) (*GetPackageObje
 	return mq.Request(Service.GetPackageObjects, client.rabbitCli, msg)
 }
 
-// 获取指定Object的Rep数据，返回的Objects会按照ObjectID升序
-var _ = Register(Service.GetPackageObjectRepData)
+// 获取Package中所有Object以及它们的分块详细信息，返回的Objects会按照ObjectID升序
+var _ = Register(Service.GetPackageObjectDetails)
 
-type GetPackageObjectRepData struct {
+type GetPackageObjectDetails struct {
 	mq.MessageBodyBase
-	PackageID int64 `json:"packageID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
-type GetPackageObjectRepDataResp struct {
+type GetPackageObjectDetailsResp struct {
 	mq.MessageBodyBase
-	Data []stgmod.ObjectRepData `json:"data"`
+	Objects []stgmod.ObjectDetail `json:"objects"`
 }
 
-func NewGetPackageObjectRepData(packageID int64) *GetPackageObjectRepData {
-	return &GetPackageObjectRepData{
+func NewGetPackageObjectDetails(packageID cdssdk.PackageID) *GetPackageObjectDetails {
+	return &GetPackageObjectDetails{
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectRepDataResp(data []stgmod.ObjectRepData) *GetPackageObjectRepDataResp {
-	return &GetPackageObjectRepDataResp{
-		Data: data,
+func NewGetPackageObjectDetailsResp(objects []stgmod.ObjectDetail) *GetPackageObjectDetailsResp {
+	return &GetPackageObjectDetailsResp{
+		Objects: objects,
 	}
 }
-func (client *Client) GetPackageObjectRepData(msg *GetPackageObjectRepData) (*GetPackageObjectRepDataResp, error) {
-	return mq.Request(Service.GetPackageObjectRepData, client.rabbitCli, msg)
-}
-
-// 获取指定Object的EC数据，返回的Objects会按照ObjectID升序
-var _ = Register(Service.GetPackageObjectECData)
-
-type GetPackageObjectECData struct {
-	mq.MessageBodyBase
-	PackageID int64 `json:"packageID"`
-}
-type GetPackageObjectECDataResp struct {
-	mq.MessageBodyBase
-	Data []stgmod.ObjectECData `json:"data"`
-}
-
-func NewGetPackageObjectECData(packageID int64) *GetPackageObjectECData {
-	return &GetPackageObjectECData{
-		PackageID: packageID,
-	}
-}
-func NewGetPackageObjectECDataResp(data []stgmod.ObjectECData) *GetPackageObjectECDataResp {
-	return &GetPackageObjectECDataResp{
-		Data: data,
-	}
-}
-func (client *Client) GetPackageObjectECData(msg *GetPackageObjectECData) (*GetPackageObjectECDataResp, error) {
-	return mq.Request(Service.GetPackageObjectECData, client.rabbitCli, msg)
+func (client *Client) GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, error) {
+	return mq.Request(Service.GetPackageObjectDetails, client.rabbitCli, msg)
 }

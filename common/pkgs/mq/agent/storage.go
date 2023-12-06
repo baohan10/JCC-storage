@@ -24,16 +24,16 @@ var _ = Register(Service.StartStorageLoadPackage)
 
 type StartStorageLoadPackage struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
-	StorageID int64 `json:"storageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
+	StorageID cdssdk.StorageID `json:"storageID"`
 }
 type StartStorageLoadPackageResp struct {
 	mq.MessageBodyBase
 	TaskID string `json:"taskID"`
 }
 
-func NewStartStorageLoadPackage(userID int64, packageID int64, storageID int64) *StartStorageLoadPackage {
+func NewStartStorageLoadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, storageID cdssdk.StorageID) *StartStorageLoadPackage {
 	return &StartStorageLoadPackage{
 		UserID:    userID,
 		PackageID: packageID,
@@ -91,7 +91,7 @@ const (
 
 type StorageCheck struct {
 	mq.MessageBodyBase
-	StorageID  int64                  `json:"storageID"`
+	StorageID  cdssdk.StorageID       `json:"storageID"`
 	Directory  string                 `json:"directory"`
 	IsComplete bool                   `json:"isComplete"`
 	Packages   []model.StoragePackage `json:"packages"`
@@ -102,12 +102,12 @@ type StorageCheckResp struct {
 	Entries        []StorageCheckRespEntry `json:"entries"`
 }
 type StorageCheckRespEntry struct {
-	PackageID int64  `json:"packageID"`
-	UserID    int64  `json:"userID"`
-	Operation string `json:"operation"`
+	PackageID cdssdk.PackageID `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	Operation string           `json:"operation"`
 }
 
-func NewStorageCheck(storageID int64, directory string, isComplete bool, packages []model.StoragePackage) *StorageCheck {
+func NewStorageCheck(storageID cdssdk.StorageID, directory string, isComplete bool, packages []model.StoragePackage) *StorageCheck {
 	return &StorageCheck{
 		StorageID:  storageID,
 		Directory:  directory,
@@ -121,7 +121,7 @@ func NewStorageCheckResp(dirState string, entries []StorageCheckRespEntry) *Stor
 		Entries:        entries,
 	}
 }
-func NewStorageCheckRespEntry(packageID int64, userID int64, op string) StorageCheckRespEntry {
+func NewStorageCheckRespEntry(packageID cdssdk.PackageID, userID cdssdk.UserID, op string) StorageCheckRespEntry {
 	return StorageCheckRespEntry{
 		PackageID: packageID,
 		UserID:    userID,
@@ -137,27 +137,25 @@ var _ = Register(Service.StartStorageCreatePackage)
 
 type StartStorageCreatePackage struct {
 	mq.MessageBodyBase
-	UserID       int64                      `json:"userID"`
-	BucketID     int64                      `json:"bucketID"`
-	Name         string                     `json:"name"`
-	StorageID    int64                      `json:"storageID"`
-	Path         string                     `json:"path"`
-	Redundancy   cdssdk.TypedRedundancyInfo `json:"redundancy"`
-	NodeAffinity *int64                     `json:"nodeAffinity"`
+	UserID       cdssdk.UserID    `json:"userID"`
+	BucketID     cdssdk.BucketID  `json:"bucketID"`
+	Name         string           `json:"name"`
+	StorageID    cdssdk.StorageID `json:"storageID"`
+	Path         string           `json:"path"`
+	NodeAffinity *cdssdk.NodeID   `json:"nodeAffinity"`
 }
 type StartStorageCreatePackageResp struct {
 	mq.MessageBodyBase
 	TaskID string `json:"taskID"`
 }
 
-func NewStartStorageCreatePackage(userID int64, bucketID int64, name string, storageID int64, path string, redundancy cdssdk.TypedRedundancyInfo, nodeAffinity *int64) *StartStorageCreatePackage {
+func NewStartStorageCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, storageID cdssdk.StorageID, path string, nodeAffinity *cdssdk.NodeID) *StartStorageCreatePackage {
 	return &StartStorageCreatePackage{
 		UserID:       userID,
 		BucketID:     bucketID,
 		Name:         name,
 		StorageID:    storageID,
 		Path:         path,
-		Redundancy:   redundancy,
 		NodeAffinity: nodeAffinity,
 	}
 }
@@ -180,9 +178,9 @@ type WaitStorageCreatePackage struct {
 }
 type WaitStorageCreatePackageResp struct {
 	mq.MessageBodyBase
-	IsComplete bool   `json:"isComplete"`
-	Error      string `json:"error"`
-	PackageID  int64  `json:"packageID"`
+	IsComplete bool             `json:"isComplete"`
+	Error      string           `json:"error"`
+	PackageID  cdssdk.PackageID `json:"packageID"`
 }
 
 func NewWaitStorageCreatePackage(taskID string, waitTimeoutMs int64) *WaitStorageCreatePackage {
@@ -191,7 +189,7 @@ func NewWaitStorageCreatePackage(taskID string, waitTimeoutMs int64) *WaitStorag
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitStorageCreatePackageResp(isComplete bool, err string, packageID int64) *WaitStorageCreatePackageResp {
+func NewWaitStorageCreatePackageResp(isComplete bool, err string, packageID cdssdk.PackageID) *WaitStorageCreatePackageResp {
 	return &WaitStorageCreatePackageResp{
 		IsComplete: isComplete,
 		Error:      err,

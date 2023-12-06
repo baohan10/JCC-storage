@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -16,14 +17,14 @@ var _ = Register(Service.GetUserNodes)
 
 type GetUserNodes struct {
 	mq.MessageBodyBase
-	UserID int64 `json:"userID"`
+	UserID cdssdk.UserID `json:"userID"`
 }
 type GetUserNodesResp struct {
 	mq.MessageBodyBase
 	Nodes []model.Node `json:"nodes"`
 }
 
-func NewGetUserNodes(userID int64) *GetUserNodes {
+func NewGetUserNodes(userID cdssdk.UserID) *GetUserNodes {
 	return &GetUserNodes{
 		UserID: userID,
 	}
@@ -42,14 +43,14 @@ var _ = Register(Service.GetNodes)
 
 type GetNodes struct {
 	mq.MessageBodyBase
-	NodeIDs []int64 `json:"nodeIDs"`
+	NodeIDs []cdssdk.NodeID `json:"nodeIDs"`
 }
 type GetNodesResp struct {
 	mq.MessageBodyBase
 	Nodes []model.Node `json:"nodes"`
 }
 
-func NewGetNodes(nodeIDs []int64) *GetNodes {
+func NewGetNodes(nodeIDs []cdssdk.NodeID) *GetNodes {
 	return &GetNodes{
 		NodeIDs: nodeIDs,
 	}

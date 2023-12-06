@@ -61,15 +61,15 @@ var _ = Register(Service.StartCacheMovePackage)
 
 type StartCacheMovePackage struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type StartCacheMovePackageResp struct {
 	mq.MessageBodyBase
 	TaskID string `json:"taskID"`
 }
 
-func NewStartCacheMovePackage(userID int64, packageID int64) *StartCacheMovePackage {
+func NewStartCacheMovePackage(userID cdssdk.UserID, packageID cdssdk.PackageID) *StartCacheMovePackage {
 	return &StartCacheMovePackage{
 		UserID:    userID,
 		PackageID: packageID,
@@ -94,9 +94,8 @@ type WaitCacheMovePackage struct {
 }
 type WaitCacheMovePackageResp struct {
 	mq.MessageBodyBase
-	IsComplete bool                     `json:"isComplete"`
-	Error      string                   `json:"error"`
-	CacheInfos []cdssdk.ObjectCacheInfo `json:"cacheInfos"`
+	IsComplete bool   `json:"isComplete"`
+	Error      string `json:"error"`
 }
 
 func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMovePackage {
@@ -105,11 +104,10 @@ func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMoveP
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitCacheMovePackageResp(isComplete bool, err string, cacheInfos []cdssdk.ObjectCacheInfo) *WaitCacheMovePackageResp {
+func NewWaitCacheMovePackageResp(isComplete bool, err string) *WaitCacheMovePackageResp {
 	return &WaitCacheMovePackageResp{
 		IsComplete: isComplete,
 		Error:      err,
-		CacheInfos: cacheInfos,
 	}
 }
 func (client *Client) WaitCacheMovePackage(msg *WaitCacheMovePackage, opts ...mq.RequestOption) (*WaitCacheMovePackageResp, error) {

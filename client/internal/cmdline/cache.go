@@ -3,16 +3,18 @@ package cmdline
 import (
 	"fmt"
 	"time"
+
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
-func CacheMovePackage(ctx CommandContext, packageID int64, nodeID int64) error {
+func CacheMovePackage(ctx CommandContext, packageID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
 	taskID, err := ctx.Cmdline.Svc.CacheSvc().StartCacheMovePackage(0, packageID, nodeID)
 	if err != nil {
 		return fmt.Errorf("start cache moving package: %w", err)
 	}
 
 	for {
-		complete, _, err := ctx.Cmdline.Svc.CacheSvc().WaitCacheMovePackage(nodeID, taskID, time.Second*10)
+		complete, err := ctx.Cmdline.Svc.CacheSvc().WaitCacheMovePackage(nodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)

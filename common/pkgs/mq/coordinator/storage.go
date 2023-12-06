@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -16,21 +17,21 @@ var _ = Register(Service.GetStorageInfo)
 
 type GetStorageInfo struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	StorageID int64 `json:"storageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	StorageID cdssdk.StorageID `json:"storageID"`
 }
 type GetStorageInfoResp struct {
 	mq.MessageBodyBase
 	model.Storage
 }
 
-func NewGetStorageInfo(userID int64, storageID int64) *GetStorageInfo {
+func NewGetStorageInfo(userID cdssdk.UserID, storageID cdssdk.StorageID) *GetStorageInfo {
 	return &GetStorageInfo{
 		UserID:    userID,
 		StorageID: storageID,
 	}
 }
-func NewGetStorageInfoResp(storageID int64, name string, nodeID int64, dir string, state string) *GetStorageInfoResp {
+func NewGetStorageInfoResp(storageID cdssdk.StorageID, name string, nodeID cdssdk.NodeID, dir string, state string) *GetStorageInfoResp {
 	return &GetStorageInfoResp{
 		Storage: model.Storage{
 			StorageID: storageID,
@@ -50,15 +51,15 @@ var _ = Register(Service.StoragePackageLoaded)
 
 type StoragePackageLoaded struct {
 	mq.MessageBodyBase
-	UserID    int64 `json:"userID"`
-	PackageID int64 `json:"packageID"`
-	StorageID int64 `json:"storageID"`
+	UserID    cdssdk.UserID    `json:"userID"`
+	StorageID cdssdk.StorageID `json:"storageID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type StoragePackageLoadedResp struct {
 	mq.MessageBodyBase
 }
 
-func NewStoragePackageLoaded(userID int64, packageID int64, stgID int64) *StoragePackageLoaded {
+func NewStoragePackageLoaded(userID cdssdk.UserID, stgID cdssdk.StorageID, packageID cdssdk.PackageID) *StoragePackageLoaded {
 	return &StoragePackageLoaded{
 		UserID:    userID,
 		PackageID: packageID,

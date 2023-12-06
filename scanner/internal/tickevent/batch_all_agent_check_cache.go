@@ -3,6 +3,7 @@ package tickevent
 import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
@@ -10,7 +11,7 @@ import (
 const AGENT_CHECK_CACHE_BATCH_SIZE = 2
 
 type BatchAllAgentCheckCache struct {
-	nodeIDs []int64
+	nodeIDs []cdssdk.NodeID
 }
 
 func NewBatchAllAgentCheckCache() *BatchAllAgentCheckCache {
@@ -29,7 +30,7 @@ func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 			return
 		}
 
-		e.nodeIDs = lo.Map(nodes, func(node model.Node, index int) int64 { return node.NodeID })
+		e.nodeIDs = lo.Map(nodes, func(node model.Node, index int) cdssdk.NodeID { return node.NodeID })
 
 		log.Debugf("new check start, get all nodes")
 	}

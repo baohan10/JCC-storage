@@ -3,6 +3,7 @@ package event
 import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
@@ -11,9 +12,9 @@ type CheckPackage struct {
 	*scevt.CheckPackage
 }
 
-func NewCheckPackage(objIDs []int64) *CheckPackage {
+func NewCheckPackage(pkgIDs []cdssdk.PackageID) *CheckPackage {
 	return &CheckPackage{
-		CheckPackage: scevt.NewCheckPackage(objIDs),
+		CheckPackage: scevt.NewCheckPackage(pkgIDs),
 	}
 }
 
