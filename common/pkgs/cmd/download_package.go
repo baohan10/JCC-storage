@@ -44,7 +44,7 @@ func (t *DownloadPackage) Execute(ctx *DownloadPackageContext) error {
 		return fmt.Errorf("getting package object details: %w", err)
 	}
 
-	objIter := iterator.NewObjectIterator(getObjectDetails.Objects, &iterator.DownloadContext{
+	objIter := iterator.NewDownloadObjectIterator(getObjectDetails.Objects, &iterator.DownloadContext{
 		Distlock: ctx.Distlock,
 	})
 	defer objIter.Close()

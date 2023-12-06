@@ -94,9 +94,8 @@ type WaitCacheMovePackage struct {
 }
 type WaitCacheMovePackageResp struct {
 	mq.MessageBodyBase
-	IsComplete bool                     `json:"isComplete"`
-	Error      string                   `json:"error"`
-	CacheInfos []cdssdk.ObjectCacheInfo `json:"cacheInfos"`
+	IsComplete bool   `json:"isComplete"`
+	Error      string `json:"error"`
 }
 
 func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMovePackage {
@@ -105,11 +104,10 @@ func NewWaitCacheMovePackage(taskID string, waitTimeoutMs int64) *WaitCacheMoveP
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitCacheMovePackageResp(isComplete bool, err string, cacheInfos []cdssdk.ObjectCacheInfo) *WaitCacheMovePackageResp {
+func NewWaitCacheMovePackageResp(isComplete bool, err string) *WaitCacheMovePackageResp {
 	return &WaitCacheMovePackageResp{
 		IsComplete: isComplete,
 		Error:      err,
-		CacheInfos: cacheInfos,
 	}
 }
 func (client *Client) WaitCacheMovePackage(msg *WaitCacheMovePackage, opts ...mq.RequestOption) (*WaitCacheMovePackageResp, error) {

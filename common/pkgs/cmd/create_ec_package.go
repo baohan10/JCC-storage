@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -14,12 +12,9 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
-	myio "gitlink.org.cn/cloudream/common/utils/io"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -160,26 +155,6 @@ func chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) Uploa
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func shuffleNodes(uploadNodes []UploadNodeInfo, extendTo int) []UploadNodeInfo {
-	for i := len(uploadNodes); i < extendTo; i++ {
-		uploadNodes = append(uploadNodes, uploadNodes[rand.Intn(len(uploadNodes))])
-	}
-
-	// 随机排列上传节点
-	rand.Shuffle(len(uploadNodes), func(i, j int) {
-		uploadNodes[i], uploadNodes[j] = uploadNodes[j], uploadNodes[i]
-	})
-
-	return uploadNodes
-}
-
-func chooseRedundancy(obj *iterator.IterUploadingObject, userNodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) (cdssdk.Redundancy, []UploadNodeInfo, error) {
-	// TODO 更好的算法
-	// 	uploadNodes = shuffleNodes(uploadNodes, ecRed.N)
-	uploadNode := chooseUploadNode(userNodes, nodeAffinity)
-	return cdssdk.NewRepRedundancy(), []UploadNodeInfo{uploadNode}, nil
-}
-
 func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.UploadingObjectIterator, userNodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) ([]ObjectUploadResult, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
@@ -200,17 +175,11 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 		err = func() error {
 			defer objInfo.File.Close()
 
-			red, uploadNodes, err := chooseRedundancy(objInfo, userNodes, nodeAffinity)
-			if err != nil {
-				return fmt.Errorf("choosing redundancy: %w", err)
-			}
+			uploadNode := chooseUploadNode(userNodes, nodeAffinity)
 
-			var addInfo *coormq.AddObjectInfo
-			switch r := red.(type) {
-			case *cdssdk.RepRedundancy:
-				addInfo, err = uploadRepObject(objInfo, uploadNodes, r)
-			case *cdssdk.ECRedundancy:
-				addInfo, err = uploadECObject(objInfo, uploadNodes, r)
+			fileHash, err := uploadFile(objInfo.File, uploadNode)
+			if err != nil {
+				return fmt.Errorf("uploading file: %w", err)
 			}
 
 			uploadRets = append(uploadRets, ObjectUploadResult{
@@ -221,7 +190,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 				return fmt.Errorf("uploading object: %w", err)
 			}
 
-			adds = append(adds, *addInfo)
+			adds = append(adds, coormq.NewAddObjectInfo(objInfo.Path, objInfo.Size, fileHash, uploadNode.Node.NodeID))
 			return nil
 		}()
 		if err != nil {
@@ -235,98 +204,6 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 	}
 
 	return uploadRets, nil
-}
-
-func uploadRepObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, repRed *cdssdk.RepRedundancy) (*coormq.AddObjectInfo, error) {
-	clonedStrs := myio.Clone(obj.File, len(uploadNodes))
-
-	fileHashes := make([]string, len(uploadNodes))
-	anyErrs := make([]error, len(uploadNodes))
-	wg := sync.WaitGroup{}
-	for i := range uploadNodes {
-		idx := i
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-			fileHashes[idx], anyErrs[idx] = uploadFile(clonedStrs[idx], uploadNodes[idx])
-		}()
-	}
-
-	wg.Wait()
-
-	var uploadedNodeIDs []cdssdk.NodeID
-	var fileHash string
-	var errs []error
-	for i, e := range anyErrs {
-		if e != nil {
-			errs[i] = e
-			continue
-		}
-
-		uploadedNodeIDs = append(uploadedNodeIDs, uploadNodes[i].Node.NodeID)
-		fileHash = fileHashes[i]
-	}
-
-	if len(uploadedNodeIDs) == 0 {
-		return nil, fmt.Errorf("uploading file: %w", errors.Join(errs...))
-	}
-
-	info := coormq.NewAddObjectInfo(obj.Path, obj.Size, repRed,
-		[]stgmod.ObjectBlockDetail{
-			stgmod.NewObjectBlockDetail(0, 0, fileHash, uploadedNodeIDs, uploadedNodeIDs),
-		})
-	return &info, nil
-}
-
-func uploadECObject(obj *iterator.IterUploadingObject, uploadNodes []UploadNodeInfo, ecRed *cdssdk.ECRedundancy) (*coormq.AddObjectInfo, error) {
-	rs, err := ec.NewRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
-	if err != nil {
-		return nil, err
-	}
-
-	outputs := myio.ChunkedSplit(obj.File, ecRed.ChunkSize, ecRed.K, myio.ChunkedSplitOption{
-		PaddingZeros: true,
-	})
-	var readers []io.Reader
-	for _, o := range outputs {
-		readers = append(readers, o)
-	}
-	defer func() {
-		for _, o := range outputs {
-			o.Close()
-		}
-	}()
-
-	encStrs := rs.EncodeAll(readers)
-
-	wg := sync.WaitGroup{}
-
-	blocks := make([]stgmod.ObjectBlockDetail, ecRed.N)
-	anyErrs := make([]error, ecRed.N)
-
-	for i := range encStrs {
-		idx := i
-		wg.Add(1)
-		blocks[idx].Index = idx
-		blocks[idx].NodeIDs = []cdssdk.NodeID{uploadNodes[idx].Node.NodeID}
-		blocks[idx].CachedNodeIDs = []cdssdk.NodeID{uploadNodes[idx].Node.NodeID}
-		go func() {
-			defer wg.Done()
-			blocks[idx].FileHash, anyErrs[idx] = uploadFile(encStrs[idx], uploadNodes[idx])
-		}()
-	}
-
-	wg.Wait()
-
-	for i, e := range anyErrs {
-		if e != nil {
-			return nil, fmt.Errorf("uploading file to node %d: %w", uploadNodes[i].Node.NodeID, e)
-		}
-	}
-
-	info := coormq.NewAddObjectInfo(obj.Path, obj.Size, ecRed, blocks)
-	return &info, nil
 }
 
 func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {

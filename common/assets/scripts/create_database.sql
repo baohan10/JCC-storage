@@ -121,6 +121,7 @@ create table Object (
   PackageID int not null comment '包ID',
   Path varchar(500) not null comment '对象路径',
   Size bigint not null comment '对象大小(Byte)',
+  FileHash varchar(100) not null comment '完整对象的FileHash',
   UNIQUE KEY PackagePath (PackageID, Path)
 ) comment = '对象表';
 
@@ -136,7 +137,8 @@ create table Cache (
   FileHash varchar(100) not null comment '编码块块ID',
   NodeID int not null comment '节点ID',
   State varchar(100) not null comment '状态',
-  CacheTime timestamp not null comment '缓存时间',
+  FrozenTime timestamp comment '文件被冻结的时间',
+  CreateTime timestamp not null comment '缓存时间',
   Priority int not null comment '编码块优先级',
   primary key(FileHash, NodeID)
 ) comment = '缓存表';

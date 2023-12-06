@@ -36,7 +36,7 @@ type DownloadNodeInfo struct {
 type DownloadContext struct {
 	Distlock *distlock.Service
 }
-type ObjectIterator struct {
+type DownloadObjectIterator struct {
 	OnClosing func()
 
 	objectDetails []stgmodels.ObjectDetail
@@ -45,14 +45,14 @@ type ObjectIterator struct {
 	downloadCtx *DownloadContext
 }
 
-func NewObjectIterator(objectDetails []stgmodels.ObjectDetail, downloadCtx *DownloadContext) *ObjectIterator {
-	return &ObjectIterator{
+func NewDownloadObjectIterator(objectDetails []stgmodels.ObjectDetail, downloadCtx *DownloadContext) *DownloadObjectIterator {
+	return &DownloadObjectIterator{
 		objectDetails: objectDetails,
 		downloadCtx:   downloadCtx,
 	}
 }
 
-func (i *ObjectIterator) MoveNext() (*IterDownloadingObject, error) {
+func (i *DownloadObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -68,7 +68,7 @@ func (i *ObjectIterator) MoveNext() (*IterDownloadingObject, error) {
 	return item, err
 }
 
-func (iter *ObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObject, error) {
+func (iter *DownloadObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObject, error) {
 	obj := iter.objectDetails[iter.currentIndex]
 
 	switch red := obj.Object.Redundancy.(type) {
@@ -98,7 +98,7 @@ func (iter *ObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObje
 	return nil, fmt.Errorf("unsupported redundancy type: %v", reflect.TypeOf(obj.Object.Redundancy))
 }
 
-func (i *ObjectIterator) Close() {
+func (i *DownloadObjectIterator) Close() {
 	if i.OnClosing != nil {
 		i.OnClosing()
 	}
@@ -107,7 +107,7 @@ func (i *ObjectIterator) Close() {
 // chooseDownloadNode 选择一个下载节点
 // 1. 从与当前客户端相同地域的节点中随机选一个
 // 2. 没有用的话从所有节点中随机选一个
-func (i *ObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) DownloadNodeInfo {
+func (i *DownloadObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) DownloadNodeInfo {
 	sameLocationEntries := lo.Filter(entries, func(e DownloadNodeInfo, i int) bool { return e.IsSameLocation })
 	if len(sameLocationEntries) > 0 {
 		return sameLocationEntries[rand.Intn(len(sameLocationEntries))]
@@ -116,7 +116,7 @@ func (i *ObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) Download
 	return entries[rand.Intn(len(entries))]
 }
 
-func (iter *ObjectIterator) downloadRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, repRed *cdssdk.RepRedundancy) (io.ReadCloser, error) {
+func (iter *DownloadObjectIterator) downloadRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, repRed *cdssdk.RepRedundancy) (io.ReadCloser, error) {
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
 	for i := range obj.Blocks {
@@ -159,7 +159,7 @@ func (iter *ObjectIterator) downloadRepObject(coorCli *coormq.Client, ctx *Downl
 	}), nil
 }
 
-func (iter *ObjectIterator) downloadECObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
+func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
 	var chosenBlocks []stgmodels.ObjectBlockDetail

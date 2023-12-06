@@ -23,8 +23,8 @@ func (db *ObjectDB) GetByID(ctx SQLContext, objectID cdssdk.ObjectID) (model.Obj
 	return ret, err
 }
 
-func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, redundancy cdssdk.Redundancy) (int64, error) {
-	sql := "insert into Object(PackageID, Path, Size, Redundancy) values(?,?,?,?)"
+func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string, redundancy cdssdk.Redundancy) (int64, error) {
+	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy) values(?,?,?,?,?)"
 
 	ret, err := ctx.Exec(sql, packageID, path, size, redundancy)
 	if err != nil {
@@ -40,10 +40,13 @@ func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path stri
 }
 
 // 创建或者更新记录，返回值true代表是创建，false代表是更新
-func (db *ObjectDB) CreateOrUpdate(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, redundancy cdssdk.Redundancy) (cdssdk.ObjectID, bool, error) {
-	sql := "insert into Object(PackageID, Path, Size, Redundancy) values(?,?,?,?) on duplicate key update Size = ?, Redundancy = ?"
+func (db *ObjectDB) CreateOrUpdate(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string) (cdssdk.ObjectID, bool, error) {
+	// 首次上传Object时，默认使用Rep模式，即使是在更新一个已有的Object也是如此
+	defRed := cdssdk.NewRepRedundancy()
 
-	ret, err := ctx.Exec(sql, packageID, path, size, redundancy, size, redundancy)
+	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy) values(?,?,?,?,?) on duplicate key update Size = ?, FileHash = ?, Redundancy = ?"
+
+	ret, err := ctx.Exec(sql, packageID, path, size, fileHash, defRed, size, fileHash, defRed)
 	if err != nil {
 		return 0, false, fmt.Errorf("insert object failed, err: %w", err)
 	}
@@ -94,7 +97,7 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 	objIDs := make([]cdssdk.ObjectID, 0, len(objs))
 	for _, obj := range objs {
 		// 创建对象的记录
-		objID, isCreate, err := db.CreateOrUpdate(ctx, packageID, obj.Path, obj.Size, obj.Redundancy)
+		objID, isCreate, err := db.CreateOrUpdate(ctx, packageID, obj.Path, obj.Size, obj.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("creating object: %w", err)
 		}
@@ -108,23 +111,16 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 			}
 		}
 
-		// 创建编码块的记录
-		for _, b := range obj.Blocks {
-			for _, n := range b.NodeIDs {
-				err := db.ObjectBlock().Create(ctx, objID, b.Index, b.FileHash, n)
-				if err != nil {
-					return nil, fmt.Errorf("creating object block: %w", err)
-				}
-			}
+		// 首次上传默认使用不分块的rep模式
+		err = db.ObjectBlock().Create(ctx, objID, 0, obj.FileHash, obj.NodeID)
+		if err != nil {
+			return nil, fmt.Errorf("creating object block: %w", err)
+		}
 
-			// 创建缓存记录
-			priority := 0 //优先级暂时设置为0
-			for _, nodeID := range b.CachedNodeIDs {
-				err = db.Cache().CreatePinned(ctx, b.FileHash, nodeID, priority)
-				if err != nil {
-					return nil, fmt.Errorf("creating cache: %w", err)
-				}
-			}
+		// 创建缓存记录
+		err = db.Cache().CreatePinned(ctx, obj.FileHash, obj.NodeID, 0)
+		if err != nil {
+			return nil, fmt.Errorf("creating cache: %w", err)
 		}
 	}
 

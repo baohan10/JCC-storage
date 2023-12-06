@@ -8,19 +8,17 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type CacheMovePackage struct {
-	userID    int64
-	packageID int64
-
-	ResultCacheInfos []cdssdk.ObjectCacheInfo
+	userID    cdssdk.UserID
+	packageID cdssdk.PackageID
 }
 
-func NewCacheMovePackage(userID int64, packageID int64) *CacheMovePackage {
+func NewCacheMovePackage(userID cdssdk.UserID, packageID cdssdk.PackageID) *CacheMovePackage {
 	return &CacheMovePackage{
 		userID:    userID,
 		packageID: packageID,
@@ -63,24 +61,9 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	pkgResp, err := coorCli.GetPackage(coormq.NewGetPackage(t.userID, t.packageID))
+	getResp, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(t.packageID))
 	if err != nil {
-		return fmt.Errorf("getting package: %w", err)
-	}
-
-	if pkgResp.Redundancy.IsRepInfo() {
-		return t.moveRep(ctx, coorCli, pkgResp.Package)
-	} else {
-		return fmt.Errorf("not implement yet!")
-		// TODO EC的CacheMove逻辑
-	}
-
-	return nil
-}
-func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.Client, pkg model.Package) error {
-	getRepResp, err := coorCli.GetPackageObjectRepData(coormq.NewGetPackageObjectRepData(pkg.PackageID))
-	if err != nil {
-		return fmt.Errorf("getting package object rep data: %w", err)
+		return fmt.Errorf("getting package object details: %w", err)
 	}
 
 	ipfsCli, err := stgglb.IPFSPool.Acquire()
@@ -89,19 +72,26 @@ func (t *CacheMovePackage) moveRep(ctx TaskContext, coorCli *coormq.Client, pkg 
 	}
 	defer ipfsCli.Close()
 
-	var fileHashes []string
-	for _, rep := range getRepResp.Data {
-		if err := ipfsCli.Pin(rep.FileHash); err != nil {
-			return fmt.Errorf("pinning file %s: %w", rep.FileHash, err)
+	// TODO 可以考虑优化，比如rep类型的直接pin就可以
+	objIter := iterator.NewDownloadObjectIterator(getResp.Objects, &iterator.DownloadContext{
+		Distlock: ctx.distlock,
+	})
+	defer objIter.Close()
+
+	for {
+		obj, err := objIter.MoveNext()
+		if err != nil {
+			if err == iterator.ErrNoMoreItem {
+				break
+			}
+			return err
 		}
+		defer obj.File.Close()
 
-		fileHashes = append(fileHashes, rep.FileHash)
-		t.ResultCacheInfos = append(t.ResultCacheInfos, cdssdk.NewObjectCacheInfo(rep.Object, rep.FileHash))
-	}
-
-	_, err = coorCli.CachePackageMoved(coormq.NewCachePackageMoved(pkg.PackageID, *stgglb.Local.NodeID, fileHashes))
-	if err != nil {
-		return fmt.Errorf("reporting cache package moved: %w", err)
+		_, err = ipfsCli.CreateFile(obj.File)
+		if err != nil {
+			return fmt.Errorf("creating ipfs file: %w", err)
+		}
 	}
 
 	return nil

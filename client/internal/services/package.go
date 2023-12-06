@@ -70,7 +70,7 @@ func (svc *PackageService) DownloadPackage(userID cdssdk.UserID, packageID cdssd
 		return nil, fmt.Errorf("getting package object details: %w", err)
 	}
 
-	iter := iterator.NewObjectIterator(getObjsResp.Objects, &iterator.DownloadContext{
+	iter := iterator.NewDownloadObjectIterator(getObjsResp.Objects, &iterator.DownloadContext{
 		Distlock: svc.DistLock,
 	})
 
@@ -156,9 +156,8 @@ func (svc *PackageService) GetCachedNodes(userID cdssdk.UserID, packageID cdssdk
 	}
 
 	tmp := cdssdk.PackageCachingInfo{
-		NodeInfos:     resp.NodeInfos,
-		PackageSize:   resp.PackageSize,
-		RedunancyType: resp.RedunancyType,
+		NodeInfos:   resp.NodeInfos,
+		PackageSize: resp.PackageSize,
 	}
 	return tmp, nil
 }

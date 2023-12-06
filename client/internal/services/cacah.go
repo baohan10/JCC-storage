@@ -8,7 +8,6 @@ import (
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
-	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type CacheService struct {
@@ -34,40 +33,25 @@ func (svc *CacheService) StartCacheMovePackage(userID cdssdk.UserID, packageID c
 	return startResp.TaskID, nil
 }
 
-func (svc *CacheService) WaitCacheMovePackage(nodeID cdssdk.NodeID, taskID string, waitTimeout time.Duration) (bool, []cdssdk.ObjectCacheInfo, error) {
+func (svc *CacheService) WaitCacheMovePackage(nodeID cdssdk.NodeID, taskID string, waitTimeout time.Duration) (bool, error) {
 	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
-		return true, nil, fmt.Errorf("new agent client: %w", err)
+		return true, fmt.Errorf("new agent client: %w", err)
 	}
 	defer stgglb.AgentMQPool.Release(agentCli)
 
 	waitResp, err := agentCli.WaitCacheMovePackage(agtmq.NewWaitCacheMovePackage(taskID, waitTimeout.Milliseconds()))
 	if err != nil {
-		return true, nil, fmt.Errorf("wait cache move package: %w", err)
+		return true, fmt.Errorf("wait cache move package: %w", err)
 	}
 
 	if !waitResp.IsComplete {
-		return false, nil, nil
+		return false, nil
 	}
 
 	if waitResp.Error != "" {
-		return true, nil, fmt.Errorf("%s", waitResp.Error)
+		return true, fmt.Errorf("%s", waitResp.Error)
 	}
 
-	return true, waitResp.CacheInfos, nil
-}
-
-func (svc *CacheService) GetPackageObjectCacheInfos(userID cdssdk.UserID, packageID cdssdk.PackageID) ([]cdssdk.ObjectCacheInfo, error) {
-	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
-	if err != nil {
-		return nil, fmt.Errorf("new coordinator client: %w", err)
-	}
-	defer stgglb.CoordinatorMQPool.Release(coorCli)
-
-	getResp, err := coorCli.GetPackageObjectCacheInfos(coormq.NewGetPackageObjectCacheInfos(userID, packageID))
-	if err != nil {
-		return nil, fmt.Errorf("requesting to coodinator: %w", err)
-	}
-
-	return getResp.Infos, nil
+	return true, nil
 }

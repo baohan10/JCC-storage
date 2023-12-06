@@ -14,7 +14,7 @@ func CacheMovePackage(ctx CommandContext, packageID cdssdk.PackageID, nodeID cds
 	}
 
 	for {
-		complete, _, err := ctx.Cmdline.Svc.CacheSvc().WaitCacheMovePackage(nodeID, taskID, time.Second*10)
+		complete, err := ctx.Cmdline.Svc.CacheSvc().WaitCacheMovePackage(nodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)

@@ -4,13 +4,11 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
@@ -81,15 +79,16 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 				log.WithField("NodeID", t.NodeID).Warnf("set node state failed, err: %s", err.Error())
 				return
 			}
+			/*
+				caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
+				if err != nil {
+					log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
+					return
+				}
 
-			caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
-			if err != nil {
-				log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
-				return
-			}
-
-			// 补充备份数
-			execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
+				// 补充备份数
+				execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
+			*/
 			return
 		}
 		return

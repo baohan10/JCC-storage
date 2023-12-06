@@ -30,14 +30,16 @@ func NewObjectBlockDetail(objID cdssdk.ObjectID, index int, fileHash string, nod
 }
 
 type ObjectDetail struct {
-	Object cdssdk.Object       `json:"object"`
-	Blocks []ObjectBlockDetail `json:"blocks"`
+	Object        cdssdk.Object       `json:"object"`
+	CachedNodeIDs []cdssdk.NodeID     `json:"cachedNodeIDs"` // 文件的完整数据在哪些节点上缓存
+	Blocks        []ObjectBlockDetail `json:"blocks"`
 }
 
-func NewObjectDetail(object cdssdk.Object, blocks []ObjectBlockDetail) ObjectDetail {
+func NewObjectDetail(object cdssdk.Object, cachedNodeIDs []cdssdk.NodeID, blocks []ObjectBlockDetail) ObjectDetail {
 	return ObjectDetail{
-		Object: object,
-		Blocks: blocks,
+		Object:        object,
+		CachedNodeIDs: cachedNodeIDs,
+		Blocks:        blocks,
 	}
 }
 

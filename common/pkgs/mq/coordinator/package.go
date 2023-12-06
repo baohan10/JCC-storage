@@ -4,7 +4,6 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
-	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -93,10 +92,10 @@ type UpdatePackageResp struct {
 	mq.MessageBodyBase
 }
 type AddObjectInfo struct {
-	Path       string                     `json:"path"`
-	Size       int64                      `json:"size,string"`
-	Redundancy cdssdk.Redundancy          `json:"redundancy"`
-	Blocks     []stgmod.ObjectBlockDetail `json:"blocks"`
+	Path     string        `json:"path"`
+	Size     int64         `json:"size,string"`
+	FileHash string        `json:"fileHash"`
+	NodeID   cdssdk.NodeID `json:"nodeID"`
 }
 
 func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes []cdssdk.ObjectID) *UpdatePackage {
@@ -109,12 +108,12 @@ func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes 
 func NewUpdatePackageResp() *UpdatePackageResp {
 	return &UpdatePackageResp{}
 }
-func NewAddObjectInfo(path string, size int64, redundancy cdssdk.Redundancy, blocks []stgmod.ObjectBlockDetail) AddObjectInfo {
+func NewAddObjectInfo(path string, size int64, fileHash string, nodeIDs cdssdk.NodeID) AddObjectInfo {
 	return AddObjectInfo{
-		Path:       path,
-		Size:       size,
-		Redundancy: redundancy,
-		Blocks:     blocks,
+		Path:     path,
+		Size:     size,
+		FileHash: fileHash,
+		NodeID:   nodeIDs,
 	}
 }
 func (client *Client) UpdateECPackage(msg *UpdatePackage) (*UpdatePackageResp, error) {
@@ -173,12 +172,11 @@ func NewGetPackageCachedNodes(userID cdssdk.UserID, packageID cdssdk.PackageID) 
 	}
 }
 
-func NewGetPackageCachedNodesResp(nodeInfos []cdssdk.NodePackageCachingInfo, packageSize int64, redunancyType string) *GetPackageCachedNodesResp {
+func NewGetPackageCachedNodesResp(nodeInfos []cdssdk.NodePackageCachingInfo, packageSize int64) *GetPackageCachedNodesResp {
 	return &GetPackageCachedNodesResp{
 		PackageCachingInfo: cdssdk.PackageCachingInfo{
-			NodeInfos:     nodeInfos,
-			PackageSize:   packageSize,
-			RedunancyType: redunancyType,
+			NodeInfos:   nodeInfos,
+			PackageSize: packageSize,
 		},
 	}
 }

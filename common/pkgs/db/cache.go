@@ -37,7 +37,7 @@ func (*CacheDB) GetNodeCaches(ctx SQLContext, nodeID cdssdk.NodeID) ([]model.Cac
 
 // CreateNew 创建一条新的缓存记录
 func (*CacheDB) CreateNew(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert into Cache values(?,?,?,?)", fileHash, nodeID, consts.CacheStatePinned, time.Now())
+	_, err := ctx.Exec("insert into Cache values(?,?,?,?,?)", fileHash, nodeID, consts.CacheStatePinned, nil, time.Now())
 	if err != nil {
 		return err
 	}
@@ -45,9 +45,26 @@ func (*CacheDB) CreateNew(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID)
 	return nil
 }
 
+func (*CacheDB) SetPackageObjectFrozen(ctx SQLContext, pkgID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
+	var nowTime = time.Now()
+	_, err := ctx.Exec(
+		"insert into Cache(FileHash,NodeID,State,FrozenTime,CreateTime,Priority)"+
+			" select FileHash, ?, ?, ?, ?, ? from Object where PackageID = ?"+
+			" on duplicate key update State = ?, FrozenTime = ?",
+		nodeID, consts.CacheStatePinned, &nowTime, &nowTime, 0,
+		pkgID,
+		consts.CacheStatePinned, &nowTime,
+	)
+
+	return err
+}
+
 // CreatePinned 创建一条缓存记录，如果已存在，但不是pinned状态，则将其设置为pin状态
 func (*CacheDB) CreatePinned(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID, priority int) error {
-	_, err := ctx.Exec("replace into Cache values(?,?,?,?,?)", fileHash, nodeID, consts.CacheStatePinned, time.Now(), priority)
+	_, err := ctx.Exec("insert into Cache values(?,?,?,?,?,?) on duplicate key update State = ?, CreateTime = ?, Priority = ?",
+		fileHash, nodeID, consts.CacheStatePinned, nil, time.Now(), priority,
+		consts.CacheStatePinned, time.Now(), priority,
+	)
 	return err
 }
 
@@ -56,16 +73,17 @@ func (*CacheDB) BatchCreatePinned(ctx SQLContext, fileHashes []string, nodeID cd
 	var nowTime = time.Now()
 	for _, hash := range fileHashes {
 		caches = append(caches, model.Cache{
-			FileHash:  hash,
-			NodeID:    nodeID,
-			State:     consts.CacheStatePinned,
-			CacheTime: nowTime,
-			Priority:  priority,
+			FileHash:   hash,
+			NodeID:     nodeID,
+			State:      consts.CacheStatePinned,
+			FrozenTime: nil,
+			CreateTime: nowTime,
+			Priority:   priority,
 		})
 	}
 
-	_, err := sqlx.NamedExec(ctx, "insert into Cache(FileHash,NodeID,State,CacheTime,Priority) values(:FileHash,:NodeID,:State,:CacheTime,:Priority)"+
-		" on duplicate key update State=values(State), CacheTime=values(CacheTime), Priority=values(Priority)",
+	_, err := sqlx.NamedExec(ctx, "insert into Cache(FileHash,NodeID,State,FrozenTime,CreateTime,Priority) values(:FileHash,:NodeID,:State,:FrozenTime,:CreateTime,:Priority)"+
+		" on duplicate key update State=values(State), CreateTime=values(CreateTime), Priority=values(Priority)",
 		caches,
 	)
 	return err
@@ -73,7 +91,7 @@ func (*CacheDB) BatchCreatePinned(ctx SQLContext, fileHashes []string, nodeID cd
 
 // Create 创建一条Temp状态的缓存记录，如果已存在则不产生效果
 func (*CacheDB) CreateTemp(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?)", fileHash, nodeID, consts.CacheStateTemp, time.Now())
+	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?,?)", fileHash, nodeID, nil, consts.CacheStateTemp, time.Now())
 	return err
 }
 
@@ -107,8 +125,9 @@ func (*CacheDB) FindCachingFileUserNodes(ctx SQLContext, userID cdssdk.NodeID, f
 	return x, err
 }
 
+// 设置一条记录为Temp，对Frozen的记录无效
 func (*CacheDB) SetTemp(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("update Cache set State = ?, CacheTime = ? where FileHash = ? and NodeID = ?",
+	_, err := ctx.Exec("update Cache set State = ?, CreateTime = ? where FileHash = ? and NodeID = ? and FrozenTime = null",
 		consts.CacheStateTemp,
 		time.Now(),
 		fileHash,

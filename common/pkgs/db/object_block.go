@@ -59,15 +59,25 @@ func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk
 	rets := make([]stgmod.ObjectDetail, 0, len(objs))
 
 	for _, obj := range objs {
-		var tmpRets []struct {
+		var cachedObjectNodeIDs []cdssdk.NodeID
+		err := sqlx.Select(ctx, &cachedObjectNodeIDs,
+			"select NodeID from Object, Cache where"+
+				" ObjectID = ? and Object.FileHash = Cache.FileHash",
+			obj.ObjectID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var blockTmpRets []struct {
 			Index         int     `db:"Index"`
 			FileHashes    string  `db:"FileHashes"`
 			NodeIDs       string  `db:"NodeIDs"`
 			CachedNodeIDs *string `db:"CachedNodeIDs"`
 		}
 
-		err := sqlx.Select(ctx,
-			&tmpRets,
+		err = sqlx.Select(ctx,
+			&blockTmpRets,
 			"select ObjectBlock.Index, group_concat(distinct ObjectBlock.FileHash) as FileHashes, group_concat(distinct ObjectBlock.NodeID) as NodeIDs, group_concat(distinct Cache.NodeID) as CachedNodeIDs"+
 				" from ObjectBlock left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
 				" where ObjectID = ? group by ObjectBlock.Index",
@@ -77,21 +87,21 @@ func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk
 			return nil, err
 		}
 
-		blocks := make([]stgmod.ObjectBlockDetail, 0, len(tmpRets))
-		for _, tmp := range tmpRets {
+		blocks := make([]stgmod.ObjectBlockDetail, 0, len(blockTmpRets))
+		for _, tmp := range blockTmpRets {
 			var block stgmod.ObjectBlockDetail
 			block.Index = tmp.Index
 
-			block.FileHash = splitConcatedToString(tmp.FileHashes)[0]
-			block.NodeIDs = splitConcatedToNodeID(tmp.NodeIDs)
+			block.FileHash = splitConcatedFileHash(tmp.FileHashes)[0]
+			block.NodeIDs = splitConcatedNodeID(tmp.NodeIDs)
 			if tmp.CachedNodeIDs != nil {
-				block.CachedNodeIDs = splitConcatedToNodeID(*tmp.CachedNodeIDs)
+				block.CachedNodeIDs = splitConcatedNodeID(*tmp.CachedNodeIDs)
 			}
 
 			blocks = append(blocks, block)
 		}
 
-		rets = append(rets, stgmod.NewObjectDetail(obj, blocks))
+		rets = append(rets, stgmod.NewObjectDetail(obj, cachedObjectNodeIDs, blocks))
 	}
 
 	return rets, nil
@@ -99,7 +109,7 @@ func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk
 
 // 按逗号切割字符串，并将每一个部分解析为一个int64的ID。
 // 注：需要外部保证分隔的每一个部分都是正确的10进制数字格式
-func splitConcatedToNodeID(idStr string) []cdssdk.NodeID {
+func splitConcatedNodeID(idStr string) []cdssdk.NodeID {
 	idStrs := strings.Split(idStr, ",")
 	ids := make([]cdssdk.NodeID, 0, len(idStrs))
 
@@ -113,7 +123,7 @@ func splitConcatedToNodeID(idStr string) []cdssdk.NodeID {
 }
 
 // 按逗号切割字符串
-func splitConcatedToString(idStr string) []string {
+func splitConcatedFileHash(idStr string) []string {
 	idStrs := strings.Split(idStr, ",")
 	return idStrs
 }

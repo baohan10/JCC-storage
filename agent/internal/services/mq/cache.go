@@ -61,7 +61,7 @@ func (svc *Service) checkIncrement(msg *agtmq.CheckCache, filesMap map[string]sh
 				svc.taskManager.StartComparable(task.NewIPFSPin(cache.FileHash))
 
 			} else if cache.State == consts.CacheStateTemp {
-				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
+				if time.Since(cache.CreateTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
 					entries = append(entries, agtmq.NewCheckCacheRespEntry(cache.FileHash, agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP))
 				}
 			}
@@ -96,7 +96,7 @@ func (svc *Service) checkComplete(msg *agtmq.CheckCache, filesMap map[string]she
 				svc.taskManager.StartComparable(task.NewIPFSPin(cache.FileHash))
 
 			} else if cache.State == consts.CacheStateTemp {
-				if time.Since(cache.CacheTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
+				if time.Since(cache.CreateTime) > time.Duration(config.Cfg().TempFileLifetime)*time.Second {
 					entries = append(entries, agtmq.NewCheckCacheRespEntry(cache.FileHash, agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP))
 				}
 			}
@@ -127,8 +127,6 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 		return nil, mq.Failed(errorcode.TaskNotFound, "task not found")
 	}
 
-	mvPkgTask := tsk.Body().(*mytask.CacheMovePackage)
-
 	if msg.WaitTimeoutMs == 0 {
 		tsk.Wait()
 
@@ -137,7 +135,7 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 			errMsg = tsk.Error().Error()
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, mvPkgTask.ResultCacheInfos))
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg))
 
 	} else {
 		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
@@ -147,9 +145,9 @@ func (svc *Service) WaitCacheMovePackage(msg *agtmq.WaitCacheMovePackage) (*agtm
 				errMsg = tsk.Error().Error()
 			}
 
-			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg, mvPkgTask.ResultCacheInfos))
+			return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(true, errMsg))
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, "", nil))
+		return mq.ReplyOK(agtmq.NewWaitCacheMovePackageResp(false, ""))
 	}
 }

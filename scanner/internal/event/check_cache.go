@@ -3,11 +3,9 @@ package event
 import (
 	"database/sql"
 
-	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
@@ -64,20 +62,20 @@ func (t *CheckCache) Execute(execCtx ExecuteContext) {
 	if node.State != consts.NodeStateUnavailable {
 		return
 	}
+	/*
+		caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
+		if err != nil {
+			log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
+			return
+		}
 
-	caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
-	if err != nil {
-		log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
-		return
-	}
-
-	err = execCtx.Args.DB.Cache().DeleteNodeAll(execCtx.Args.DB.SQLCtx(), t.NodeID)
-	if err != nil {
-		log.WithField("NodeID", t.NodeID).Warnf("delete node all caches failed, err: %s", err.Error())
-		return
-	}
-
-	execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
+		err = execCtx.Args.DB.Cache().DeleteNodeAll(execCtx.Args.DB.SQLCtx(), t.NodeID)
+		if err != nil {
+			log.WithField("NodeID", t.NodeID).Warnf("delete node all caches failed, err: %s", err.Error())
+			return
+		}
+	*/
+	//execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
 }
 
 func init() {

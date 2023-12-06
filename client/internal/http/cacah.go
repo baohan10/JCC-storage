@@ -25,9 +25,7 @@ type CacheMovePackageReq struct {
 	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
 	NodeID    *cdssdk.NodeID    `json:"nodeID" binding:"required"`
 }
-type CacheMovePackageResp struct {
-	CacheInfos []cdssdk.ObjectCacheInfo `json:"cacheInfos"`
-}
+type CacheMovePackageResp = cdssdk.CacheMovePackageResp
 
 func (s *CacheService) MovePackage(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Cache.LoadPackage")
@@ -47,7 +45,7 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 	}
 
 	for {
-		complete, cacheInfos, err := s.svc.CacheSvc().WaitCacheMovePackage(*req.NodeID, taskID, time.Second*10)
+		complete, err := s.svc.CacheSvc().WaitCacheMovePackage(*req.NodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				log.Warnf("moving complete with: %s", err.Error())
@@ -55,9 +53,7 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 				return
 			}
 
-			ctx.JSON(http.StatusOK, OK(CacheMovePackageResp{
-				CacheInfos: cacheInfos,
-			}))
+			ctx.JSON(http.StatusOK, OK(CacheMovePackageResp{}))
 			return
 		}
 
@@ -67,31 +63,4 @@ func (s *CacheService) MovePackage(ctx *gin.Context) {
 			return
 		}
 	}
-}
-
-type CacheGetPackageObjectCacheInfosReq struct {
-	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `form:"packageID" binding:"required"`
-}
-
-type CacheGetPackageObjectCacheInfosResp = cdssdk.CacheGetPackageObjectCacheInfosResp
-
-func (s *CacheService) GetPackageObjectCacheInfos(ctx *gin.Context) {
-	log := logger.WithField("HTTP", "Cache.GetPackageObjectCacheInfos")
-
-	var req CacheGetPackageObjectCacheInfosReq
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		log.Warnf("binding body: %s", err.Error())
-		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
-		return
-	}
-
-	infos, err := s.svc.CacheSvc().GetPackageObjectCacheInfos(*req.UserID, *req.PackageID)
-	if err != nil {
-		log.Warnf("getting package object cache infos: %s", err.Error())
-		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package object cache infos failed"))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, OK(CacheGetPackageObjectCacheInfosResp{Infos: infos}))
 }

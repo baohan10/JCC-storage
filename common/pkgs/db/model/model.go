@@ -68,11 +68,12 @@ type Object = cdssdk.Object
 type ObjectBlock = stgmod.ObjectBlock
 
 type Cache struct {
-	FileHash  string        `db:"FileHash" json:"fileHash"`
-	NodeID    cdssdk.NodeID `db:"NodeID" json:"nodeID"`
-	State     string        `db:"State" json:"state"`
-	CacheTime time.Time     `db:"CacheTime" json:"cacheTime"`
-	Priority  int           `db:"Priority" json:"priority"`
+	FileHash   string        `db:"FileHash" json:"fileHash"`
+	NodeID     cdssdk.NodeID `db:"NodeID" json:"nodeID"`
+	State      string        `db:"State" json:"state"`
+	FrozenTime *time.Time    `db:"FrozenTime" json:"frozenTime"`
+	CreateTime time.Time     `db:"CreateTime" json:"createTime"`
+	Priority   int           `db:"Priority" json:"priority"`
 }
 
 const (
