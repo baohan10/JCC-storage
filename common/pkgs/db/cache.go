@@ -37,7 +37,7 @@ func (*CacheDB) GetNodeCaches(ctx SQLContext, nodeID cdssdk.NodeID) ([]model.Cac
 
 // CreateNew 创建一条新的缓存记录
 func (*CacheDB) CreateNew(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert into Cache values(?,?,?,?,?)", fileHash, nodeID, consts.CacheStatePinned, nil, time.Now())
+	_, err := ctx.Exec("insert into Cache values(?,?,?,?,?,?)", fileHash, nodeID, consts.CacheStatePinned, nil, time.Now(), 0)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (*CacheDB) BatchCreatePinned(ctx SQLContext, fileHashes []string, nodeID cd
 
 // Create 创建一条Temp状态的缓存记录，如果已存在则不产生效果
 func (*CacheDB) CreateTemp(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?,?)", fileHash, nodeID, nil, consts.CacheStateTemp, time.Now())
+	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?,?,?)", fileHash, nodeID, consts.CacheStateTemp, nil, time.Now(), 0)
 	return err
 }
 

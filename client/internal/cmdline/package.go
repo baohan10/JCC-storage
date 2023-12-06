@@ -33,7 +33,7 @@ func PackageListBucketPackages(ctx CommandContext, bucketID cdssdk.BucketID) err
 	return nil
 }
 
-func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID cdssdk.PackageID) error {
+func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outputDir string) error {
 	err := os.MkdirAll(outputDir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("create output directory %s failed, err: %w", outputDir, err)
@@ -86,7 +86,7 @@ func PackageDownloadPackage(ctx CommandContext, outputDir string, packageID cdss
 	return nil
 }
 
-func PackageCreatePackage(ctx CommandContext, rootPath string, bucketID cdssdk.BucketID, name string, nodeAffinity []cdssdk.NodeID) error {
+func PackageCreatePackage(ctx CommandContext, name string, rootPath string, bucketID cdssdk.BucketID, nodeAffinity []cdssdk.NodeID) error {
 	rootPath = filepath.Clean(rootPath)
 
 	var uploadFilePathes []string
@@ -194,7 +194,8 @@ func PackageDeletePackage(ctx CommandContext, packageID cdssdk.PackageID) error 
 	return nil
 }
 
-func PackageGetCachedNodes(ctx CommandContext, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
+func PackageGetCachedNodes(ctx CommandContext, packageID cdssdk.PackageID) error {
+	userID := cdssdk.UserID(0)
 	resp, err := ctx.Cmdline.Svc.PackageSvc().GetCachedNodes(userID, packageID)
 	fmt.Printf("resp: %v\n", resp)
 	if err != nil {
@@ -203,7 +204,8 @@ func PackageGetCachedNodes(ctx CommandContext, packageID cdssdk.PackageID, userI
 	return nil
 }
 
-func PackageGetLoadedNodes(ctx CommandContext, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
+func PackageGetLoadedNodes(ctx CommandContext, packageID cdssdk.PackageID) error {
+	userID := cdssdk.UserID(0)
 	nodeIDs, err := ctx.Cmdline.Svc.PackageSvc().GetLoadedNodes(userID, packageID)
 	fmt.Printf("nodeIDs: %v\n", nodeIDs)
 	if err != nil {

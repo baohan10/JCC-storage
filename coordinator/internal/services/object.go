@@ -24,9 +24,9 @@ func (svc *Service) GetPackageObjectDetails(msg *coormq.GetPackageObjectDetails)
 	data, err := svc.db.ObjectBlock().GetPackageBlockDetails(svc.db.SQLCtx(), msg.PackageID)
 	if err != nil {
 		logger.WithField("PackageID", msg.PackageID).
-			Warnf("query object ec and node id in package: %s", err.Error())
+			Warnf("getting package block details: %s", err.Error())
 
-		return nil, mq.Failed(errorcode.OperationFailed, "query object ec and node id in package failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "get package object block details failed")
 	}
 
 	return mq.ReplyOK(coormq.NewGetPackageObjectDetailsResp(data))

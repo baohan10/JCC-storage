@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/samber/lo"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -18,9 +19,9 @@ func (db *DB) Object() *ObjectDB {
 }
 
 func (db *ObjectDB) GetByID(ctx SQLContext, objectID cdssdk.ObjectID) (model.Object, error) {
-	var ret model.Object
+	var ret model.TempObject
 	err := sqlx.Get(ctx, &ret, "select * from Object where ObjectID = ?", objectID)
-	return ret, err
+	return ret.ToObject(), err
 }
 
 func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string, redundancy cdssdk.Redundancy) (int64, error) {
@@ -88,9 +89,9 @@ func (*ObjectDB) UpdateFileInfo(ctx SQLContext, objectID cdssdk.ObjectID, fileSi
 }
 
 func (*ObjectDB) GetPackageObjects(ctx SQLContext, packageID cdssdk.PackageID) ([]model.Object, error) {
-	var ret []model.Object
+	var ret []model.TempObject
 	err := sqlx.Select(ctx, &ret, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
-	return ret, err
+	return lo.Map(ret, func(o model.TempObject, idx int) model.Object { return o.ToObject() }), err
 }
 
 func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []coormq.AddObjectInfo) ([]cdssdk.ObjectID, error) {
@@ -112,7 +113,7 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 		}
 
 		// 首次上传默认使用不分块的rep模式
-		err = db.ObjectBlock().Create(ctx, objID, 0, obj.FileHash, obj.NodeID)
+		err = db.ObjectBlock().Create(ctx, objID, 0, obj.NodeID, obj.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("creating object block: %w", err)
 		}

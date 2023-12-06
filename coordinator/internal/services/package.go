@@ -73,7 +73,7 @@ func (svc *Service) UpdateECPackage(msg *coormq.UpdatePackage) (*coormq.UpdatePa
 	})
 	if err != nil {
 		logger.Warn(err.Error())
-		return nil, mq.Failed(errorcode.OperationFailed, "update ec package failed")
+		return nil, mq.Failed(errorcode.OperationFailed, "update package failed")
 	}
 
 	return mq.ReplyOK(coormq.NewUpdatePackageResp())

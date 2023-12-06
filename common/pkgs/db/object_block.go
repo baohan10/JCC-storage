@@ -20,8 +20,8 @@ func (db *DB) ObjectBlock() *ObjectBlockDB {
 	return &ObjectBlockDB{DB: db}
 }
 
-func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index int, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?,?)", objectID, index, fileHash, nodeID)
+func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index int, nodeID cdssdk.NodeID, fileHash string) error {
+	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?,?)", objectID, index, nodeID, fileHash)
 	return err
 }
 
@@ -50,10 +50,10 @@ func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (in
 }
 
 func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk.PackageID) ([]stgmod.ObjectDetail, error) {
-	var objs []model.Object
+	var objs []model.TempObject
 	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
 	if err != nil {
-		return nil, fmt.Errorf("query objectIDs: %w", err)
+		return nil, fmt.Errorf("getting objects: %w", err)
 	}
 
 	rets := make([]stgmod.ObjectDetail, 0, len(objs))
@@ -101,7 +101,7 @@ func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk
 			blocks = append(blocks, block)
 		}
 
-		rets = append(rets, stgmod.NewObjectDetail(obj, cachedObjectNodeIDs, blocks))
+		rets = append(rets, stgmod.NewObjectDetail(obj.ToObject(), cachedObjectNodeIDs, blocks))
 	}
 
 	return rets, nil

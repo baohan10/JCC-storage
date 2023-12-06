@@ -112,8 +112,7 @@ create table Package (
   PackageID int not null auto_increment primary key comment '包ID',
   Name varchar(100) not null comment '对象名',
   BucketID int not null comment '桶ID',
-  State varchar(100) not null comment '状态',
-  Redundancy JSON not null comment '冗余策略'
+  State varchar(100) not null comment '状态'
 );
 
 create table Object (
@@ -122,6 +121,7 @@ create table Object (
   Path varchar(500) not null comment '对象路径',
   Size bigint not null comment '对象大小(Byte)',
   FileHash varchar(100) not null comment '完整对象的FileHash',
+  Redundancy JSON not null comment '冗余策略',
   UNIQUE KEY PackagePath (PackageID, Path)
 ) comment = '对象表';
 

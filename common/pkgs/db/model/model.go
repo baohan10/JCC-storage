@@ -1,9 +1,12 @@
 package model
 
 import (
+	"fmt"
+	"reflect"
 	"time"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/common/utils/serder"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 )
 
@@ -64,6 +67,38 @@ type Bucket struct {
 type Package = cdssdk.Package
 
 type Object = cdssdk.Object
+
+// 由于Object的Redundancy字段是interface，所以不能直接将查询结果scan成Object，必须先scan成TempObject，
+// 再.ToObject()转成Object
+type TempObject struct {
+	cdssdk.Object
+	Redundancy RedundancyWarpper `db:"Redundancy"`
+}
+
+func (o *TempObject) ToObject() cdssdk.Object {
+	obj := o.Object
+	obj.Redundancy = o.Redundancy.Value
+	return obj
+}
+
+type RedundancyWarpper struct {
+	Value cdssdk.Redundancy
+}
+
+func (o *RedundancyWarpper) Scan(src interface{}) error {
+	data, ok := src.([]uint8)
+	if !ok {
+		return fmt.Errorf("unknow src type: %v", reflect.TypeOf(data))
+	}
+
+	red, err := serder.JSONToObjectEx[cdssdk.Redundancy](data)
+	if err != nil {
+		return err
+	}
+
+	o.Value = red
+	return nil
+}
 
 type ObjectBlock = stgmod.ObjectBlock
 
