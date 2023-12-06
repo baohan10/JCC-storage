@@ -144,19 +144,18 @@ create table Cache (
 ) comment = '缓存表';
 
 create table StoragePackage (
-  PackageID int not null comment '包ID',
   StorageID int not null comment '存储服务ID',
+  PackageID int not null comment '包ID',
   UserID int not null comment '调度了此文件的用户ID',
   State varchar(100) not null comment '包状态',
-  primary key(PackageID, StorageID, UserID)
+  primary key(StorageID, PackageID, UserID)
 );
 
 create table StoragePackageLog (
   PackageID int not null comment '包ID',
   StorageID int not null comment '存储服务ID',
   UserID int not null comment '调度了此文件的用户ID',
-  CreateTime timestamp not null comment '加载Package完成的时间',
-  primary key(PackageID, StorageID, UserID)
+  CreateTime timestamp not null comment '加载Package完成的时间'
 );
 
 create table Location (

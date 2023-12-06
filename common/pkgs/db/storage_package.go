@@ -34,8 +34,8 @@ func (*StoragePackageDB) GetAllByStorageID(ctx SQLContext, storageID cdssdk.Stor
 	return ret, err
 }
 
-func (*StoragePackageDB) LoadPackage(ctx SQLContext, packageID cdssdk.PackageID, storageID cdssdk.StorageID, userID cdssdk.UserID) error {
-	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", packageID, storageID, userID, model.StoragePackageStateNormal)
+func (*StoragePackageDB) Create(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
+	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", storageID, packageID, userID, model.StoragePackageStateNormal)
 	return err
 }
 

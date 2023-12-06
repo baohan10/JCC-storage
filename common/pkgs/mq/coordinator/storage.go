@@ -52,14 +52,14 @@ var _ = Register(Service.StoragePackageLoaded)
 type StoragePackageLoaded struct {
 	mq.MessageBodyBase
 	UserID    cdssdk.UserID    `json:"userID"`
-	PackageID cdssdk.PackageID `json:"packageID"`
 	StorageID cdssdk.StorageID `json:"storageID"`
+	PackageID cdssdk.PackageID `json:"packageID"`
 }
 type StoragePackageLoadedResp struct {
 	mq.MessageBodyBase
 }
 
-func NewStoragePackageLoaded(userID cdssdk.UserID, packageID cdssdk.PackageID, stgID cdssdk.StorageID) *StoragePackageLoaded {
+func NewStoragePackageLoaded(userID cdssdk.UserID, stgID cdssdk.StorageID, packageID cdssdk.PackageID) *StoragePackageLoaded {
 	return &StoragePackageLoaded{
 		UserID:    userID,
 		PackageID: packageID,

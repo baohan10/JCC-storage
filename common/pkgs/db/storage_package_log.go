@@ -16,16 +16,15 @@ func (db *DB) StoragePackageLog() *StoragePackageLogDB {
 	return &StoragePackageLogDB{DB: db}
 }
 
-func (*StoragePackageLogDB) Get(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) (model.StoragePackage, error) {
-	var ret model.StoragePackage
+func (*StoragePackageLogDB) Get(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) (model.StoragePackageLog, error) {
+	var ret model.StoragePackageLog
 	err := sqlx.Get(ctx, &ret, "select * from StoragePackageLog where StorageID = ? and PackageID = ? and UserID = ?", storageID, packageID, userID)
 	return ret, err
 }
 
-func (*StoragePackageLogDB) Create(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID, createTime time.Time) (model.StoragePackage, error) {
-	var ret model.StoragePackage
-	err := sqlx.Get(ctx, &ret, "insert into StoragePackageLog values(?,?,?,?)", storageID, packageID, userID, createTime)
-	return ret, err
+func (*StoragePackageLogDB) Create(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID, createTime time.Time) error {
+	_, err := ctx.Exec("insert into StoragePackageLog values(?,?,?,?)", storageID, packageID, userID, createTime)
+	return err
 }
 
 func (*StoragePackageLogDB) Delete(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {

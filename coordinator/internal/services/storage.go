@@ -2,6 +2,8 @@ package services
 
 import (
 	"database/sql"
+	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -24,12 +26,22 @@ func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStora
 func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coormq.StoragePackageLoadedResp, *mq.CodeMessage) {
 	// TODO: 对于的storage中已经存在的文件，直接覆盖已有文件
 	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		return svc.db.StoragePackage().LoadPackage(tx, msg.PackageID, msg.StorageID, msg.UserID)
+		err := svc.db.StoragePackage().Create(tx, msg.StorageID, msg.PackageID, msg.UserID)
+		if err != nil {
+			return fmt.Errorf("creating storage package: %w", err)
+		}
+
+		err = svc.db.StoragePackageLog().Create(tx, msg.StorageID, msg.PackageID, msg.UserID, time.Now())
+		if err != nil {
+			return fmt.Errorf("creating storage package log: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
-			WithField("PackageID", msg.PackageID).
 			WithField("StorageID", msg.StorageID).
+			WithField("PackageID", msg.PackageID).
 			Warnf("user load package to storage failed, err: %s", err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "user load package to storage failed")
 	}

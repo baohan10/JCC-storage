@@ -106,7 +106,7 @@ func (t *StorageLoadPackage) do(ctx TaskContext) error {
 		}
 	}
 
-	_, err = coorCli.StoragePackageLoaded(coormq.NewStoragePackageLoaded(t.userID, t.packageID, t.storageID))
+	_, err = coorCli.StoragePackageLoaded(coormq.NewStoragePackageLoaded(t.userID, t.storageID, t.packageID))
 	if err != nil {
 		return fmt.Errorf("loading package to storage: %w", err)
 	}
