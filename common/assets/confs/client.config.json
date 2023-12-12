@@ -1,12 +1,12 @@
 {
     "local": {
         "localIP": "127.0.0.1",
-        "externalIP": "127.0.0.1"
+        "externalIP": "127.0.0.1",
+        "locationID": 1
     },
     "agentGRPC": {
         "port": 5010
     },
-    "maxRepCount": 10,
     "logger": {
         "output": "stdout",
         "level": "debug"

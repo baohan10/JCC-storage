@@ -22,6 +22,12 @@ func (*StoragePackageLogDB) Get(ctx SQLContext, storageID cdssdk.StorageID, pack
 	return ret, err
 }
 
+func (*StoragePackageLogDB) GetByPackageID(ctx SQLContext, packageID cdssdk.PackageID) ([]model.StoragePackageLog, error) {
+	var ret []model.StoragePackageLog
+	err := sqlx.Select(ctx, &ret, "select * from StoragePackageLog where PackageID = ?", packageID)
+	return ret, err
+}
+
 func (*StoragePackageLogDB) Create(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID, createTime time.Time) error {
 	_, err := ctx.Exec("insert into StoragePackageLog values(?,?,?,?)", storageID, packageID, userID, createTime)
 	return err

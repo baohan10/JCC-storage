@@ -42,6 +42,8 @@ func FromMessage(msg scevt.Event) (Event, error) {
 	return event, nil
 }
 
-func RegisterMessageConvertor[T any](converter func(msg T) Event) {
-	typedispatcher.Add(msgDispatcher, converter)
+func RegisterMessageConvertor[T any, TEvt Event](converter func(msg T) TEvt) {
+	typedispatcher.Add(msgDispatcher, func(msg T) Event {
+		return converter(msg)
+	})
 }

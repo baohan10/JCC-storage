@@ -72,8 +72,19 @@ func (iter *DownloadObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloa
 	obj := iter.objectDetails[iter.currentIndex]
 
 	switch red := obj.Object.Redundancy.(type) {
+	case *cdssdk.NoneRedundancy:
+		reader, err := iter.downloadNoneOrRepObject(coorCli, iter.downloadCtx, obj)
+		if err != nil {
+			return nil, fmt.Errorf("downloading object: %w", err)
+		}
+
+		return &IterDownloadingObject{
+			Object: obj.Object,
+			File:   reader,
+		}, nil
+
 	case *cdssdk.RepRedundancy:
-		reader, err := iter.downloadRepObject(coorCli, iter.downloadCtx, obj, red)
+		reader, err := iter.downloadNoneOrRepObject(coorCli, iter.downloadCtx, obj)
 		if err != nil {
 			return nil, fmt.Errorf("downloading rep object: %w", err)
 		}
@@ -116,7 +127,7 @@ func (i *DownloadObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) 
 	return entries[rand.Intn(len(entries))]
 }
 
-func (iter *DownloadObjectIterator) downloadRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, repRed *cdssdk.RepRedundancy) (io.ReadCloser, error) {
+func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
 	for i := range obj.Blocks {

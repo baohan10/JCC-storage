@@ -12,6 +12,8 @@ type ObjectService interface {
 	GetPackageObjects(msg *GetPackageObjects) (*GetPackageObjectsResp, *mq.CodeMessage)
 
 	GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, *mq.CodeMessage)
+
+	ChangeObjectRedundancy(msg *ChangeObjectRedundancy) (*ChangeObjectRedundancyResp, *mq.CodeMessage)
 }
 
 // 查询Package中的所有Object，返回的Objects会按照ObjectID升序
@@ -66,4 +68,32 @@ func NewGetPackageObjectDetailsResp(objects []stgmod.ObjectDetail) *GetPackageOb
 }
 func (client *Client) GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, error) {
 	return mq.Request(Service.GetPackageObjectDetails, client.rabbitCli, msg)
+}
+
+// 更新Object的冗余方式
+var _ = Register(Service.ChangeObjectRedundancy)
+
+type ChangeObjectRedundancy struct {
+	mq.MessageBodyBase
+	Entries []ChangeObjectRedundancyEntry `json:"entries"`
+}
+type ChangeObjectRedundancyResp struct {
+	mq.MessageBodyBase
+}
+type ChangeObjectRedundancyEntry struct {
+	ObjectID   cdssdk.ObjectID      `json:"objectID"`
+	Redundancy cdssdk.Redundancy    `json:"redundancy"`
+	Blocks     []stgmod.ObjectBlock `json:"blocks"`
+}
+
+func ReqChangeObjectRedundancy(entries []ChangeObjectRedundancyEntry) *ChangeObjectRedundancy {
+	return &ChangeObjectRedundancy{
+		Entries: entries,
+	}
+}
+func RespChangeObjectRedundancy() *ChangeObjectRedundancyResp {
+	return &ChangeObjectRedundancyResp{}
+}
+func (client *Client) ChangeObjectRedundancy(msg *ChangeObjectRedundancy) (*ChangeObjectRedundancyResp, error) {
+	return mq.Request(Service.ChangeObjectRedundancy, client.rabbitCli, msg)
 }
