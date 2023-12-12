@@ -163,7 +163,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 
 	var uploadRets []ObjectUploadResult
 	//上传文件夹
-	var adds []coormq.AddObjectInfo
+	var adds []coormq.AddObjectEntry
 	for {
 		objInfo, err := objectIter.MoveNext()
 		if err == iterator.ErrNoMoreItem {
@@ -190,7 +190,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 				return fmt.Errorf("uploading object: %w", err)
 			}
 
-			adds = append(adds, coormq.NewAddObjectInfo(objInfo.Path, objInfo.Size, fileHash, uploadNode.Node.NodeID))
+			adds = append(adds, coormq.NewAddObjectEntry(objInfo.Path, objInfo.Size, fileHash, uploadNode.Node.NodeID))
 			return nil
 		}()
 		if err != nil {

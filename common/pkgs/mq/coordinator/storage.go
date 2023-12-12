@@ -1,6 +1,8 @@
 package coordinator
 
 import (
+	"time"
+
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -10,6 +12,8 @@ type StorageService interface {
 	GetStorageInfo(msg *GetStorageInfo) (*GetStorageInfoResp, *mq.CodeMessage)
 
 	StoragePackageLoaded(msg *StoragePackageLoaded) (*StoragePackageLoadedResp, *mq.CodeMessage)
+
+	GetPackageLoadLogDetails(msg *GetPackageLoadLogDetails) (*GetPackageLoadLogDetailsResp, *mq.CodeMessage)
 }
 
 // 获取Storage信息
@@ -71,4 +75,35 @@ func NewStoragePackageLoadedResp() *StoragePackageLoadedResp {
 }
 func (client *Client) StoragePackageLoaded(msg *StoragePackageLoaded) (*StoragePackageLoadedResp, error) {
 	return mq.Request(Service.StoragePackageLoaded, client.rabbitCli, msg)
+}
+
+// 查询Package的导入记录
+var _ = Register(Service.GetPackageLoadLogDetails)
+
+type GetPackageLoadLogDetails struct {
+	mq.MessageBodyBase
+	PackageID cdssdk.PackageID `json:"packageID"`
+}
+type GetPackageLoadLogDetailsResp struct {
+	mq.MessageBodyBase
+	Logs []PackageLoadLogDetail `json:"logs"`
+}
+type PackageLoadLogDetail struct {
+	Storage    model.Storage `json:"storage"`
+	UserID     cdssdk.UserID `json:"userID"`
+	CreateTime time.Time     `json:"createTime"`
+}
+
+func ReqGetPackageLoadLogDetails(packageID cdssdk.PackageID) *GetPackageLoadLogDetails {
+	return &GetPackageLoadLogDetails{
+		PackageID: packageID,
+	}
+}
+func RespGetPackageLoadLogDetails(logs []PackageLoadLogDetail) *GetPackageLoadLogDetailsResp {
+	return &GetPackageLoadLogDetailsResp{
+		Logs: logs,
+	}
+}
+func (client *Client) GetPackageLoadLogDetails(msg *GetPackageLoadLogDetails) (*GetPackageLoadLogDetailsResp, error) {
+	return mq.Request(Service.GetPackageLoadLogDetails, client.rabbitCli, msg)
 }

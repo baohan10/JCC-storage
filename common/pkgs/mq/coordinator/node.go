@@ -38,7 +38,7 @@ func (client *Client) GetUserNodes(msg *GetUserNodes) (*GetUserNodesResp, error)
 	return mq.Request(Service.GetUserNodes, client.rabbitCli, msg)
 }
 
-// 获取指定节点的信息
+// 获取指定节点的信息。如果NodeIDs为nil，则返回所有Node
 var _ = Register(Service.GetNodes)
 
 type GetNodes struct {

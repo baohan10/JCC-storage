@@ -11,7 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
-type ECCompute struct {
+type ECReconstructAny struct {
 	EC                 cdssdk.ECRedundancy `json:"ec"`
 	InputIDs           []ioswitch.StreamID `json:"inputIDs"`
 	OutputIDs          []ioswitch.StreamID `json:"outputIDs"`
@@ -19,7 +19,7 @@ type ECCompute struct {
 	OutputBlockIndexes []int               `json:"outputBlockIndexes"`
 }
 
-func (o *ECCompute) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
+func (o *ECReconstructAny) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	rs, err := ec.NewRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
 	if err != nil {
 		return fmt.Errorf("new ec: %w", err)
@@ -40,7 +40,7 @@ func (o *ECCompute) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 		inputs = append(inputs, s.Stream)
 	}
 
-	outputs := rs.ReconstructSome(inputs, o.InputBlockIndexes, o.OutputBlockIndexes)
+	outputs := rs.ReconstructAny(inputs, o.InputBlockIndexes, o.OutputBlockIndexes)
 
 	wg := sync.WaitGroup{}
 	for i, id := range o.OutputIDs {
@@ -97,6 +97,6 @@ func (o *ECReconstruct) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) err
 }
 
 func init() {
-	OpUnion.AddT((*ECCompute)(nil))
+	OpUnion.AddT((*ECReconstructAny)(nil))
 	OpUnion.AddT((*ECReconstruct)(nil))
 }

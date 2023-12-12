@@ -37,5 +37,7 @@ func init() {
 
 	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckRepCount, myreflect.TypeNameOf[scevt.CheckRepCount]())
 
+	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckPackageRedundancy, myreflect.TypeNameOf[scevt.CheckPackageRedundancy]())
+
 	commands.MustAdd(ScannerPostEvent, "scanner", "event")
 }

@@ -21,15 +21,26 @@ func (svc *Service) GetUserNodes(msg *coormq.GetUserNodes) (*coormq.GetUserNodes
 
 func (svc *Service) GetNodes(msg *coormq.GetNodes) (*coormq.GetNodesResp, *mq.CodeMessage) {
 	var nodes []model.Node
-	for _, id := range msg.NodeIDs {
-		node, err := svc.db.Node().GetByID(svc.db.SQLCtx(), id)
+
+	if msg.NodeIDs == nil {
+		var err error
+		nodes, err = svc.db.Node().GetAllNodes(svc.db.SQLCtx())
 		if err != nil {
-			logger.WithField("NodeID", id).
-				Warnf("query node failed, err: %s", err.Error())
-			return nil, mq.Failed(errorcode.OperationFailed, "query node failed")
+			logger.Warnf("getting all nodes: %s", err.Error())
+			return nil, mq.Failed(errorcode.OperationFailed, "get all node failed")
 		}
 
-		nodes = append(nodes, node)
+	} else {
+		for _, id := range msg.NodeIDs {
+			node, err := svc.db.Node().GetByID(svc.db.SQLCtx(), id)
+			if err != nil {
+				logger.WithField("NodeID", id).
+					Warnf("query node failed, err: %s", err.Error())
+				return nil, mq.Failed(errorcode.OperationFailed, "query node failed")
+			}
+
+			nodes = append(nodes, node)
+		}
 	}
 
 	return mq.ReplyOK(coormq.NewGetNodesResp(nodes))

@@ -102,7 +102,7 @@ func (b *AgentStream) FileWrite(filePath string) {
 	})
 }
 
-func (b *AgentPlanBuilder) ECCompute(ec cdssdk.ECRedundancy, inBlockIndexes []int, outBlockIndexes []int, streams ...*AgentStream) *MultiStream {
+func (b *AgentPlanBuilder) ECReconstructAny(ec cdssdk.ECRedundancy, inBlockIndexes []int, outBlockIndexes []int, streams ...*AgentStream) *MultiStream {
 	mstr := &MultiStream{}
 
 	var inputStrIDs []ioswitch.StreamID
@@ -111,7 +111,7 @@ func (b *AgentPlanBuilder) ECCompute(ec cdssdk.ECRedundancy, inBlockIndexes []in
 	}
 
 	var outputStrIDs []ioswitch.StreamID
-	for i := 0; i < ec.N-ec.K; i++ {
+	for i := 0; i < len(outBlockIndexes); i++ {
 		info := b.owner.newStream()
 		mstr.Streams = append(mstr.Streams, &AgentStream{
 			owner: b,
@@ -120,7 +120,7 @@ func (b *AgentPlanBuilder) ECCompute(ec cdssdk.ECRedundancy, inBlockIndexes []in
 		outputStrIDs = append(outputStrIDs, info.ID)
 	}
 
-	b.ops = append(b.ops, &ops.ECCompute{
+	b.ops = append(b.ops, &ops.ECReconstructAny{
 		EC:                 ec,
 		InputIDs:           inputStrIDs,
 		OutputIDs:          outputStrIDs,
@@ -181,6 +181,21 @@ func (b *AgentStream) ChunkedSplit(chunkSize int, streamCount int, paddingZeros 
 	})
 
 	return mstr
+}
+
+func (s *AgentStream) Length(length int64) *AgentStream {
+	agtStr := &AgentStream{
+		owner: s.owner,
+		info:  s.owner.owner.newStream(),
+	}
+
+	s.owner.ops = append(s.owner.ops, &ops.Length{
+		InputID:  s.info.ID,
+		OutputID: agtStr.info.ID,
+		Length:   length,
+	})
+
+	return agtStr
 }
 
 func (s *AgentStream) ToExecutor() *ToExecutorStream {

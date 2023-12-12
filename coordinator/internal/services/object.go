@@ -31,3 +31,14 @@ func (svc *Service) GetPackageObjectDetails(msg *coormq.GetPackageObjectDetails)
 
 	return mq.ReplyOK(coormq.NewGetPackageObjectDetailsResp(data))
 }
+
+func (svc *Service) ChangeObjectRedundancy(msg *coormq.ChangeObjectRedundancy) (*coormq.ChangeObjectRedundancyResp, *mq.CodeMessage) {
+	err := svc.db.Object().BatchUpdateRedundancy(svc.db.SQLCtx(), msg.Entries)
+	if err != nil {
+		logger.Warnf("batch updating redundancy: %s", err.Error())
+
+		return nil, mq.Failed(errorcode.OperationFailed, "batch update redundancy failed")
+	}
+
+	return mq.ReplyOK(coormq.RespChangeObjectRedundancy())
+}

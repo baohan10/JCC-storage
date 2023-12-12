@@ -42,8 +42,8 @@ func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path stri
 
 // 创建或者更新记录，返回值true代表是创建，false代表是更新
 func (db *ObjectDB) CreateOrUpdate(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string) (cdssdk.ObjectID, bool, error) {
-	// 首次上传Object时，默认使用Rep模式，即使是在更新一个已有的Object也是如此
-	defRed := cdssdk.NewRepRedundancy()
+	// 首次上传Object时，默认不启用冗余，即使是在更新一个已有的Object也是如此
+	defRed := cdssdk.NewNoneRedundancy()
 
 	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy) values(?,?,?,?,?) on duplicate key update Size = ?, FileHash = ?, Redundancy = ?"
 
@@ -94,7 +94,7 @@ func (*ObjectDB) GetPackageObjects(ctx SQLContext, packageID cdssdk.PackageID) (
 	return lo.Map(ret, func(o model.TempObject, idx int) model.Object { return o.ToObject() }), err
 }
 
-func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []coormq.AddObjectInfo) ([]cdssdk.ObjectID, error) {
+func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []coormq.AddObjectEntry) ([]cdssdk.ObjectID, error) {
 	objIDs := make([]cdssdk.ObjectID, 0, len(objs))
 	for _, obj := range objs {
 		// 创建对象的记录
@@ -126,6 +126,36 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 	}
 
 	return objIDs, nil
+}
+
+func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeObjectRedundancyEntry) error {
+	for _, obj := range objs {
+		_, err := ctx.Exec("update Object set Redundancy = ? where ObjectID = ?", obj.Redundancy, obj.ObjectID)
+		if err != nil {
+			return fmt.Errorf("updating object: %w", err)
+		}
+
+		// 删除原本所有的编码块记录，重新添加
+		if err = db.ObjectBlock().DeleteObjectAll(ctx, obj.ObjectID); err != nil {
+			return fmt.Errorf("deleting all object block: %w", err)
+		}
+
+		for _, block := range obj.Blocks {
+			// 首次上传默认使用不分块的rep模式
+			err = db.ObjectBlock().Create(ctx, obj.ObjectID, block.Index, block.NodeID, block.FileHash)
+			if err != nil {
+				return fmt.Errorf("creating object block: %w", err)
+			}
+
+			// 创建缓存记录
+			err = db.Cache().CreatePinned(ctx, block.FileHash, block.NodeID, 0)
+			if err != nil {
+				return fmt.Errorf("creating cache: %w", err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (*ObjectDB) BatchDelete(ctx SQLContext, ids []cdssdk.ObjectID) error {

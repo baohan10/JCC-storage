@@ -12,7 +12,7 @@ type PackageService interface {
 
 	CreatePackage(msg *CreatePackage) (*CreatePackageResp, *mq.CodeMessage)
 
-	UpdateECPackage(msg *UpdatePackage) (*UpdatePackageResp, *mq.CodeMessage)
+	UpdatePackage(msg *UpdatePackage) (*UpdatePackageResp, *mq.CodeMessage)
 
 	DeletePackage(msg *DeletePackage) (*DeletePackageResp, *mq.CodeMessage)
 
@@ -80,25 +80,25 @@ func (client *Client) CreatePackage(msg *CreatePackage) (*CreatePackageResp, err
 }
 
 // 更新EC备份模式的Package
-var _ = Register(Service.UpdateECPackage)
+var _ = Register(Service.UpdatePackage)
 
 type UpdatePackage struct {
 	mq.MessageBodyBase
 	PackageID cdssdk.PackageID  `json:"packageID"`
-	Adds      []AddObjectInfo   `json:"objects"`
+	Adds      []AddObjectEntry  `json:"adds"`
 	Deletes   []cdssdk.ObjectID `json:"deletes"`
 }
 type UpdatePackageResp struct {
 	mq.MessageBodyBase
 }
-type AddObjectInfo struct {
+type AddObjectEntry struct {
 	Path     string        `json:"path"`
 	Size     int64         `json:"size,string"`
 	FileHash string        `json:"fileHash"`
 	NodeID   cdssdk.NodeID `json:"nodeID"`
 }
 
-func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes []cdssdk.ObjectID) *UpdatePackage {
+func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectEntry, deletes []cdssdk.ObjectID) *UpdatePackage {
 	return &UpdatePackage{
 		PackageID: packageID,
 		Adds:      adds,
@@ -108,8 +108,8 @@ func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectInfo, deletes 
 func NewUpdatePackageResp() *UpdatePackageResp {
 	return &UpdatePackageResp{}
 }
-func NewAddObjectInfo(path string, size int64, fileHash string, nodeIDs cdssdk.NodeID) AddObjectInfo {
-	return AddObjectInfo{
+func NewAddObjectEntry(path string, size int64, fileHash string, nodeIDs cdssdk.NodeID) AddObjectEntry {
+	return AddObjectEntry{
 		Path:     path,
 		Size:     size,
 		FileHash: fileHash,
@@ -117,7 +117,7 @@ func NewAddObjectInfo(path string, size int64, fileHash string, nodeIDs cdssdk.N
 	}
 }
 func (client *Client) UpdateECPackage(msg *UpdatePackage) (*UpdatePackageResp, error) {
-	return mq.Request(Service.UpdateECPackage, client.rabbitCli, msg)
+	return mq.Request(Service.UpdatePackage, client.rabbitCli, msg)
 }
 
 // 删除对象

@@ -10,6 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
@@ -45,7 +46,7 @@ func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePack
 	return mq.ReplyOK(coormq.NewCreatePackageResp(pkgID))
 }
 
-func (svc *Service) UpdateECPackage(msg *coormq.UpdatePackage) (*coormq.UpdatePackageResp, *mq.CodeMessage) {
+func (svc *Service) UpdatePackage(msg *coormq.UpdatePackage) (*coormq.UpdatePackageResp, *mq.CodeMessage) {
 	_, err := svc.db.Package().GetByID(svc.db.SQLCtx(), msg.PackageID)
 	if err != nil {
 		logger.WithField("PackageID", msg.PackageID).
@@ -206,4 +207,38 @@ func (svc *Service) GetPackageLoadedNodes(msg *coormq.GetPackageLoadedNodes) (*c
 	}
 
 	return mq.ReplyOK(coormq.NewGetPackageLoadedNodesResp(nodeIDs))
+}
+
+func (svc *Service) GetPackageLoadLogDetails(msg *coormq.GetPackageLoadLogDetails) (*coormq.GetPackageLoadLogDetailsResp, *mq.CodeMessage) {
+	var logs []coormq.PackageLoadLogDetail
+	rawLogs, err := svc.db.StoragePackageLog().GetByPackageID(svc.db.SQLCtx(), msg.PackageID)
+	if err != nil {
+		logger.WithField("PackageID", msg.PackageID).
+			Warnf("getting storage package log: %s", err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "get storage package log failed")
+	}
+
+	stgs := make(map[cdssdk.StorageID]model.Storage)
+
+	for _, raw := range rawLogs {
+		stg, ok := stgs[raw.StorageID]
+		if !ok {
+			stg, err = svc.db.Storage().GetByID(svc.db.SQLCtx(), raw.StorageID)
+			if err != nil {
+				logger.WithField("PackageID", msg.PackageID).
+					Warnf("getting storage: %s", err.Error())
+				return nil, mq.Failed(errorcode.OperationFailed, "get storage failed")
+			}
+
+			stgs[raw.StorageID] = stg
+		}
+
+		logs = append(logs, coormq.PackageLoadLogDetail{
+			Storage:    stg,
+			UserID:     raw.UserID,
+			CreateTime: raw.CreateTime,
+		})
+	}
+
+	return mq.ReplyOK(coormq.RespGetPackageLoadLogDetails(logs))
 }
