@@ -601,24 +601,9 @@ func (t *CheckPackageRedundancy) pinObject(nodeID cdssdk.NodeID, fileHash string
 	}
 	defer stgglb.AgentMQPool.Release(agtCli)
 
-	pinObjResp, err := agtCli.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
+	_, err = agtCli.PinObject(agtmq.ReqPinObject(fileHash, false))
 	if err != nil {
 		return fmt.Errorf("start pinning object: %w", err)
-	}
-
-	for {
-		waitResp, err := agtCli.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
-		if err != nil {
-			return fmt.Errorf("waitting pinning object: %w", err)
-		}
-
-		if waitResp.IsComplete {
-			if waitResp.Error != "" {
-				return fmt.Errorf("agent pinning object: %s", waitResp.Error)
-			}
-
-			break
-		}
 	}
 
 	return nil

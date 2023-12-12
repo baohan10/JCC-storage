@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"time"
 
 	"github.com/samber/lo"
 
@@ -283,24 +282,9 @@ func pinIPFSFile(nodeID cdssdk.NodeID, fileHash string) error {
 	defer stgglb.AgentMQPool.Release(agtCli)
 
 	// 然后让最近节点pin本地上传的文件
-	pinObjResp, err := agtCli.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
+	_, err = agtCli.PinObject(agtmq.ReqPinObject(fileHash, false))
 	if err != nil {
 		return fmt.Errorf("start pinning object: %w", err)
-	}
-
-	for {
-		waitResp, err := agtCli.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
-		if err != nil {
-			return fmt.Errorf("waitting pinning object: %w", err)
-		}
-
-		if waitResp.IsComplete {
-			if waitResp.Error != "" {
-				return fmt.Errorf("agent pinning object: %s", waitResp.Error)
-			}
-
-			break
-		}
 	}
 
 	return nil
