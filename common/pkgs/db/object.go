@@ -112,14 +112,14 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 			}
 		}
 
-		// 首次上传默认使用不分块的rep模式
+		// 首次上传默认使用不分块的none模式
 		err = db.ObjectBlock().Create(ctx, objID, 0, obj.NodeID, obj.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("creating object block: %w", err)
 		}
 
 		// 创建缓存记录
-		err = db.Cache().CreatePinned(ctx, obj.FileHash, obj.NodeID, 0)
+		err = db.Cache().Create(ctx, obj.FileHash, obj.NodeID, 0)
 		if err != nil {
 			return nil, fmt.Errorf("creating cache: %w", err)
 		}
@@ -148,7 +148,7 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 			}
 
 			// 创建缓存记录
-			err = db.Cache().CreatePinned(ctx, block.FileHash, block.NodeID, 0)
+			err = db.Cache().Create(ctx, block.FileHash, block.NodeID, 0)
 			if err != nil {
 				return fmt.Errorf("creating cache: %w", err)
 			}

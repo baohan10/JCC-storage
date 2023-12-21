@@ -14,51 +14,11 @@ func (b *MetadataLockReqBuilder) StoragePackage() *MetadataStoragePackageLockReq
 	return &MetadataStoragePackageLockReqBuilder{MetadataLockReqBuilder: b}
 }
 
-func (b *MetadataStoragePackageLockReqBuilder) ReadOne(storageID cdssdk.StorageID, userID cdssdk.UserID, packageID cdssdk.PackageID) *MetadataStoragePackageLockReqBuilder {
+func (b *MetadataStoragePackageLockReqBuilder) CreateOne(userID cdssdk.UserID, storageID cdssdk.StorageID, packageID cdssdk.PackageID) *MetadataStoragePackageLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath("StoragePackage"),
-		Name:   lockprovider.METADATA_ELEMENT_READ_LOCK,
-		Target: *lockprovider.NewStringLockTarget().Add(storageID, userID, packageID),
-	})
-	return b
-}
-func (b *MetadataStoragePackageLockReqBuilder) WriteOne(storageID cdssdk.StorageID, userID cdssdk.UserID, packageID cdssdk.PackageID) *MetadataStoragePackageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath("StoragePackage"),
-		Name:   lockprovider.METADATA_ELEMENT_WRITE_LOCK,
-		Target: *lockprovider.NewStringLockTarget().Add(storageID, userID, packageID),
-	})
-	return b
-}
-func (b *MetadataStoragePackageLockReqBuilder) CreateOne(storageID cdssdk.StorageID, userID cdssdk.UserID, packageID cdssdk.PackageID) *MetadataStoragePackageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath("StoragePackage"),
-		Name:   lockprovider.METADATA_ELEMENT_CREATE_LOCK,
-		Target: *lockprovider.NewStringLockTarget().Add(storageID, userID, packageID),
-	})
-	return b
-}
-func (b *MetadataStoragePackageLockReqBuilder) ReadAny() *MetadataStoragePackageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath("StoragePackage"),
-		Name:   lockprovider.METADATA_SET_READ_LOCK,
-		Target: *lockprovider.NewStringLockTarget(),
-	})
-	return b
-}
-func (b *MetadataStoragePackageLockReqBuilder) WriteAny() *MetadataStoragePackageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath("StoragePackage"),
-		Name:   lockprovider.METADATA_SET_WRITE_LOCK,
-		Target: *lockprovider.NewStringLockTarget(),
-	})
-	return b
-}
-func (b *MetadataStoragePackageLockReqBuilder) CreateAny() *MetadataStoragePackageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath("StoragePackage"),
-		Name:   lockprovider.METADATA_SET_CREATE_LOCK,
-		Target: *lockprovider.NewStringLockTarget(),
+		Name:   lockprovider.MetadataCreateLock,
+		Target: *lockprovider.NewStringLockTarget().Add(userID, storageID, packageID),
 	})
 	return b
 }

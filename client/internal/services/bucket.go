@@ -6,7 +6,6 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
@@ -60,19 +59,6 @@ func (svc *BucketService) CreateBucket(userID cdssdk.UserID, bucketName string) 
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	// TODO 只有阅读了系统操作的源码，才能知道要加哪些锁，但用户的命令可能会调用不止一个系统操作。
-	// 因此加锁的操作还是必须在用户命令里完成，但具体加锁的内容，则需要被封装起来与系统操作放到一起，方便管理，避免分散改动。
-
-	mutex, err := reqbuilder.NewBuilder().
-		Metadata().Bucket().CreateOne(userID, bucketName).
-		// TODO 可以考虑二次加锁，加的更精确
-		UserBucket().CreateAny().
-		MutexLock(svc.DistLock)
-	if err != nil {
-		return 0, fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-	defer mutex.Unlock()
-
 	resp, err := coorCli.CreateBucket(coormq.NewCreateBucket(userID, bucketName))
 	if err != nil {
 		return 0, fmt.Errorf("creating bucket: %w", err)
@@ -89,21 +75,6 @@ func (svc *BucketService) DeleteBucket(userID cdssdk.UserID, bucketID cdssdk.Buc
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	// TODO 检查用户是否有删除这个Bucket的权限。检查的时候可以只上UserBucket的Read锁
-
-	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		UserBucket().WriteAny().
-		Bucket().WriteOne(bucketID).
-		Package().WriteAny().
-		Object().WriteAny().
-		ObjectRep().WriteAny().
-		ObjectBlock().WriteAny().
-		StoragePackage().WriteAny().
-		MutexLock(svc.DistLock)
-	if err != nil {
-		return fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-	defer mutex.Unlock()
 
 	_, err = coorCli.DeleteBucket(coormq.NewDeleteBucket(userID, bucketID))
 	if err != nil {

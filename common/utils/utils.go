@@ -11,3 +11,7 @@ import (
 func MakeStorageLoadPackagePath(stgDir string, userID cdssdk.UserID, packageID cdssdk.PackageID) string {
 	return filepath.Join(stgDir, strconv.FormatInt(int64(userID), 10), "packages", strconv.FormatInt(int64(packageID), 10))
 }
+
+func MakeStorageLoadDirectory(stgDir string, userIDStr string) string {
+	return filepath.Join(stgDir, userIDStr, "packages")
+}

@@ -6,10 +6,8 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
-	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/config"
@@ -19,9 +17,9 @@ type AgentCheckState struct {
 	*scevt.AgentCheckState
 }
 
-func NewAgentCheckState(nodeID cdssdk.NodeID) *AgentCheckState {
+func NewAgentCheckState(evt *scevt.AgentCheckState) *AgentCheckState {
 	return &AgentCheckState{
-		AgentCheckState: scevt.NewAgentCheckState(nodeID),
+		AgentCheckState: evt,
 	}
 }
 
@@ -38,17 +36,6 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckState]("Event")
 	log.Debugf("begin with %v", logger.FormatStruct(t.AgentCheckState))
 	defer log.Debugf("end")
-
-	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		// 查询、修改节点状态
-		Node().WriteOne(t.NodeID).
-		MutexLock(execCtx.Args.DistLock)
-	if err != nil {
-		log.Warnf("acquire locks failed, err: %s", err.Error())
-		return
-	}
-	defer mutex.Unlock()
 
 	node, err := execCtx.Args.DB.Node().GetByID(execCtx.Args.DB.SQLCtx(), t.NodeID)
 	if err == sql.ErrNoRows {
@@ -77,19 +64,7 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 			err := execCtx.Args.DB.Node().UpdateState(execCtx.Args.DB.SQLCtx(), t.NodeID, consts.NodeStateUnavailable)
 			if err != nil {
 				log.WithField("NodeID", t.NodeID).Warnf("set node state failed, err: %s", err.Error())
-				return
 			}
-			/*
-				caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
-				if err != nil {
-					log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
-					return
-				}
-
-				// 补充备份数
-				execCtx.Executor.Post(NewCheckRepCount(lo.Map(caches, func(ch model.Cache, index int) string { return ch.FileHash })))
-			*/
-			return
 		}
 		return
 	}
@@ -113,5 +88,5 @@ func (t *AgentCheckState) Execute(execCtx ExecuteContext) {
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg *scevt.AgentCheckState) Event { return NewAgentCheckState(msg.NodeID) })
+	RegisterMessageConvertor(NewAgentCheckState)
 }

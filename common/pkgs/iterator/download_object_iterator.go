@@ -16,7 +16,6 @@ import (
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -265,16 +264,6 @@ func downloadFile(ctx *DownloadContext, node DownloadNodeInfo, fileHash string) 
 }
 
 func downloadFromNode(ctx *DownloadContext, nodeID cdssdk.NodeID, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {
-	// 二次获取锁
-	mutex, err := reqbuilder.NewBuilder().
-		// 用于从IPFS下载文件
-		IPFS().ReadOneRep(nodeID, fileHash).
-		MutexLock(ctx.Distlock)
-	if err != nil {
-		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-
-	// 连接grpc
 	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
 		return nil, fmt.Errorf("new agent grpc client: %w", err)
@@ -286,27 +275,12 @@ func downloadFromNode(ctx *DownloadContext, nodeID cdssdk.NodeID, nodeIP string,
 	}
 
 	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
-		mutex.Unlock()
+		agtCli.Close()
 	})
 	return reader, nil
 }
 
 func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser, error) {
-	onClosed := func() {}
-	if stgglb.Local.NodeID != nil {
-		// 二次获取锁
-		mutex, err := reqbuilder.NewBuilder().
-			// 用于从IPFS下载文件
-			IPFS().ReadOneRep(*stgglb.Local.NodeID, fileHash).
-			MutexLock(ctx.Distlock)
-		if err != nil {
-			return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-		}
-		onClosed = func() {
-			mutex.Unlock()
-		}
-	}
-
 	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new ipfs client: %w", err)
@@ -318,7 +292,7 @@ func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser
 	}
 
 	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
-		onClosed()
+		ipfsCli.Close()
 	})
 	return reader, nil
 }

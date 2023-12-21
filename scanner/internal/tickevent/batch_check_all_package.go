@@ -2,10 +2,9 @@ package tickevent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
-
-const CheckPackageBatchSize = 100
 
 type BatchCheckAllPackage struct {
 	lastCheckStart int
@@ -26,7 +25,7 @@ func (e *BatchCheckAllPackage) Execute(ctx ExecuteContext) {
 		return
 	}
 
-	ctx.Args.EventExecutor.Post(event.NewCheckPackage(packageIDs))
+	ctx.Args.EventExecutor.Post(event.NewCheckPackage(scevt.NewCheckPackage(packageIDs)))
 
 	// 如果结果的长度小于预期的长度，则认为已经查询了所有，下次从头再来
 	if len(packageIDs) < CheckPackageBatchSize {

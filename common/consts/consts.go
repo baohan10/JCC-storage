@@ -9,8 +9,3 @@ const (
 	NodeStateNormal      = "Normal"
 	NodeStateUnavailable = "Unavailable"
 )
-
-const (
-	CacheStatePinned = "Pinned"
-	CacheStateTemp   = "Temp"
-)

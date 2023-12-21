@@ -2,6 +2,7 @@ package tickevent
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
 
@@ -24,7 +25,7 @@ func (e *CheckAgentState) Execute(ctx ExecuteContext) {
 	}
 
 	for _, node := range nodes {
-		ctx.Args.EventExecutor.Post(event.NewAgentCheckState(node.NodeID), event.ExecuteOption{
+		ctx.Args.EventExecutor.Post(event.NewAgentCheckState(scevt.NewAgentCheckState(node.NodeID)), event.ExecuteOption{
 			IsEmergency: true,
 			DontMerge:   true,
 		})

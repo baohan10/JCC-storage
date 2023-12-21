@@ -12,8 +12,6 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
-	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
-	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 )
 
 func (svc *Service) GetPackage(msg *coormq.GetPackage) (*coormq.GetPackageResp, *mq.CodeMessage) {
@@ -96,39 +94,25 @@ func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePack
 	}
 
 	err = svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		return svc.db.Package().SoftDelete(tx, msg.PackageID)
+		err := svc.db.Package().SoftDelete(tx, msg.PackageID)
+		if err != nil {
+			return fmt.Errorf("soft delete package: %w", err)
+		}
+
+		err = svc.db.Package().DeleteUnused(tx, msg.PackageID)
+		if err != nil {
+			logger.WithField("UserID", msg.UserID).
+				WithField("PackageID", msg.PackageID).
+				Warnf("deleting unused package: %w", err.Error())
+		}
+
+		return nil
 	})
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			WithField("PackageID", msg.PackageID).
 			Warnf("set package deleted failed, err: %s", err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "set package deleted failed")
-	}
-
-	stgs, err := svc.db.StoragePackage().FindPackageStorages(svc.db.SQLCtx(), msg.PackageID)
-	if err != nil {
-		logger.Warnf("find package storages failed, but this will not affect the deleting, err: %s", err.Error())
-		return mq.ReplyOK(coormq.NewDeletePackageResp())
-	}
-
-	// 不追求及时、准确
-	if len(stgs) == 0 {
-		// 如果没有被引用，直接投递CheckPackage的任务
-		err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewCheckPackage([]cdssdk.PackageID{msg.PackageID}), false, false))
-		if err != nil {
-			logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
-		}
-		logger.Debugf("post check package event")
-
-	} else {
-		// 有引用则让Agent去检查StoragePackage
-		for _, stg := range stgs {
-			err := svc.scanner.PostEvent(scmq.NewPostEvent(scevt.NewAgentCheckStorage(stg.StorageID, []cdssdk.PackageID{msg.PackageID}), false, false))
-			if err != nil {
-				logger.Warnf("post event to scanner failed, but this will not affect deleting, err: %s", err.Error())
-			}
-		}
-		logger.Debugf("post agent check storage event")
 	}
 
 	return mq.ReplyOK(coormq.NewDeletePackageResp())

@@ -3,11 +3,12 @@ package agent
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type CacheService interface {
 	CheckCache(msg *CheckCache) (*CheckCacheResp, *mq.CodeMessage)
+
+	CacheGC(msg *CacheGC) (*CacheGCResp, *mq.CodeMessage)
 
 	StartCacheMovePackage(msg *StartCacheMovePackage) (*StartCacheMovePackageResp, *mq.CodeMessage)
 	WaitCacheMovePackage(msg *WaitCacheMovePackage) (*WaitCacheMovePackageResp, *mq.CodeMessage)
@@ -16,44 +17,47 @@ type CacheService interface {
 // 检查节点上的IPFS
 var _ = Register(Service.CheckCache)
 
-const (
-	CHECK_IPFS_RESP_OP_DELETE_TEMP = "DeleteTemp"
-	CHECK_IPFS_RESP_OP_CREATE_TEMP = "CreateTemp"
-)
-
 type CheckCache struct {
 	mq.MessageBodyBase
-	IsComplete bool          `json:"isComplete"`
-	Caches     []model.Cache `json:"caches"`
 }
 type CheckCacheResp struct {
 	mq.MessageBodyBase
-	Entries []CheckIPFSRespEntry `json:"entries"`
-}
-type CheckIPFSRespEntry struct {
-	FileHash  string `json:"fileHash"`
-	Operation string `json:"operation"`
+	FileHashes []string `json:"fileHashes"`
 }
 
-func NewCheckCache(isComplete bool, caches []model.Cache) *CheckCache {
-	return &CheckCache{
-		IsComplete: isComplete,
-		Caches:     caches,
-	}
+func NewCheckCache() *CheckCache {
+	return &CheckCache{}
 }
-func NewCheckCacheResp(entries []CheckIPFSRespEntry) *CheckCacheResp {
+func NewCheckCacheResp(fileHashes []string) *CheckCacheResp {
 	return &CheckCacheResp{
-		Entries: entries,
-	}
-}
-func NewCheckCacheRespEntry(fileHash string, op string) CheckIPFSRespEntry {
-	return CheckIPFSRespEntry{
-		FileHash:  fileHash,
-		Operation: op,
+		FileHashes: fileHashes,
 	}
 }
 func (client *Client) CheckCache(msg *CheckCache, opts ...mq.RequestOption) (*CheckCacheResp, error) {
 	return mq.Request(Service.CheckCache, client.rabbitCli, msg, opts...)
+}
+
+// 清理Cache中不用的文件
+var _ = Register(Service.CacheGC)
+
+type CacheGC struct {
+	mq.MessageBodyBase
+	PinnedFileHashes []string `json:"pinnedFileHashes"`
+}
+type CacheGCResp struct {
+	mq.MessageBodyBase
+}
+
+func ReqCacheGC(pinnedFileHashes []string) *CacheGC {
+	return &CacheGC{
+		PinnedFileHashes: pinnedFileHashes,
+	}
+}
+func RespCacheGC() *CacheGCResp {
+	return &CacheGCResp{}
+}
+func (client *Client) CacheGC(msg *CacheGC, opts ...mq.RequestOption) (*CacheGCResp, error) {
+	return mq.Request(Service.CacheGC, client.rabbitCli, msg, opts...)
 }
 
 // 将Package的缓存移动到这个节点

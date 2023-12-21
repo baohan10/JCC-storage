@@ -8,9 +8,9 @@ import (
 )
 
 func (svc *Service) CachePackageMoved(msg *coormq.CachePackageMoved) (*coormq.CachePackageMovedResp, *mq.CodeMessage) {
-	if err := svc.db.Cache().SetPackageObjectFrozen(svc.db.SQLCtx(), msg.PackageID, msg.NodeID); err != nil {
-		logger.Warnf("setting package object frozen: %s", err.Error())
-		return nil, mq.Failed(errorcode.OperationFailed, "set package object frozen failed")
+	if err := svc.db.PinnedObject().CreateFromPackage(svc.db.SQLCtx(), msg.PackageID, msg.NodeID); err != nil {
+		logger.Warnf("create package pinned objects: %s", err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "create package pinned objects failed")
 	}
 
 	return mq.ReplyOK(coormq.NewCachePackageMovedResp())

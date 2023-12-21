@@ -15,59 +15,45 @@ func Test_IPFSLock(t *testing.T) {
 		wantOK    bool
 	}{
 		{
-			title: "同节点，同一个Read锁",
+			title: "同节点，同一个Buzy锁",
 			initLocks: []distlock.Lock{
 				{
 					Path: []string{IPFSLockPathPrefix, "node1"},
-					Name: IPFS_SET_READ_LOCK,
+					Name: IPFSBuzyLock,
 				},
 			},
 			doLock: distlock.Lock{
 				Path: []string{IPFSLockPathPrefix, "node1"},
-				Name: IPFS_SET_READ_LOCK,
+				Name: IPFSBuzyLock,
 			},
 			wantOK: true,
 		},
 		{
-			title: "同节点，同一个Write锁",
+			title: "同节点，同一个GC锁",
 			initLocks: []distlock.Lock{
 				{
 					Path: []string{IPFSLockPathPrefix, "node1"},
-					Name: IPFS_SET_WRITE_LOCK,
+					Name: IPFSGCLock,
 				},
 			},
 			doLock: distlock.Lock{
 				Path: []string{IPFSLockPathPrefix, "node1"},
-				Name: IPFS_SET_WRITE_LOCK,
-			},
-			wantOK: false,
-		},
-		{
-			title: "不同节点，同一个Write锁",
-			initLocks: []distlock.Lock{
-				{
-					Path: []string{IPFSLockPathPrefix, "node1"},
-					Name: IPFS_SET_WRITE_LOCK,
-				},
-			},
-			doLock: distlock.Lock{
-				Path: []string{IPFSLockPathPrefix, "node2"},
-				Name: IPFS_SET_WRITE_LOCK,
+				Name: IPFSGCLock,
 			},
 			wantOK: true,
 		},
 		{
-			title: "相同对象的Read、Write锁",
+			title: "同时设置Buzy和GC",
 			initLocks: []distlock.Lock{
 				{
 					Path:   []string{IPFSLockPathPrefix, "node1"},
-					Name:   IPFS_ELEMENT_WRITE_LOCK,
+					Name:   IPFSBuzyLock,
 					Target: *NewStringLockTarget(),
 				},
 			},
 			doLock: distlock.Lock{
 				Path:   []string{IPFSLockPathPrefix, "node1"},
-				Name:   IPFS_ELEMENT_WRITE_LOCK,
+				Name:   IPFSGCLock,
 				Target: *NewStringLockTarget(),
 			},
 			wantOK: false,
@@ -96,16 +82,20 @@ func Test_IPFSLock(t *testing.T) {
 
 		lock := distlock.Lock{
 			Path: []string{IPFSLockPathPrefix, "node1"},
-			Name: IPFS_SET_WRITE_LOCK,
+			Name: IPFSBuzyLock,
 		}
 
 		ipfsLock.Lock("req1", lock)
 
 		err := ipfsLock.CanLock(lock)
-		So(err, ShouldNotBeNil)
+		So(err, ShouldBeNil)
 
 		ipfsLock.Unlock("req1", lock)
 
+		lock = distlock.Lock{
+			Path: []string{IPFSLockPathPrefix, "node1"},
+			Name: IPFSGCLock,
+		}
 		err = ipfsLock.CanLock(lock)
 		So(err, ShouldBeNil)
 	})

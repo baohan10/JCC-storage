@@ -38,24 +38,10 @@ func (t *StorageLoadPackage) Execute(task *task.Task[TaskContext], ctx TaskConte
 
 func (t *StorageLoadPackage) do(ctx TaskContext) error {
 	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		// 用于判断用户是否有Storage权限
-		UserStorage().ReadOne(t.userID, t.storageID).
-		// 用于判断用户是否有对象权限
-		UserBucket().ReadAny().
-		// 用于读取包信息
-		Package().ReadOne(t.packageID).
-		// 用于读取对象信息
-		Object().ReadAny().
-		// 用于查询Rep配置
-		ObjectRep().ReadAny().
-		// 用于查询Block配置
-		ObjectBlock().ReadAny().
-		// 用于创建Move记录
-		StoragePackage().CreateOne(t.storageID, t.userID, t.packageID).
-		Storage().
-		// 用于创建对象文件
-		CreateOnePackage(t.storageID, t.userID, t.packageID).
+		// 提前占位
+		Metadata().StoragePackage().CreateOne(t.userID, t.storageID, t.packageID).
+		// 保护在storage目录中下载的文件
+		Storage().Buzy(t.storageID).
 		MutexLock(ctx.distlock)
 	if err != nil {
 		return fmt.Errorf("acquire locks failed, err: %w", err)

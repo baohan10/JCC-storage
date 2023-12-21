@@ -37,18 +37,9 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 	log.Debugf("begin with %v", logger.FormatStruct(t))
 	defer log.Debugf("end")
 
-	// TOOD EC的锁
 	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		// 读取Package信息和包含的Object信息
-		Package().ReadOne(t.packageID).Object().ReadAny().
-		// 读取Rep对象的配置
-		ObjectRep().ReadAny().
-		// 创建Cache记录
-		Cache().CreateAny().
-		IPFS().
-		// pin文件
-		CreateAnyRep(*stgglb.Local.NodeID).
+		// 保护解码出来的Object数据
+		IPFS().Buzy(*stgglb.Local.NodeID).
 		MutexLock(ctx.distlock)
 	if err != nil {
 		return fmt.Errorf("acquiring distlock: %w", err)
@@ -92,6 +83,11 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 		if err != nil {
 			return fmt.Errorf("creating ipfs file: %w", err)
 		}
+	}
+
+	_, err = coorCli.CachePackageMoved(coormq.NewCachePackageMoved(t.packageID, *stgglb.Local.NodeID))
+	if err != nil {
+		return fmt.Errorf("request to coordinator: %w", err)
 	}
 
 	return nil

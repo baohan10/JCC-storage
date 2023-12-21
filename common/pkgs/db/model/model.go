@@ -105,8 +105,6 @@ type ObjectBlock = stgmod.ObjectBlock
 type Cache struct {
 	FileHash   string        `db:"FileHash" json:"fileHash"`
 	NodeID     cdssdk.NodeID `db:"NodeID" json:"nodeID"`
-	State      string        `db:"State" json:"state"`
-	FrozenTime *time.Time    `db:"FrozenTime" json:"frozenTime"`
 	CreateTime time.Time     `db:"CreateTime" json:"createTime"`
 	Priority   int           `db:"Priority" json:"priority"`
 }
