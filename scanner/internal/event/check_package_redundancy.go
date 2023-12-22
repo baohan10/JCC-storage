@@ -11,6 +11,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -111,6 +112,21 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 
 	newRepNodes := t.chooseNewNodesForRep(&defRep, allNodes)
 	newECNodes := t.chooseNewNodesForEC(&defEC, allNodes)
+
+	// 加锁
+	builder := reqbuilder.NewBuilder()
+	for _, node := range newRepNodes {
+		builder.IPFS().Buzy(node.Node.NodeID)
+	}
+	for _, node := range newECNodes {
+		builder.IPFS().Buzy(node.Node.NodeID)
+	}
+	mutex, err := builder.MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquiring dist lock: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
 
 	for _, obj := range getObjs.Objects {
 		var entry *coormq.ChangeObjectRedundancyEntry

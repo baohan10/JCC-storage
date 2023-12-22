@@ -2,6 +2,7 @@ package services
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -44,16 +45,23 @@ func (svc *Service) GetBucketPackages(msg *coormq.GetBucketPackages) (*coormq.Ge
 
 func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucketResp, *mq.CodeMessage) {
 	var bucketID cdssdk.BucketID
-	var err error
-	svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		// 这里用的是外部的err
+	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+		_, err := svc.db.User().GetByID(tx, msg.UserID)
+		if err != nil {
+			return fmt.Errorf("getting user by id: %w", err)
+		}
+
 		bucketID, err = svc.db.Bucket().Create(tx, msg.UserID, msg.BucketName)
-		return err
+		if err != nil {
+			return fmt.Errorf("creating bucket: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			WithField("BucketName", msg.BucketName).
-			Warnf("create bucket failed, err: %s", err.Error())
+			Warn(err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "create bucket failed")
 	}
 
@@ -61,13 +69,23 @@ func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucket
 }
 
 func (svc *Service) DeleteBucket(msg *coormq.DeleteBucket) (*coormq.DeleteBucketResp, *mq.CodeMessage) {
-	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
-		return svc.db.Bucket().Delete(tx, msg.BucketID)
+	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+		isAvai, _ := svc.db.Bucket().IsAvailable(tx, msg.BucketID, msg.UserID)
+		if !isAvai {
+			return fmt.Errorf("bucket is not avaiable to the user")
+		}
+
+		err := svc.db.Bucket().Delete(tx, msg.BucketID)
+		if err != nil {
+			return fmt.Errorf("deleting bucket: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		logger.WithField("UserID", msg.UserID).
 			WithField("BucketID", msg.BucketID).
-			Warnf("delete bucket failed, err: %s", err.Error())
+			Warn(err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "delete bucket failed")
 	}
 

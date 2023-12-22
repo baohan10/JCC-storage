@@ -11,17 +11,17 @@ var _ = Register(Service.PinObject)
 
 type PinObject struct {
 	mq.MessageBodyBase
-	FileHash string `json:"fileHash"`
-	Async    bool   `json:"async"`
+	FileHash     string `json:"fileHash"`
+	IsBackground bool   `json:"isBackground"`
 }
 type PinObjectResp struct {
 	mq.MessageBodyBase
 }
 
-func ReqPinObject(fileHash string, async bool) *PinObject {
+func ReqPinObject(fileHash string, isBackground bool) *PinObject {
 	return &PinObject{
-		FileHash: fileHash,
-		Async:    async,
+		FileHash:     fileHash,
+		IsBackground: isBackground,
 	}
 }
 func RespPinObject() *PinObjectResp {

@@ -31,6 +31,7 @@ func (svc *Service) GetNodes(msg *coormq.GetNodes) (*coormq.GetNodesResp, *mq.Co
 		}
 
 	} else {
+		// 可以不用事务
 		for _, id := range msg.NodeIDs {
 			node, err := svc.db.Node().GetByID(svc.db.SQLCtx(), id)
 			if err != nil {

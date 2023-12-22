@@ -47,6 +47,16 @@ func (*PinnedObjectDB) Delete(ctx SQLContext, nodeID cdssdk.NodeID, objectID cds
 	return err
 }
 
+func (*PinnedObjectDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID) error {
+	_, err := ctx.Exec("delete from PinnedObject where and ObjectID = ?")
+	return err
+}
+
+func (*PinnedObjectDB) DeleteInPackage(ctx SQLContext, packageID cdssdk.PackageID) error {
+	_, err := ctx.Exec("delete PinnedObject from PinnedObject inner join Object on PinnedObject.ObjectID = Object.ObjectID where PackageID = ?", packageID)
+	return err
+}
+
 func (*PinnedObjectDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, objectIDs []cdssdk.ObjectID) error {
 	_, err := ctx.Exec("delete from PinnedObject where NodeID = ? and ObjectID in (?)", objectIDs)
 	return err

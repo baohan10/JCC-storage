@@ -19,7 +19,7 @@ func (svc *Service) PinObject(msg *agtmq.PinObject) (*agtmq.PinObjectResp, *mq.C
 		return nil, mq.Failed(errorcode.OperationFailed, "pin object failed")
 	}
 
-	if msg.Async {
+	if msg.IsBackground {
 		return mq.ReplyOK(agtmq.RespPinObject())
 	}
 

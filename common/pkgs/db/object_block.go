@@ -31,7 +31,7 @@ func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index 
 	return err
 }
 
-func (db *ObjectBlockDB) DeleteObjectAll(ctx SQLContext, objectID cdssdk.ObjectID) error {
+func (db *ObjectBlockDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID) error {
 	_, err := ctx.Exec("delete from ObjectBlock where ObjectID = ?", objectID)
 	return err
 }

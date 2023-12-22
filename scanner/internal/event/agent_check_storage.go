@@ -89,7 +89,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	}
 
 	execCtx.Args.DB.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
-		packages, err := execCtx.Args.DB.StoragePackage().GetAllByStorageID(execCtx.Args.DB.SQLCtx(), t.StorageID)
+		packages, err := execCtx.Args.DB.StoragePackage().GetAllByStorageID(tx, t.StorageID)
 		if err != nil {
 			log.Warnf("getting storage package: %s", err.Error())
 			return nil

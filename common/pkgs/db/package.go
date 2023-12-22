@@ -127,6 +127,10 @@ func (db *PackageDB) SoftDelete(ctx SQLContext, packageID cdssdk.PackageID) erro
 		return fmt.Errorf("delete from object rep failed, err: %w", err)
 	}
 
+	if err := db.PinnedObject().DeleteInPackage(ctx, packageID); err != nil {
+		return fmt.Errorf("deleting pinned objects in package: %w", err)
+	}
+
 	if err := db.Object().DeleteInPackage(ctx, packageID); err != nil {
 		return fmt.Errorf("deleting objects in package: %w", err)
 	}

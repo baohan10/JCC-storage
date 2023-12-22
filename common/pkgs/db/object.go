@@ -107,8 +107,13 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 
 		if !isCreate {
 			// 删除原本所有的编码块记录，重新添加
-			if err = db.ObjectBlock().DeleteObjectAll(ctx, objID); err != nil {
+			if err = db.ObjectBlock().DeleteByObjectID(ctx, objID); err != nil {
 				return nil, fmt.Errorf("deleting all object block: %w", err)
+			}
+
+			// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
+			if err = db.PinnedObject().DeleteByObjectID(ctx, objID); err != nil {
+				return nil, fmt.Errorf("deleting all pinned object: %w", err)
 			}
 		}
 
@@ -136,8 +141,13 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 		}
 
 		// 删除原本所有的编码块记录，重新添加
-		if err = db.ObjectBlock().DeleteObjectAll(ctx, obj.ObjectID); err != nil {
+		if err = db.ObjectBlock().DeleteByObjectID(ctx, obj.ObjectID); err != nil {
 			return fmt.Errorf("deleting all object block: %w", err)
+		}
+
+		// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
+		if err = db.PinnedObject().DeleteByObjectID(ctx, obj.ObjectID); err != nil {
+			return fmt.Errorf("deleting all pinned object: %w", err)
 		}
 
 		for _, block := range obj.Blocks {
