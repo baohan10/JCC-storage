@@ -1,18 +1,22 @@
 package mq
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	mytask "gitlink.org.cn/cloudream/storage/agent/internal/task"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -95,66 +99,100 @@ func (svc *Service) StorageCheck(msg *agtmq.StorageCheck) (*agtmq.StorageCheckRe
 		))
 	}
 
-	dirInfos := lo.Filter(infos, func(info fs.DirEntry, index int) bool { return info.IsDir() })
+	var stgPkgs []model.StoragePackage
 
-	if msg.IsComplete {
-		return svc.checkStorageComplete(msg, dirInfos)
-	} else {
-		return svc.checkStorageIncrement(msg, dirInfos)
-	}
-}
+	userDirs := lo.Filter(infos, func(info fs.DirEntry, index int) bool { return info.IsDir() })
+	for _, dir := range userDirs {
+		userIDInt, err := strconv.ParseInt(dir.Name(), 10, 64)
+		if err != nil {
+			logger.Warnf("parsing user id %s: %s", dir.Name(), err.Error())
+			continue
+		}
 
-func (svc *Service) checkStorageIncrement(msg *agtmq.StorageCheck, dirInfos []fs.DirEntry) (*agtmq.StorageCheckResp, *mq.CodeMessage) {
-	infosMap := make(map[string]fs.DirEntry)
-	for _, info := range dirInfos {
-		infosMap[info.Name()] = info
-	}
+		pkgDir := utils.MakeStorageLoadDirectory(msg.Directory, dir.Name())
+		pkgDirs, err := os.ReadDir(pkgDir)
+		if err != nil {
+			logger.Warnf("reading package dir %s: %s", pkgDir, err.Error())
+			continue
+		}
 
-	var entries []agtmq.StorageCheckRespEntry
-	for _, obj := range msg.Packages {
-		dirName := utils.MakeStorageLoadPackagePath(msg.Directory, obj.UserID, obj.PackageID)
-		_, ok := infosMap[dirName]
+		for _, pkg := range pkgDirs {
+			pkgIDInt, err := strconv.ParseInt(pkg.Name(), 10, 64)
+			if err != nil {
+				logger.Warnf("parsing package dir %s: %s", pkg.Name(), err.Error())
+				continue
+			}
 
-		if ok {
-			// 不需要做处理
-			// 删除map中的记录，表示此记录已被检查过
-			delete(infosMap, dirName)
-
-		} else {
-			// 只要文件不存在，就删除StoragePackage表中的记录
-			entries = append(entries, agtmq.NewStorageCheckRespEntry(obj.PackageID, obj.UserID, agtmq.CHECK_STORAGE_RESP_OP_DELETE))
+			stgPkgs = append(stgPkgs, model.StoragePackage{
+				StorageID: msg.StorageID,
+				PackageID: cdssdk.PackageID(pkgIDInt),
+				UserID:    cdssdk.UserID(userIDInt),
+			})
 		}
 	}
 
-	// 增量情况下，不需要对infosMap中没检查的记录进行处理
-
-	return mq.ReplyOK(agtmq.NewStorageCheckResp(consts.StorageDirectoryStateOK, entries))
+	return mq.ReplyOK(agtmq.NewStorageCheckResp(consts.StorageDirectoryStateOK, stgPkgs))
 }
 
-func (svc *Service) checkStorageComplete(msg *agtmq.StorageCheck, dirInfos []fs.DirEntry) (*agtmq.StorageCheckResp, *mq.CodeMessage) {
-
-	infosMap := make(map[string]fs.DirEntry)
-	for _, info := range dirInfos {
-		infosMap[info.Name()] = info
+func (svc *Service) StorageGC(msg *agtmq.StorageGC) (*agtmq.StorageGCResp, *mq.CodeMessage) {
+	infos, err := os.ReadDir(msg.Directory)
+	if err != nil {
+		logger.Warnf("list storage directory failed, err: %s", err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "list directory files failed")
 	}
 
-	var entries []agtmq.StorageCheckRespEntry
-	for _, obj := range msg.Packages {
-		dirName := utils.MakeStorageLoadPackagePath(msg.Directory, obj.UserID, obj.PackageID)
-		_, ok := infosMap[dirName]
+	// userID->pkgID->pkg
+	userPkgs := make(map[string]map[string]bool)
+	for _, pkg := range msg.Packages {
+		userIDStr := fmt.Sprintf("%d", pkg.UserID)
 
-		if ok {
-			// 不需要做处理
-			// 删除map中的记录，表示此记录已被检查过
-			delete(infosMap, dirName)
+		pkgs, ok := userPkgs[userIDStr]
+		if !ok {
+			pkgs = make(map[string]bool)
+			userPkgs[userIDStr] = pkgs
+		}
 
-		} else {
-			// 只要文件不存在，就删除StoragePackage表中的记录
-			entries = append(entries, agtmq.NewStorageCheckRespEntry(obj.PackageID, obj.UserID, agtmq.CHECK_STORAGE_RESP_OP_DELETE))
+		pkgIDStr := fmt.Sprintf("%d", pkg.PackageID)
+		pkgs[pkgIDStr] = true
+	}
+
+	userDirs := lo.Filter(infos, func(info fs.DirEntry, index int) bool { return info.IsDir() })
+	for _, dir := range userDirs {
+		pkgMap, ok := userPkgs[dir.Name()]
+		// 第一级目录名是UserID，先删除UserID在StoragePackage表里没出现过的文件夹
+		if !ok {
+			rmPath := filepath.Join(msg.Directory, dir.Name())
+			err := os.RemoveAll(rmPath)
+			if err != nil {
+				logger.Warnf("removing user dir %s: %s", rmPath, err.Error())
+			} else {
+				logger.Debugf("user dir %s removed by gc", rmPath)
+			}
+			continue
+		}
+
+		pkgDir := utils.MakeStorageLoadDirectory(msg.Directory, dir.Name())
+		// 遍历每个UserID目录的packages目录里的内容
+		pkgs, err := os.ReadDir(pkgDir)
+		if err != nil {
+			logger.Warnf("reading package dir %s: %s", pkgDir, err.Error())
+			continue
+		}
+
+		for _, pkg := range pkgs {
+			if !pkgMap[pkg.Name()] {
+				rmPath := filepath.Join(pkgDir, pkg.Name())
+				err := os.RemoveAll(rmPath)
+				if err != nil {
+					logger.Warnf("removing package dir %s: %s", rmPath, err.Error())
+				} else {
+					logger.Debugf("package dir %s removed by gc", rmPath)
+				}
+			}
 		}
 	}
 
-	return mq.ReplyOK(agtmq.NewStorageCheckResp(consts.StorageDirectoryStateOK, entries))
+	return mq.ReplyOK(agtmq.RespStorageGC())
 }
 
 func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePackage) (*agtmq.StartStorageCreatePackageResp, *mq.CodeMessage) {

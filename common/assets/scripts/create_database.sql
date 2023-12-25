@@ -136,12 +136,17 @@ create table ObjectBlock (
 create table Cache (
   FileHash varchar(100) not null comment '编码块块ID',
   NodeID int not null comment '节点ID',
-  State varchar(100) not null comment '状态',
-  FrozenTime timestamp comment '文件被冻结的时间',
   CreateTime timestamp not null comment '缓存时间',
   Priority int not null comment '编码块优先级',
   primary key(FileHash, NodeID)
 ) comment = '缓存表';
+
+create table PinnedObject (
+  NodeID int not null comment '节点ID',
+  ObjectID int not null comment '对象ID',
+  CreateTime timestamp not null comment '缓存时间',
+  primary key(NodeID, ObjectID)
+) comment = '临时对象表';
 
 create table StoragePackage (
   StorageID int not null comment '存储服务ID',

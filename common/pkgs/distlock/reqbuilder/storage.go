@@ -16,55 +16,19 @@ func (b *LockRequestBuilder) Storage() *StorageLockReqBuilder {
 	return &StorageLockReqBuilder{LockRequestBuilder: b}
 }
 
-func (b *StorageLockReqBuilder) ReadOnePackage(storageID cdssdk.StorageID, userID cdssdk.UserID, packageID cdssdk.PackageID) *StorageLockReqBuilder {
+func (b *StorageLockReqBuilder) Buzy(storageID cdssdk.StorageID) *StorageLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath(storageID),
-		Name:   lockprovider.STORAGE_ELEMENT_READ_LOCK,
-		Target: *lockprovider.NewStringLockTarget().Add(userID, packageID),
-	})
-	return b
-}
-
-func (b *StorageLockReqBuilder) WriteOnePackage(storageID cdssdk.StorageID, userID cdssdk.UserID, packageID cdssdk.PackageID) *StorageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath(storageID),
-		Name:   lockprovider.STORAGE_ELEMENT_WRITE_LOCK,
-		Target: *lockprovider.NewStringLockTarget().Add(userID, packageID),
-	})
-	return b
-}
-
-func (b *StorageLockReqBuilder) CreateOnePackage(storageID cdssdk.StorageID, userID cdssdk.UserID, packageID cdssdk.PackageID) *StorageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath(storageID),
-		Name:   lockprovider.STORAGE_ELEMENT_WRITE_LOCK,
-		Target: *lockprovider.NewStringLockTarget().Add(userID, packageID),
-	})
-	return b
-}
-
-func (b *StorageLockReqBuilder) ReadAnyPackage(storageID cdssdk.StorageID) *StorageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath(storageID),
-		Name:   lockprovider.STORAGE_SET_READ_LOCK,
+		Name:   lockprovider.StorageBuzyLock,
 		Target: *lockprovider.NewStringLockTarget(),
 	})
 	return b
 }
 
-func (b *StorageLockReqBuilder) WriteAnyPackage(storageID cdssdk.StorageID) *StorageLockReqBuilder {
+func (b *StorageLockReqBuilder) GC(storageID cdssdk.StorageID) *StorageLockReqBuilder {
 	b.locks = append(b.locks, distlock.Lock{
 		Path:   b.makePath(storageID),
-		Name:   lockprovider.STORAGE_SET_WRITE_LOCK,
-		Target: *lockprovider.NewStringLockTarget(),
-	})
-	return b
-}
-
-func (b *StorageLockReqBuilder) CreateAnyPackage(storageID cdssdk.StorageID) *StorageLockReqBuilder {
-	b.locks = append(b.locks, distlock.Lock{
-		Path:   b.makePath(storageID),
-		Name:   lockprovider.STORAGE_SET_CREATE_LOCK,
+		Name:   lockprovider.StorageGCLock,
 		Target: *lockprovider.NewStringLockTarget(),
 	})
 	return b

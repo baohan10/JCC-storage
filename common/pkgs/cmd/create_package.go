@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
-	"time"
 
 	"github.com/samber/lo"
 
@@ -67,26 +66,6 @@ func (t *CreatePackage) Execute(ctx *UpdatePackageContext) (*CreatePackageResult
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
-	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		// 用于判断用户是否有桶的权限
-		UserBucket().ReadOne(t.userID, t.bucketID).
-		// 用于查询可用的上传节点
-		Node().ReadAny().
-		// 用于创建包信息
-		Package().CreateOne(t.bucketID, t.name).
-		// 用于创建包中的文件的信息
-		Object().CreateAny().
-		// 用于设置EC配置
-		ObjectBlock().CreateAny().
-		// 用于创建Cache记录
-		Cache().CreateAny().
-		MutexLock(ctx.Distlock)
-	if err != nil {
-		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-	defer mutex.Unlock()
-
 	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name))
 	if err != nil {
 		return nil, fmt.Errorf("creating package: %w", err)
@@ -108,15 +87,16 @@ func (t *CreatePackage) Execute(ctx *UpdatePackageContext) (*CreatePackageResult
 	ipfsReqBlder := reqbuilder.NewBuilder()
 	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
 	if stgglb.Local.NodeID != nil {
-		ipfsReqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
+		ipfsReqBlder.IPFS().Buzy(*stgglb.Local.NodeID)
 	}
 	for _, node := range userNodes {
 		if stgglb.Local.NodeID != nil && node.Node.NodeID == *stgglb.Local.NodeID {
 			continue
 		}
 
-		ipfsReqBlder.IPFS().CreateAnyRep(node.Node.NodeID)
+		ipfsReqBlder.IPFS().Buzy(node.Node.NodeID)
 	}
+	// TODO 考虑加Object的Create锁
 	// 防止上传的副本被清除
 	ipfsMutex, err := ipfsReqBlder.MutexLock(ctx.Distlock)
 	if err != nil {
@@ -283,24 +263,9 @@ func pinIPFSFile(nodeID cdssdk.NodeID, fileHash string) error {
 	defer stgglb.AgentMQPool.Release(agtCli)
 
 	// 然后让最近节点pin本地上传的文件
-	pinObjResp, err := agtCli.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
+	_, err = agtCli.PinObject(agtmq.ReqPinObject(fileHash, false))
 	if err != nil {
 		return fmt.Errorf("start pinning object: %w", err)
-	}
-
-	for {
-		waitResp, err := agtCli.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
-		if err != nil {
-			return fmt.Errorf("waitting pinning object: %w", err)
-		}
-
-		if waitResp.IsComplete {
-			if waitResp.Error != "" {
-				return fmt.Errorf("agent pinning object: %s", waitResp.Error)
-			}
-
-			break
-		}
 	}
 
 	return nil

@@ -45,24 +45,6 @@ func (t *UpdatePackage) Execute(ctx *UpdatePackageContext) (*UpdatePackageResult
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
 
-	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		// 用于查询可用的上传节点
-		Node().ReadAny().
-		// 用于修改包信息
-		Package().WriteOne(t.packageID).
-		// 用于创建包中的文件的信息
-		Object().CreateAny().
-		// 用于设置EC配置
-		ObjectBlock().CreateAny().
-		// 用于创建Cache记录
-		Cache().CreateAny().
-		MutexLock(ctx.Distlock)
-	if err != nil {
-		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-	defer mutex.Unlock()
-
 	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
 	if err != nil {
 		return nil, fmt.Errorf("getting user nodes: %w", err)
@@ -79,15 +61,16 @@ func (t *UpdatePackage) Execute(ctx *UpdatePackageContext) (*UpdatePackageResult
 	ipfsReqBlder := reqbuilder.NewBuilder()
 	// 如果本地的IPFS也是存储系统的一个节点，那么从本地上传时，需要加锁
 	if stgglb.Local.NodeID != nil {
-		ipfsReqBlder.IPFS().CreateAnyRep(*stgglb.Local.NodeID)
+		ipfsReqBlder.IPFS().Buzy(*stgglb.Local.NodeID)
 	}
 	for _, node := range userNodes {
 		if stgglb.Local.NodeID != nil && node.Node.NodeID == *stgglb.Local.NodeID {
 			continue
 		}
 
-		ipfsReqBlder.IPFS().CreateAnyRep(node.Node.NodeID)
+		ipfsReqBlder.IPFS().Buzy(node.Node.NodeID)
 	}
+	// TODO 加Object的Create锁，最好一次性能加多个
 	// 防止上传的副本被清除
 	ipfsMutex, err := ipfsReqBlder.MutexLock(ctx.Distlock)
 	if err != nil {

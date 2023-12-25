@@ -2,6 +2,7 @@ package event
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/samber/lo"
@@ -11,6 +12,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -112,6 +114,21 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	newRepNodes := t.chooseNewNodesForRep(&defRep, allNodes)
 	newECNodes := t.chooseNewNodesForEC(&defEC, allNodes)
 
+	// 加锁
+	builder := reqbuilder.NewBuilder()
+	for _, node := range newRepNodes {
+		builder.IPFS().Buzy(node.Node.NodeID)
+	}
+	for _, node := range newECNodes {
+		builder.IPFS().Buzy(node.Node.NodeID)
+	}
+	mutex, err := builder.MutexLock(execCtx.Args.DistLock)
+	if err != nil {
+		log.Warnf("acquiring dist lock: %s", err.Error())
+		return
+	}
+	defer mutex.Unlock()
+
 	for _, obj := range getObjs.Objects {
 		var entry *coormq.ChangeObjectRedundancyEntry
 		var err error
@@ -203,7 +220,7 @@ func (t *CheckPackageRedundancy) rechooseNodesForRep(obj stgmod.ObjectDetail, re
 	for _, node := range allNodes {
 		cachedBlockIndex := -1
 		for _, block := range obj.Blocks {
-			if lo.Contains(block.CachedNodeIDs, node.Node.NodeID) {
+			if block.NodeID == node.Node.NodeID {
 				cachedBlockIndex = block.Index
 				break
 			}
@@ -243,7 +260,7 @@ func (t *CheckPackageRedundancy) rechooseNodesForEC(obj stgmod.ObjectDetail, red
 	for _, node := range allNodes {
 		cachedBlockIndex := -1
 		for _, block := range obj.Blocks {
-			if lo.Contains(block.CachedNodeIDs, node.Node.NodeID) {
+			if block.NodeID == node.Node.NodeID {
 				cachedBlockIndex = block.Index
 				break
 			}
@@ -311,7 +328,7 @@ func (t *CheckPackageRedundancy) chooseSoManyNodes(count int, nodes []*NodeLoadI
 }
 
 func (t *CheckPackageRedundancy) noneToRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
-	if len(obj.CachedNodeIDs) == 0 {
+	if len(obj.Blocks) == 0 {
 		return nil, fmt.Errorf("object is not cached on any nodes, cannot change its redundancy to rep")
 	}
 
@@ -346,11 +363,11 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	if len(obj.CachedNodeIDs) == 0 {
+	if len(obj.Blocks) == 0 {
 		return nil, fmt.Errorf("object is not cached on any nodes, cannot change its redundancy to ec")
 	}
 
-	getNodes, err := coorCli.GetNodes(coormq.NewGetNodes([]cdssdk.NodeID{obj.CachedNodeIDs[0]}))
+	getNodes, err := coorCli.GetNodes(coormq.NewGetNodes([]cdssdk.NodeID{obj.Blocks[0].NodeID}))
 	if err != nil {
 		return nil, fmt.Errorf("requesting to get nodes: %w", err)
 	}
@@ -394,7 +411,7 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 }
 
 func (t *CheckPackageRedundancy) repToRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
-	if len(obj.CachedNodeIDs) == 0 {
+	if len(obj.Blocks) == 0 {
 		return nil, fmt.Errorf("object is not cached on any nodes, cannot change its redundancy to rep")
 	}
 
@@ -440,10 +457,10 @@ func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	var chosenBlocks []stgmod.ObjectBlockDetail
+	var chosenBlocks []stgmod.GrouppedObjectBlock
 	var chosenBlockIndexes []int
-	for _, block := range obj.Blocks {
-		if len(block.CachedNodeIDs) > 0 {
+	for _, block := range obj.GroupBlocks() {
+		if len(block.NodeIDs) > 0 {
 			chosenBlocks = append(chosenBlocks, block)
 			chosenBlockIndexes = append(chosenBlockIndexes, block.Index)
 		}
@@ -513,10 +530,12 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	var chosenBlocks []stgmod.ObjectBlockDetail
+	grpBlocks := obj.GroupBlocks()
+
+	var chosenBlocks []stgmod.GrouppedObjectBlock
 	var chosenBlockIndexes []int
-	for _, block := range obj.Blocks {
-		if len(block.CachedNodeIDs) > 0 {
+	for _, block := range grpBlocks {
+		if len(block.NodeIDs) > 0 {
 			chosenBlocks = append(chosenBlocks, block)
 			chosenBlockIndexes = append(chosenBlockIndexes, block.Index)
 		}
@@ -535,28 +554,26 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 
 	var newBlocks []stgmod.ObjectBlock
 	shouldUpdateBlocks := false
-	for i := range obj.Blocks {
-		newBlocks = append(newBlocks, stgmod.ObjectBlock{
+	for i, node := range uploadNodes {
+		newBlock := stgmod.ObjectBlock{
 			ObjectID: obj.Object.ObjectID,
 			Index:    i,
-			NodeID:   uploadNodes[i].Node.NodeID,
-			FileHash: obj.Blocks[i].FileHash,
-		})
+			NodeID:   node.Node.NodeID,
+		}
+
+		grp, ok := lo.Find(grpBlocks, func(grp stgmod.GrouppedObjectBlock) bool { return grp.Index == i })
 
 		// 如果新选中的节点已经记录在Block表中，那么就不需要任何变更
-		if lo.Contains(obj.Blocks[i].NodeIDs, uploadNodes[i].Node.NodeID) {
+		if ok && lo.Contains(grp.NodeIDs, node.Node.NodeID) {
+			newBlock.FileHash = grp.FileHash
+			newBlocks = append(newBlocks, newBlock)
 			continue
 		}
 
 		shouldUpdateBlocks = true
 
-		// 新选的节点不在Block表中，但实际上保存了分块的数据，那么只需建立一条Block记录即可
-		if lo.Contains(obj.Blocks[i].CachedNodeIDs, uploadNodes[i].Node.NodeID) {
-			continue
-		}
-
 		// 否则就要重建出这个节点需要的块
-		tarNode := planBlder.AtAgent(uploadNodes[i].Node)
+		tarNode := planBlder.AtAgent(node.Node)
 
 		var inputs []*plans.AgentStream
 		for _, block := range chosenBlocks {
@@ -564,7 +581,8 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 		}
 
 		// 输出只需要自己要保存的那一块
-		tarNode.ECReconstructAny(*srcRed, chosenBlockIndexes, []int{i}, inputs...).Stream(0).IPFSWrite("")
+		tarNode.ECReconstructAny(*srcRed, chosenBlockIndexes, []int{i}, inputs...).Stream(0).IPFSWrite(fmt.Sprintf("%d", i))
+		newBlocks = append(newBlocks, newBlock)
 	}
 
 	plan, err := planBlder.Build()
@@ -578,13 +596,22 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 	}
 
 	// 如果没有任何Plan，Wait会直接返回成功
-	_, err = exec.Wait()
+	ret, err := exec.Wait()
 	if err != nil {
 		return nil, fmt.Errorf("executing io plan: %w", err)
 	}
 
 	if !shouldUpdateBlocks {
 		return nil, nil
+	}
+
+	for k, v := range ret.ResultValues {
+		idx, err := strconv.ParseInt(k, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parsing result key %s as index: %w", k, err)
+		}
+
+		newBlocks[idx].FileHash = v.(string)
 	}
 
 	return &coormq.ChangeObjectRedundancyEntry{
@@ -601,24 +628,9 @@ func (t *CheckPackageRedundancy) pinObject(nodeID cdssdk.NodeID, fileHash string
 	}
 	defer stgglb.AgentMQPool.Release(agtCli)
 
-	pinObjResp, err := agtCli.StartPinningObject(agtmq.NewStartPinningObject(fileHash))
+	_, err = agtCli.PinObject(agtmq.ReqPinObject(fileHash, false))
 	if err != nil {
 		return fmt.Errorf("start pinning object: %w", err)
-	}
-
-	for {
-		waitResp, err := agtCli.WaitPinningObject(agtmq.NewWaitPinningObject(pinObjResp.TaskID, int64(time.Second)*5))
-		if err != nil {
-			return fmt.Errorf("waitting pinning object: %w", err)
-		}
-
-		if waitResp.IsComplete {
-			if waitResp.Error != "" {
-				return fmt.Errorf("agent pinning object: %s", waitResp.Error)
-			}
-
-			break
-		}
 	}
 
 	return nil

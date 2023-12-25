@@ -24,8 +24,7 @@ func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStora
 }
 
 func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coormq.StoragePackageLoadedResp, *mq.CodeMessage) {
-	// TODO: 对于的storage中已经存在的文件，直接覆盖已有文件
-	err := svc.db.DoTx(sql.LevelDefault, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		err := svc.db.StoragePackage().Create(tx, msg.StorageID, msg.PackageID, msg.UserID)
 		if err != nil {
 			return fmt.Errorf("creating storage package: %w", err)
@@ -42,7 +41,7 @@ func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coo
 		logger.WithField("UserID", msg.UserID).
 			WithField("StorageID", msg.StorageID).
 			WithField("PackageID", msg.PackageID).
-			Warnf("user load package to storage failed, err: %s", err.Error())
+			Warn(err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "user load package to storage failed")
 	}
 

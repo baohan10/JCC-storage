@@ -8,6 +8,10 @@ import (
 	evt "gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
 
+const (
+	CheckPackageBatchSize = 100
+)
+
 type BatchCheckPackageRedundancy struct {
 	lastCheckStart int
 }

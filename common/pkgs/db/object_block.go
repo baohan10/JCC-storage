@@ -20,18 +20,34 @@ func (db *DB) ObjectBlock() *ObjectBlockDB {
 	return &ObjectBlockDB{DB: db}
 }
 
+func (db *ObjectBlockDB) GetByNodeID(ctx SQLContext, nodeID cdssdk.NodeID) ([]stgmod.ObjectBlock, error) {
+	var rets []stgmod.ObjectBlock
+	err := sqlx.Select(ctx, &rets, "select * from ObjectBlock where NodeID = ?", nodeID)
+	return rets, err
+}
+
 func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index int, nodeID cdssdk.NodeID, fileHash string) error {
 	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?,?)", objectID, index, nodeID, fileHash)
 	return err
 }
 
-func (db *ObjectBlockDB) DeleteObjectAll(ctx SQLContext, objectID cdssdk.ObjectID) error {
+func (db *ObjectBlockDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID) error {
 	_, err := ctx.Exec("delete from ObjectBlock where ObjectID = ?", objectID)
 	return err
 }
 
 func (db *ObjectBlockDB) DeleteInPackage(ctx SQLContext, packageID cdssdk.PackageID) error {
 	_, err := ctx.Exec("delete ObjectBlock from ObjectBlock inner join Object on ObjectBlock.ObjectID = Object.ObjectID where PackageID = ?", packageID)
+	return err
+}
+
+func (db *ObjectBlockDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes []string) error {
+	query, args, err := sqlx.In("delete from ObjectBlock where NodeID = ? and FileHash in (?)", nodeID, fileHashes)
+	if err != nil {
+		return err
+	}
+
+	_, err = ctx.Exec(query, args...)
 	return err
 }
 
@@ -59,49 +75,17 @@ func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk
 	rets := make([]stgmod.ObjectDetail, 0, len(objs))
 
 	for _, obj := range objs {
-		var cachedObjectNodeIDs []cdssdk.NodeID
-		err := sqlx.Select(ctx, &cachedObjectNodeIDs,
-			"select NodeID from Object, Cache where"+
-				" ObjectID = ? and Object.FileHash = Cache.FileHash",
-			obj.ObjectID,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		var blockTmpRets []struct {
-			Index         int     `db:"Index"`
-			FileHashes    string  `db:"FileHashes"`
-			NodeIDs       string  `db:"NodeIDs"`
-			CachedNodeIDs *string `db:"CachedNodeIDs"`
-		}
-
+		var blocks []stgmod.ObjectBlock
 		err = sqlx.Select(ctx,
-			&blockTmpRets,
-			"select ObjectBlock.Index, group_concat(distinct ObjectBlock.FileHash) as FileHashes, group_concat(distinct ObjectBlock.NodeID) as NodeIDs, group_concat(distinct Cache.NodeID) as CachedNodeIDs"+
-				" from ObjectBlock left join Cache on ObjectBlock.FileHash = Cache.FileHash"+
-				" where ObjectID = ? group by ObjectBlock.Index",
+			&blocks,
+			"select * from ObjectBlock where ObjectID = ? order by Index",
 			obj.ObjectID,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		blocks := make([]stgmod.ObjectBlockDetail, 0, len(blockTmpRets))
-		for _, tmp := range blockTmpRets {
-			var block stgmod.ObjectBlockDetail
-			block.Index = tmp.Index
-
-			block.FileHash = splitConcatedFileHash(tmp.FileHashes)[0]
-			block.NodeIDs = splitConcatedNodeID(tmp.NodeIDs)
-			if tmp.CachedNodeIDs != nil {
-				block.CachedNodeIDs = splitConcatedNodeID(*tmp.CachedNodeIDs)
-			}
-
-			blocks = append(blocks, block)
-		}
-
-		rets = append(rets, stgmod.NewObjectDetail(obj.ToObject(), cachedObjectNodeIDs, blocks))
+		rets = append(rets, stgmod.NewObjectDetail(obj.ToObject(), blocks))
 	}
 
 	return rets, nil

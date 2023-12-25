@@ -5,7 +5,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/consts"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -29,15 +28,15 @@ func (*CacheDB) BatchGetAllFileHashes(ctx SQLContext, start int, count int) ([]s
 	return ret, err
 }
 
-func (*CacheDB) GetNodeCaches(ctx SQLContext, nodeID cdssdk.NodeID) ([]model.Cache, error) {
+func (*CacheDB) GetByNodeID(ctx SQLContext, nodeID cdssdk.NodeID) ([]model.Cache, error) {
 	var ret []model.Cache
 	err := sqlx.Select(ctx, &ret, "select * from Cache where NodeID = ?", nodeID)
 	return ret, err
 }
 
-// CreateNew 创建一条新的缓存记录
-func (*CacheDB) CreateNew(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert into Cache values(?,?,?,?,?,?)", fileHash, nodeID, consts.CacheStatePinned, nil, time.Now(), 0)
+// Create 创建一条的缓存记录，如果已有则不进行操作
+func (*CacheDB) Create(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID, priority int) error {
+	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?)", fileHash, nodeID, time.Now(), priority)
 	if err != nil {
 		return err
 	}
@@ -45,53 +44,32 @@ func (*CacheDB) CreateNew(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID)
 	return nil
 }
 
-func (*CacheDB) SetPackageObjectFrozen(ctx SQLContext, pkgID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
-	var nowTime = time.Now()
-	_, err := ctx.Exec(
-		"insert into Cache(FileHash,NodeID,State,FrozenTime,CreateTime,Priority)"+
-			" select FileHash, ?, ?, ?, ?, ? from Object where PackageID = ?"+
-			" on duplicate key update State = ?, FrozenTime = ?",
-		nodeID, consts.CacheStatePinned, &nowTime, &nowTime, 0,
-		pkgID,
-		consts.CacheStatePinned, &nowTime,
-	)
-
-	return err
-}
-
-// CreatePinned 创建一条缓存记录，如果已存在，但不是pinned状态，则将其设置为pin状态
-func (*CacheDB) CreatePinned(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID, priority int) error {
-	_, err := ctx.Exec("insert into Cache values(?,?,?,?,?,?) on duplicate key update State = ?, CreateTime = ?, Priority = ?",
-		fileHash, nodeID, consts.CacheStatePinned, nil, time.Now(), priority,
-		consts.CacheStatePinned, time.Now(), priority,
-	)
-	return err
-}
-
-func (*CacheDB) BatchCreatePinned(ctx SQLContext, fileHashes []string, nodeID cdssdk.NodeID, priority int) error {
+func (*CacheDB) BatchCreate(ctx SQLContext, fileHashes []string, nodeID cdssdk.NodeID, priority int) error {
 	var caches []model.Cache
 	var nowTime = time.Now()
 	for _, hash := range fileHashes {
 		caches = append(caches, model.Cache{
 			FileHash:   hash,
 			NodeID:     nodeID,
-			State:      consts.CacheStatePinned,
-			FrozenTime: nil,
 			CreateTime: nowTime,
 			Priority:   priority,
 		})
 	}
 
-	_, err := sqlx.NamedExec(ctx, "insert into Cache(FileHash,NodeID,State,FrozenTime,CreateTime,Priority) values(:FileHash,:NodeID,:State,:FrozenTime,:CreateTime,:Priority)"+
-		" on duplicate key update State=values(State), CreateTime=values(CreateTime), Priority=values(Priority)",
+	_, err := sqlx.NamedExec(ctx, "insert into Cache(FileHash,NodeID,CreateTime,Priority) values(:FileHash,:NodeID,:CreateTime,:Priority)"+
+		" on duplicate key update CreateTime=values(CreateTime), Priority=values(Priority)",
 		caches,
 	)
 	return err
 }
 
-// Create 创建一条Temp状态的缓存记录，如果已存在则不产生效果
-func (*CacheDB) CreateTemp(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?,?,?)", fileHash, nodeID, consts.CacheStateTemp, nil, time.Now(), 0)
+func (*CacheDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes []string) error {
+	// TODO in语句有长度限制
+	query, args, err := sqlx.In("delete from Cache where NodeID = ? and FileHash in (?)", nodeID, fileHashes)
+	if err != nil {
+		return err
+	}
+	_, err = ctx.Exec(query, args...)
 	return err
 }
 
@@ -101,12 +79,6 @@ func (*CacheDB) GetCachingFileNodes(ctx SQLContext, fileHash string) ([]model.No
 	err := sqlx.Select(ctx, &x,
 		"select Node.* from Cache, Node where Cache.FileHash=? and Cache.NodeID = Node.NodeID", fileHash)
 	return x, err
-}
-
-// DeleteTemp 删除一条Temp状态的记录
-func (*CacheDB) DeleteTemp(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("delete from Cache where FileHash = ? and NodeID = ? and State = ?", fileHash, nodeID, consts.CacheStateTemp)
-	return err
 }
 
 // DeleteNodeAll 删除一个节点所有的记录
@@ -123,15 +95,4 @@ func (*CacheDB) FindCachingFileUserNodes(ctx SQLContext, userID cdssdk.NodeID, f
 			" Cache.FileHash=? and Cache.NodeID = UserNode.NodeID and"+
 			" UserNode.UserID = ? and UserNode.NodeID = Node.NodeID", fileHash, userID)
 	return x, err
-}
-
-// 设置一条记录为Temp，对Frozen的记录无效
-func (*CacheDB) SetTemp(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID) error {
-	_, err := ctx.Exec("update Cache set State = ?, CreateTime = ? where FileHash = ? and NodeID = ? and FrozenTime = null",
-		consts.CacheStateTemp,
-		time.Now(),
-		fileHash,
-		nodeID,
-	)
-	return err
 }

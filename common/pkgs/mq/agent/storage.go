@@ -14,6 +14,8 @@ type StorageService interface {
 
 	StorageCheck(msg *StorageCheck) (*StorageCheckResp, *mq.CodeMessage)
 
+	StorageGC(msg *StorageGC) (*StorageGCResp, *mq.CodeMessage)
+
 	StartStorageCreatePackage(msg *StartStorageCreatePackage) (*StartStorageCreatePackageResp, *mq.CodeMessage)
 
 	WaitStorageCreatePackage(msg *WaitStorageCreatePackage) (*WaitStorageCreatePackageResp, *mq.CodeMessage)
@@ -84,52 +86,58 @@ func (client *Client) WaitStorageLoadPackage(msg *WaitStorageLoadPackage, opts .
 // 检查Storage
 var _ = Register(Service.StorageCheck)
 
-const (
-	CHECK_STORAGE_RESP_OP_DELETE     = "Delete"
-	CHECK_STORAGE_RESP_OP_SET_NORMAL = "SetNormal"
-)
-
 type StorageCheck struct {
 	mq.MessageBodyBase
-	StorageID  cdssdk.StorageID       `json:"storageID"`
-	Directory  string                 `json:"directory"`
-	IsComplete bool                   `json:"isComplete"`
-	Packages   []model.StoragePackage `json:"packages"`
+	StorageID cdssdk.StorageID `json:"storageID"`
+	Directory string           `json:"directory"`
 }
 type StorageCheckResp struct {
 	mq.MessageBodyBase
-	DirectoryState string                  `json:"directoryState"`
-	Entries        []StorageCheckRespEntry `json:"entries"`
-}
-type StorageCheckRespEntry struct {
-	PackageID cdssdk.PackageID `json:"packageID"`
-	UserID    cdssdk.UserID    `json:"userID"`
-	Operation string           `json:"operation"`
+	DirectoryState string                 `json:"directoryState"`
+	Packages       []model.StoragePackage `json:"packages"`
 }
 
-func NewStorageCheck(storageID cdssdk.StorageID, directory string, isComplete bool, packages []model.StoragePackage) *StorageCheck {
+func NewStorageCheck(storageID cdssdk.StorageID, directory string) *StorageCheck {
 	return &StorageCheck{
-		StorageID:  storageID,
-		Directory:  directory,
-		IsComplete: isComplete,
-		Packages:   packages,
+		StorageID: storageID,
+		Directory: directory,
 	}
 }
-func NewStorageCheckResp(dirState string, entries []StorageCheckRespEntry) *StorageCheckResp {
+func NewStorageCheckResp(dirState string, packages []model.StoragePackage) *StorageCheckResp {
 	return &StorageCheckResp{
 		DirectoryState: dirState,
-		Entries:        entries,
-	}
-}
-func NewStorageCheckRespEntry(packageID cdssdk.PackageID, userID cdssdk.UserID, op string) StorageCheckRespEntry {
-	return StorageCheckRespEntry{
-		PackageID: packageID,
-		UserID:    userID,
-		Operation: op,
+		Packages:       packages,
 	}
 }
 func (client *Client) StorageCheck(msg *StorageCheck, opts ...mq.RequestOption) (*StorageCheckResp, error) {
 	return mq.Request(Service.StorageCheck, client.rabbitCli, msg, opts...)
+}
+
+// 清理Cache中不用的文件
+var _ = Register(Service.StorageGC)
+
+type StorageGC struct {
+	mq.MessageBodyBase
+	StorageID cdssdk.StorageID       `json:"storageID"`
+	Directory string                 `json:"directory"`
+	Packages  []model.StoragePackage `json:"packages"`
+}
+type StorageGCResp struct {
+	mq.MessageBodyBase
+}
+
+func ReqStorageGC(storageID cdssdk.StorageID, directory string, packages []model.StoragePackage) *StorageGC {
+	return &StorageGC{
+		StorageID: storageID,
+		Directory: directory,
+		Packages:  packages,
+	}
+}
+func RespStorageGC() *StorageGCResp {
+	return &StorageGCResp{}
+}
+func (client *Client) StorageGC(msg *StorageGC, opts ...mq.RequestOption) (*StorageGCResp, error) {
+	return mq.Request(Service.StorageGC, client.rabbitCli, msg, opts...)
 }
 
 // 启动从Storage上传Package的任务

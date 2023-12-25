@@ -5,6 +5,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
+	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
 
@@ -38,7 +39,7 @@ func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 	checkedCnt := 0
 	for ; checkedCnt < len(e.nodeIDs) && checkedCnt < AGENT_CHECK_CACHE_BATCH_SIZE; checkedCnt++ {
 		// nil代表进行全量检查
-		ctx.Args.EventExecutor.Post(event.NewAgentCheckCache(e.nodeIDs[checkedCnt], nil))
+		ctx.Args.EventExecutor.Post(event.NewAgentCheckCache(scevt.NewAgentCheckCache(e.nodeIDs[checkedCnt])))
 	}
 	e.nodeIDs = e.nodeIDs[checkedCnt:]
 }

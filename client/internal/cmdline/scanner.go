@@ -25,17 +25,17 @@ func ScannerPostEvent(ctx CommandContext, args []string) error {
 }
 
 func init() {
+	parseScannerEventCmdTrie.MustAdd(scevt.NewAgentCacheGC, myreflect.TypeNameOf[scevt.AgentCacheGC]())
+
 	parseScannerEventCmdTrie.MustAdd(scevt.NewAgentCheckCache, myreflect.TypeNameOf[scevt.AgentCheckCache]())
 
 	parseScannerEventCmdTrie.MustAdd(scevt.NewAgentCheckState, myreflect.TypeNameOf[scevt.AgentCheckState]())
 
+	parseScannerEventCmdTrie.MustAdd(scevt.NewAgentStorageGC, myreflect.TypeNameOf[scevt.AgentStorageGC]())
+
 	parseScannerEventCmdTrie.MustAdd(scevt.NewAgentCheckStorage, myreflect.TypeNameOf[scevt.AgentCheckStorage]())
 
-	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckCache, myreflect.TypeNameOf[scevt.CheckCache]())
-
 	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckPackage, myreflect.TypeNameOf[scevt.CheckPackage]())
-
-	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckRepCount, myreflect.TypeNameOf[scevt.CheckRepCount]())
 
 	parseScannerEventCmdTrie.MustAdd(scevt.NewCheckPackageRedundancy, myreflect.TypeNameOf[scevt.CheckPackageRedundancy]())
 

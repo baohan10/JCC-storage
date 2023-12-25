@@ -111,11 +111,13 @@ func (db *BucketDB) Delete(ctx SQLContext, bucketID cdssdk.BucketID) error {
 	}
 
 	for _, pkgID := range pkgIDs {
-		// TODO 不一定所有的错误都要中断后续过程
 		err = db.Package().SoftDelete(ctx, pkgID)
 		if err != nil {
 			return fmt.Errorf("set package seleted failed, err: %w", err)
 		}
+
+		// 失败也没关系，会有定时任务再次尝试
+		db.Package().DeleteUnused(ctx, pkgID)
 	}
 	return nil
 }

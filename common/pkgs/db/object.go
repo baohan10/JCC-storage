@@ -107,19 +107,24 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []
 
 		if !isCreate {
 			// 删除原本所有的编码块记录，重新添加
-			if err = db.ObjectBlock().DeleteObjectAll(ctx, objID); err != nil {
+			if err = db.ObjectBlock().DeleteByObjectID(ctx, objID); err != nil {
 				return nil, fmt.Errorf("deleting all object block: %w", err)
+			}
+
+			// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
+			if err = db.PinnedObject().DeleteByObjectID(ctx, objID); err != nil {
+				return nil, fmt.Errorf("deleting all pinned object: %w", err)
 			}
 		}
 
-		// 首次上传默认使用不分块的rep模式
+		// 首次上传默认使用不分块的none模式
 		err = db.ObjectBlock().Create(ctx, objID, 0, obj.NodeID, obj.FileHash)
 		if err != nil {
 			return nil, fmt.Errorf("creating object block: %w", err)
 		}
 
 		// 创建缓存记录
-		err = db.Cache().CreatePinned(ctx, obj.FileHash, obj.NodeID, 0)
+		err = db.Cache().Create(ctx, obj.FileHash, obj.NodeID, 0)
 		if err != nil {
 			return nil, fmt.Errorf("creating cache: %w", err)
 		}
@@ -136,8 +141,13 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 		}
 
 		// 删除原本所有的编码块记录，重新添加
-		if err = db.ObjectBlock().DeleteObjectAll(ctx, obj.ObjectID); err != nil {
+		if err = db.ObjectBlock().DeleteByObjectID(ctx, obj.ObjectID); err != nil {
 			return fmt.Errorf("deleting all object block: %w", err)
+		}
+
+		// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
+		if err = db.PinnedObject().DeleteByObjectID(ctx, obj.ObjectID); err != nil {
+			return fmt.Errorf("deleting all pinned object: %w", err)
 		}
 
 		for _, block := range obj.Blocks {
@@ -148,7 +158,7 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 			}
 
 			// 创建缓存记录
-			err = db.Cache().CreatePinned(ctx, block.FileHash, block.NodeID, 0)
+			err = db.Cache().Create(ctx, block.FileHash, block.NodeID, 0)
 			if err != nil {
 				return fmt.Errorf("creating cache: %w", err)
 			}
@@ -159,7 +169,12 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 }
 
 func (*ObjectDB) BatchDelete(ctx SQLContext, ids []cdssdk.ObjectID) error {
-	_, err := ctx.Exec("delete from Object where ObjectID in (?)", ids)
+	query, args, err := sqlx.In("delete from Object where ObjectID in (?)", ids)
+	if err != nil {
+		return err
+	}
+
+	_, err = ctx.Exec(query, args...)
 	return err
 }
 

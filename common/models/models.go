@@ -1,6 +1,7 @@
 package stgmod
 
 import (
+	"github.com/samber/lo"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
@@ -11,36 +12,41 @@ type ObjectBlock struct {
 	FileHash string          `db:"FileHash" json:"fileHash"`
 }
 
-type ObjectBlockDetail struct {
-	ObjectID      cdssdk.ObjectID `json:"objectID"`
-	Index         int             `json:"index"`
-	FileHash      string          `json:"fileHash"`
-	NodeIDs       []cdssdk.NodeID `json:"nodeID"`        // 这个块应该在哪些节点上
-	CachedNodeIDs []cdssdk.NodeID `json:"cachedNodeIDs"` // 哪些节点实际缓存了这个块
-}
-
-func NewObjectBlockDetail(objID cdssdk.ObjectID, index int, fileHash string, nodeIDs []cdssdk.NodeID, cachedNodeIDs []cdssdk.NodeID) ObjectBlockDetail {
-	return ObjectBlockDetail{
-		ObjectID:      objID,
-		Index:         index,
-		FileHash:      fileHash,
-		NodeIDs:       nodeIDs,
-		CachedNodeIDs: cachedNodeIDs,
-	}
-}
-
 type ObjectDetail struct {
-	Object        cdssdk.Object       `json:"object"`
-	CachedNodeIDs []cdssdk.NodeID     `json:"cachedNodeIDs"` // 文件的完整数据在哪些节点上缓存
-	Blocks        []ObjectBlockDetail `json:"blocks"`
+	Object cdssdk.Object `json:"object"`
+	Blocks []ObjectBlock `json:"blocks"`
 }
 
-func NewObjectDetail(object cdssdk.Object, cachedNodeIDs []cdssdk.NodeID, blocks []ObjectBlockDetail) ObjectDetail {
+func NewObjectDetail(object cdssdk.Object, blocks []ObjectBlock) ObjectDetail {
 	return ObjectDetail{
-		Object:        object,
-		CachedNodeIDs: cachedNodeIDs,
-		Blocks:        blocks,
+		Object: object,
+		Blocks: blocks,
 	}
+}
+
+type GrouppedObjectBlock struct {
+	ObjectID cdssdk.ObjectID
+	Index    int
+	FileHash string
+	NodeIDs  []cdssdk.NodeID
+}
+
+func (o *ObjectDetail) GroupBlocks() []GrouppedObjectBlock {
+	grps := make(map[int]GrouppedObjectBlock)
+	for _, block := range o.Blocks {
+		grp, ok := grps[block.Index]
+		if !ok {
+			grp = GrouppedObjectBlock{
+				ObjectID: block.ObjectID,
+				Index:    block.Index,
+				FileHash: block.FileHash,
+			}
+		}
+		grp.NodeIDs = append(grp.NodeIDs, block.NodeID)
+		grps[block.Index] = grp
+	}
+
+	return lo.Values(grps)
 }
 
 type LocalMachineInfo struct {

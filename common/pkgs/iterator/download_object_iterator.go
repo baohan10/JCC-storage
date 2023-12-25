@@ -16,7 +16,6 @@ import (
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -128,14 +127,16 @@ func (i *DownloadObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) 
 }
 
 func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
+	if len(obj.Blocks) == 0 {
+		return nil, fmt.Errorf("no node has this object")
+	}
+
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
-	for i := range obj.Blocks {
-		if len(obj.Blocks[i].CachedNodeIDs) == 0 {
-			return nil, fmt.Errorf("no node has block %d", obj.Blocks[i].Index)
-		}
 
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(obj.Blocks[i].CachedNodeIDs))
+	grpBlocks := obj.GroupBlocks()
+	for _, grp := range grpBlocks {
+		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(grp.NodeIDs))
 		if err != nil {
 			continue
 		}
@@ -152,8 +153,8 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Clie
 
 	var fileStrs []io.ReadCloser
 
-	for i := range obj.Blocks {
-		str, err := downloadFile(ctx, chosenNodes[i], obj.Blocks[i].FileHash)
+	for i := range grpBlocks {
+		str, err := downloadFile(ctx, chosenNodes[i], grpBlocks[i].FileHash)
 		if err != nil {
 			for i -= 1; i >= 0; i-- {
 				fileStrs[i].Close()
@@ -173,19 +174,14 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Clie
 func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
-	var chosenBlocks []stgmodels.ObjectBlockDetail
-	for i := range obj.Blocks {
+	var chosenBlocks []stgmodels.GrouppedObjectBlock
+	grpBlocks := obj.GroupBlocks()
+	for i := range grpBlocks {
 		if len(chosenBlocks) == ecRed.K {
 			break
 		}
 
-		// 块没有被任何节点缓存或者获取失败都没关系，只要能获取到k个块的信息就行
-
-		if len(obj.Blocks[i].CachedNodeIDs) == 0 {
-			continue
-		}
-
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(obj.Blocks[i].CachedNodeIDs))
+		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(grpBlocks[i].NodeIDs))
 		if err != nil {
 			continue
 		}
@@ -197,7 +193,7 @@ func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx
 			}
 		})
 
-		chosenBlocks = append(chosenBlocks, obj.Blocks[i])
+		chosenBlocks = append(chosenBlocks, grpBlocks[i])
 		chosenNodes = append(chosenNodes, iter.chooseDownloadNode(downloadNodes))
 
 	}
@@ -265,16 +261,6 @@ func downloadFile(ctx *DownloadContext, node DownloadNodeInfo, fileHash string) 
 }
 
 func downloadFromNode(ctx *DownloadContext, nodeID cdssdk.NodeID, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {
-	// 二次获取锁
-	mutex, err := reqbuilder.NewBuilder().
-		// 用于从IPFS下载文件
-		IPFS().ReadOneRep(nodeID, fileHash).
-		MutexLock(ctx.Distlock)
-	if err != nil {
-		return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-	}
-
-	// 连接grpc
 	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
 		return nil, fmt.Errorf("new agent grpc client: %w", err)
@@ -286,27 +272,12 @@ func downloadFromNode(ctx *DownloadContext, nodeID cdssdk.NodeID, nodeIP string,
 	}
 
 	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
-		mutex.Unlock()
+		agtCli.Close()
 	})
 	return reader, nil
 }
 
 func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser, error) {
-	onClosed := func() {}
-	if stgglb.Local.NodeID != nil {
-		// 二次获取锁
-		mutex, err := reqbuilder.NewBuilder().
-			// 用于从IPFS下载文件
-			IPFS().ReadOneRep(*stgglb.Local.NodeID, fileHash).
-			MutexLock(ctx.Distlock)
-		if err != nil {
-			return nil, fmt.Errorf("acquire locks failed, err: %w", err)
-		}
-		onClosed = func() {
-			mutex.Unlock()
-		}
-	}
-
 	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new ipfs client: %w", err)
@@ -318,7 +289,7 @@ func downloadFromLocalIPFS(ctx *DownloadContext, fileHash string) (io.ReadCloser
 	}
 
 	reader = myio.AfterReadClosed(reader, func(io.ReadCloser) {
-		onClosed()
+		ipfsCli.Close()
 	})
 	return reader, nil
 }

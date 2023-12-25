@@ -4,13 +4,12 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
@@ -20,9 +19,9 @@ type AgentCheckCache struct {
 	*scevt.AgentCheckCache
 }
 
-func NewAgentCheckCache(nodeID cdssdk.NodeID, fileHashes []string) *AgentCheckCache {
+func NewAgentCheckCache(evt *scevt.AgentCheckCache) *AgentCheckCache {
 	return &AgentCheckCache{
-		AgentCheckCache: scevt.NewAgentCheckCache(nodeID, fileHashes),
+		AgentCheckCache: evt,
 	}
 }
 
@@ -36,13 +35,6 @@ func (t *AgentCheckCache) TryMerge(other Event) bool {
 		return false
 	}
 
-	// FileHashes为nil时代表全量检查
-	if event.FileHashes == nil {
-		t.FileHashes = nil
-	} else if t.FileHashes != nil {
-		t.FileHashes = lo.Union(t.FileHashes, event.FileHashes)
-	}
-
 	return true
 }
 
@@ -53,80 +45,6 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 
 	// TODO unavailable的节点需不需要发送任务？
 
-	if t.FileHashes == nil {
-		t.checkComplete(execCtx)
-	} else {
-		t.checkIncrement(execCtx)
-	}
-}
-
-func (t *AgentCheckCache) checkComplete(execCtx ExecuteContext) {
-	log := logger.WithType[AgentCheckCache]("Event")
-
-	mutex, err := reqbuilder.NewBuilder().
-		Metadata().
-		// 全量模式下修改某个节点所有的Cache记录
-		Cache().WriteAny().
-		IPFS().
-		// 全量模式下修改某个节点所有的副本数据
-		WriteAnyRep(t.NodeID).
-		MutexLock(execCtx.Args.DistLock)
-	if err != nil {
-		log.Warnf("acquire locks failed, err: %s", err.Error())
-		return
-	}
-	defer mutex.Unlock()
-
-	caches, err := execCtx.Args.DB.Cache().GetNodeCaches(execCtx.Args.DB.SQLCtx(), t.NodeID)
-	if err != nil {
-		log.WithField("NodeID", t.NodeID).Warnf("get node caches failed, err: %s", err.Error())
-		return
-	}
-
-	t.startCheck(execCtx, true, caches)
-}
-
-func (t *AgentCheckCache) checkIncrement(execCtx ExecuteContext) {
-	log := logger.WithType[AgentCheckCache]("Event")
-
-	builder := reqbuilder.NewBuilder()
-	for _, hash := range t.FileHashes {
-		builder.
-			// 增量模式下，不会有改动到Cache记录的操作
-			Metadata().Cache().ReadOne(t.NodeID, hash).
-			// 由于副本Write锁的特点，Pin文件（创建文件）不需要Create锁
-			IPFS().WriteOneRep(t.NodeID, hash)
-	}
-	mutex, err := builder.MutexLock(execCtx.Args.DistLock)
-	if err != nil {
-		log.Warnf("acquire locks failed, err: %s", err.Error())
-		return
-	}
-	defer mutex.Unlock()
-
-	var caches []model.Cache
-	for _, hash := range t.FileHashes {
-		ch, err := execCtx.Args.DB.Cache().Get(execCtx.Args.DB.SQLCtx(), hash, t.NodeID)
-		// 记录不存在则跳过
-		if err == sql.ErrNoRows {
-			continue
-		}
-
-		if err != nil {
-			log.WithField("FileHash", hash).WithField("NodeID", t.NodeID).Warnf("get cache failed, err: %s", err.Error())
-			return
-		}
-
-		caches = append(caches, ch)
-	}
-
-	t.startCheck(execCtx, false, caches)
-}
-
-func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, caches []model.Cache) {
-	log := logger.WithType[AgentCheckCache]("Event")
-
-	// 然后向代理端发送移动文件的请求
 	agtCli, err := stgglb.AgentMQPool.Acquire(t.NodeID)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("create agent client failed, err: %s", err.Error())
@@ -134,42 +52,119 @@ func (t *AgentCheckCache) startCheck(execCtx ExecuteContext, isComplete bool, ca
 	}
 	defer stgglb.AgentMQPool.Release(agtCli)
 
-	checkResp, err := agtCli.CheckCache(agtmq.NewCheckCache(isComplete, caches), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agtCli.CheckCache(agtmq.NewCheckCache(), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("checking ipfs: %s", err.Error())
 		return
 	}
 
-	// 根据返回结果修改数据库
-	for _, entry := range checkResp.Entries {
-		switch entry.Operation {
-		case agtmq.CHECK_IPFS_RESP_OP_DELETE_TEMP:
-			err := execCtx.Args.DB.Cache().DeleteTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
-			if err != nil {
-				log.WithField("FileHash", entry.FileHash).
-					WithField("NodeID", t.NodeID).
-					Warnf("delete temp cache failed, err: %s", err.Error())
-			}
+	realFileHashes := lo.SliceToMap(checkResp.FileHashes, func(hash string) (string, bool) { return hash, true })
 
-			log.WithField("FileHash", entry.FileHash).
-				WithField("NodeID", t.NodeID).
-				Debugf("delete temp cache")
+	// 根据IPFS中实际文件情况修改元数据。修改过程中的失败均忽略。（但关联修改需要原子性）
+	execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+		t.checkCache(execCtx, tx, realFileHashes)
 
-		case agtmq.CHECK_IPFS_RESP_OP_CREATE_TEMP:
-			err := execCtx.Args.DB.Cache().CreateTemp(execCtx.Args.DB.SQLCtx(), entry.FileHash, t.NodeID)
-			if err != nil {
-				log.WithField("FileHash", entry.FileHash).
-					WithField("NodeID", t.NodeID).
-					Warnf("create temp cache failed, err: %s", err.Error())
-			}
+		t.checkPinnedObject(execCtx, tx, realFileHashes)
 
-			log.WithField("FileHash", entry.FileHash).
-				WithField("NodeID", t.NodeID).
-				Debugf("create temp cache")
+		t.checkObjectBlock(execCtx, tx, realFileHashes)
+		return nil
+	})
+}
+
+// 对比Cache表中的记录，多了增加，少了删除
+func (t *AgentCheckCache) checkCache(execCtx ExecuteContext, tx *sqlx.Tx, realFileHashes map[string]bool) {
+	log := logger.WithType[AgentCheckCache]("Event")
+
+	caches, err := execCtx.Args.DB.Cache().GetByNodeID(tx, t.NodeID)
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("getting caches by node id: %s", err.Error())
+		return
+	}
+
+	realFileHashesCp := make(map[string]bool)
+	for k, v := range realFileHashes {
+		realFileHashesCp[k] = v
+	}
+
+	var rms []string
+	for _, c := range caches {
+		if realFileHashesCp[c.FileHash] {
+			// Cache表使用FileHash和NodeID作为主键，
+			// 所以通过同一个NodeID查询的结果不会存在两条相同FileHash的情况
+			delete(realFileHashesCp, c.FileHash)
+			continue
+		}
+		rms = append(rms, c.FileHash)
+	}
+
+	if len(rms) > 0 {
+		err = execCtx.Args.DB.Cache().NodeBatchDelete(tx, t.NodeID, rms)
+		if err != nil {
+			log.Warnf("batch delete node caches: %w", err.Error())
+		}
+	}
+
+	if len(realFileHashesCp) > 0 {
+		err = execCtx.Args.DB.Cache().BatchCreate(tx, lo.Keys(realFileHashesCp), t.NodeID, 0)
+		if err != nil {
+			log.Warnf("batch create node caches: %w", err)
+			return
+		}
+	}
+}
+
+// 对比PinnedObject表，多了不变，少了删除
+func (t *AgentCheckCache) checkPinnedObject(execCtx ExecuteContext, tx *sqlx.Tx, realFileHashes map[string]bool) {
+	log := logger.WithType[AgentCheckCache]("Event")
+
+	objs, err := execCtx.Args.DB.PinnedObject().GetObjectsByNodeID(tx, t.NodeID)
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("getting pinned objects by node id: %s", err.Error())
+		return
+	}
+
+	var rms []cdssdk.ObjectID
+	for _, c := range objs {
+		if realFileHashes[c.FileHash] {
+			continue
+		}
+		rms = append(rms, c.ObjectID)
+	}
+
+	if len(rms) > 0 {
+		err = execCtx.Args.DB.PinnedObject().NodeBatchDelete(tx, t.NodeID, rms)
+		if err != nil {
+			log.Warnf("batch delete node pinned objects: %s", err.Error())
+		}
+	}
+}
+
+// 对比ObjectBlock表，多了不变，少了删除
+func (t *AgentCheckCache) checkObjectBlock(execCtx ExecuteContext, tx *sqlx.Tx, realFileHashes map[string]bool) {
+	log := logger.WithType[AgentCheckCache]("Event")
+
+	blocks, err := execCtx.Args.DB.ObjectBlock().GetByNodeID(tx, t.NodeID)
+	if err != nil {
+		log.WithField("NodeID", t.NodeID).Warnf("getting object blocks by node id: %s", err.Error())
+		return
+	}
+
+	var rms []string
+	for _, b := range blocks {
+		if realFileHashes[b.FileHash] {
+			continue
+		}
+		rms = append(rms, b.FileHash)
+	}
+
+	if len(rms) > 0 {
+		err = execCtx.Args.DB.ObjectBlock().NodeBatchDelete(tx, t.NodeID, rms)
+		if err != nil {
+			log.Warnf("batch delete node object blocks: %s", err.Error())
 		}
 	}
 }
 
 func init() {
-	RegisterMessageConvertor(func(msg *scevt.AgentCheckCache) Event { return NewAgentCheckCache(msg.NodeID, msg.FileHashes) })
+	RegisterMessageConvertor(NewAgentCheckCache)
 }
