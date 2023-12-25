@@ -56,7 +56,7 @@ func (t *AgentCacheGC) Execute(execCtx ExecuteContext) {
 	defer mutex.Unlock()
 
 	var allFileHashes []string
-	err = execCtx.Args.DB.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err = execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		blocks, err := execCtx.Args.DB.ObjectBlock().GetByNodeID(tx, t.NodeID)
 		if err != nil {
 			return fmt.Errorf("getting object blocks by node id: %w", err)

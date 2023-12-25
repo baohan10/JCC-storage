@@ -127,14 +127,16 @@ func (i *DownloadObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) 
 }
 
 func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
+	if len(obj.Blocks) == 0 {
+		return nil, fmt.Errorf("no node has this object")
+	}
+
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
-	for i := range obj.Blocks {
-		if len(obj.Blocks[i].CachedNodeIDs) == 0 {
-			return nil, fmt.Errorf("no node has block %d", obj.Blocks[i].Index)
-		}
 
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(obj.Blocks[i].CachedNodeIDs))
+	grpBlocks := obj.GroupBlocks()
+	for _, grp := range grpBlocks {
+		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(grp.NodeIDs))
 		if err != nil {
 			continue
 		}
@@ -151,8 +153,8 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Clie
 
 	var fileStrs []io.ReadCloser
 
-	for i := range obj.Blocks {
-		str, err := downloadFile(ctx, chosenNodes[i], obj.Blocks[i].FileHash)
+	for i := range grpBlocks {
+		str, err := downloadFile(ctx, chosenNodes[i], grpBlocks[i].FileHash)
 		if err != nil {
 			for i -= 1; i >= 0; i-- {
 				fileStrs[i].Close()
@@ -172,19 +174,14 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Clie
 func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
 	//采取直接读，优先选内网节点
 	var chosenNodes []DownloadNodeInfo
-	var chosenBlocks []stgmodels.ObjectBlockDetail
-	for i := range obj.Blocks {
+	var chosenBlocks []stgmodels.GrouppedObjectBlock
+	grpBlocks := obj.GroupBlocks()
+	for i := range grpBlocks {
 		if len(chosenBlocks) == ecRed.K {
 			break
 		}
 
-		// 块没有被任何节点缓存或者获取失败都没关系，只要能获取到k个块的信息就行
-
-		if len(obj.Blocks[i].CachedNodeIDs) == 0 {
-			continue
-		}
-
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(obj.Blocks[i].CachedNodeIDs))
+		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(grpBlocks[i].NodeIDs))
 		if err != nil {
 			continue
 		}
@@ -196,7 +193,7 @@ func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx
 			}
 		})
 
-		chosenBlocks = append(chosenBlocks, obj.Blocks[i])
+		chosenBlocks = append(chosenBlocks, grpBlocks[i])
 		chosenNodes = append(chosenNodes, iter.chooseDownloadNode(downloadNodes))
 
 	}

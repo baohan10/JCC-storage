@@ -88,7 +88,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 		pkgs[pkg.PackageID] = true
 	}
 
-	execCtx.Args.DB.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		packages, err := execCtx.Args.DB.StoragePackage().GetAllByStorageID(tx, t.StorageID)
 		if err != nil {
 			log.Warnf("getting storage package: %s", err.Error())

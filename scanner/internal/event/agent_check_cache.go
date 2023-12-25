@@ -61,7 +61,7 @@ func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	realFileHashes := lo.SliceToMap(checkResp.FileHashes, func(hash string) (string, bool) { return hash, true })
 
 	// 根据IPFS中实际文件情况修改元数据。修改过程中的失败均忽略。（但关联修改需要原子性）
-	execCtx.Args.DB.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	execCtx.Args.DB.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		t.checkCache(execCtx, tx, realFileHashes)
 
 		t.checkPinnedObject(execCtx, tx, realFileHashes)
@@ -97,16 +97,19 @@ func (t *AgentCheckCache) checkCache(execCtx ExecuteContext, tx *sqlx.Tx, realFi
 		rms = append(rms, c.FileHash)
 	}
 
-	err = execCtx.Args.DB.Cache().NodeBatchDelete(tx, t.NodeID, rms)
-	if err != nil {
-		log.Warnf("batch delete node caches: %w", err.Error())
-		return
+	if len(rms) > 0 {
+		err = execCtx.Args.DB.Cache().NodeBatchDelete(tx, t.NodeID, rms)
+		if err != nil {
+			log.Warnf("batch delete node caches: %w", err.Error())
+		}
 	}
 
-	err = execCtx.Args.DB.Cache().BatchCreate(tx, lo.Keys(realFileHashes), t.NodeID, 0)
-	if err != nil {
-		log.Warnf("batch create node caches: %w", err)
-		return
+	if len(realFileHashesCp) > 0 {
+		err = execCtx.Args.DB.Cache().BatchCreate(tx, lo.Keys(realFileHashesCp), t.NodeID, 0)
+		if err != nil {
+			log.Warnf("batch create node caches: %w", err)
+			return
+		}
 	}
 }
 
@@ -128,10 +131,11 @@ func (t *AgentCheckCache) checkPinnedObject(execCtx ExecuteContext, tx *sqlx.Tx,
 		rms = append(rms, c.ObjectID)
 	}
 
-	err = execCtx.Args.DB.PinnedObject().NodeBatchDelete(tx, t.NodeID, rms)
-	if err != nil {
-		log.Warnf("batch delete node pinned objects: %s", err.Error())
-		return
+	if len(rms) > 0 {
+		err = execCtx.Args.DB.PinnedObject().NodeBatchDelete(tx, t.NodeID, rms)
+		if err != nil {
+			log.Warnf("batch delete node pinned objects: %s", err.Error())
+		}
 	}
 }
 
@@ -139,29 +143,25 @@ func (t *AgentCheckCache) checkPinnedObject(execCtx ExecuteContext, tx *sqlx.Tx,
 func (t *AgentCheckCache) checkObjectBlock(execCtx ExecuteContext, tx *sqlx.Tx, realFileHashes map[string]bool) {
 	log := logger.WithType[AgentCheckCache]("Event")
 
-	objs, err := execCtx.Args.DB.ObjectBlock().GetByNodeID(tx, t.NodeID)
+	blocks, err := execCtx.Args.DB.ObjectBlock().GetByNodeID(tx, t.NodeID)
 	if err != nil {
 		log.WithField("NodeID", t.NodeID).Warnf("getting object blocks by node id: %s", err.Error())
 		return
 	}
 
-	realFileHashesCp := make(map[string]bool)
-	for k, v := range realFileHashes {
-		realFileHashesCp[k] = v
-	}
-
 	var rms []string
-	for _, c := range objs {
-		if realFileHashesCp[c.FileHash] {
+	for _, b := range blocks {
+		if realFileHashes[b.FileHash] {
 			continue
 		}
-		rms = append(rms, c.FileHash)
+		rms = append(rms, b.FileHash)
 	}
 
-	err = execCtx.Args.DB.ObjectBlock().NodeBatchDelete(tx, t.NodeID, rms)
-	if err != nil {
-		log.Warnf("batch delete node object blocks: %w", err)
-		return
+	if len(rms) > 0 {
+		err = execCtx.Args.DB.ObjectBlock().NodeBatchDelete(tx, t.NodeID, rms)
+		if err != nil {
+			log.Warnf("batch delete node object blocks: %s", err.Error())
+		}
 	}
 }
 

@@ -34,9 +34,9 @@ func (*CacheDB) GetByNodeID(ctx SQLContext, nodeID cdssdk.NodeID) ([]model.Cache
 	return ret, err
 }
 
-// Create 创建一条新的缓存记录
+// Create 创建一条的缓存记录，如果已有则不进行操作
 func (*CacheDB) Create(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID, priority int) error {
-	_, err := ctx.Exec("insert into Cache values(?,?,?,?)", fileHash, nodeID, time.Now(), priority)
+	_, err := ctx.Exec("insert ignore into Cache values(?,?,?,?)", fileHash, nodeID, time.Now(), priority)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,11 @@ func (*CacheDB) BatchCreate(ctx SQLContext, fileHashes []string, nodeID cdssdk.N
 
 func (*CacheDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes []string) error {
 	// TODO in语句有长度限制
-	_, err := ctx.Exec("delete from Cache where NodeID = ? and FileHash in (?)", nodeID, fileHashes)
+	query, args, err := sqlx.In("delete from Cache where NodeID = ? and FileHash in (?)", nodeID, fileHashes)
+	if err != nil {
+		return err
+	}
+	_, err = ctx.Exec(query, args...)
 	return err
 }
 

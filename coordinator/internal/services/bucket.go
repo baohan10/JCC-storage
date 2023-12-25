@@ -45,7 +45,7 @@ func (svc *Service) GetBucketPackages(msg *coormq.GetBucketPackages) (*coormq.Ge
 
 func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucketResp, *mq.CodeMessage) {
 	var bucketID cdssdk.BucketID
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		_, err := svc.db.User().GetByID(tx, msg.UserID)
 		if err != nil {
 			return fmt.Errorf("getting user by id: %w", err)
@@ -69,7 +69,7 @@ func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucket
 }
 
 func (svc *Service) DeleteBucket(msg *coormq.DeleteBucket) (*coormq.DeleteBucketResp, *mq.CodeMessage) {
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		isAvai, _ := svc.db.Bucket().IsAvailable(tx, msg.BucketID, msg.UserID)
 		if !isAvai {
 			return fmt.Errorf("bucket is not avaiable to the user")

@@ -4,7 +4,9 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/samber/lo"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type PinnedObjectDB struct {
@@ -22,9 +24,9 @@ func (*PinnedObjectDB) GetByNodeID(ctx SQLContext, nodeID cdssdk.NodeID) ([]cdss
 }
 
 func (*PinnedObjectDB) GetObjectsByNodeID(ctx SQLContext, nodeID cdssdk.NodeID) ([]cdssdk.Object, error) {
-	var ret []cdssdk.Object
+	var ret []model.TempObject
 	err := sqlx.Select(ctx, &ret, "select Object.* from PinnedObject, Object where PinnedObject.ObjectID = Object.ObjectID and NodeID = ?", nodeID)
-	return ret, err
+	return lo.Map(ret, func(o model.TempObject, idx int) cdssdk.Object { return o.ToObject() }), err
 }
 
 func (*PinnedObjectDB) Create(ctx SQLContext, nodeID cdssdk.NodeID, objectID cdssdk.ObjectID, createTime time.Time) error {
@@ -34,7 +36,7 @@ func (*PinnedObjectDB) Create(ctx SQLContext, nodeID cdssdk.NodeID, objectID cds
 
 func (*PinnedObjectDB) CreateFromPackage(ctx SQLContext, packageID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
 	_, err := ctx.Exec(
-		"insert ignore into PinnedObject(NodeID, ObjectID, CreateTime) select ?, ObjectID, ? from Object where PackageID = ?",
+		"insert ignore into PinnedObject(NodeID, ObjectID, CreateTime) select ? as NodeID, ObjectID, ? as CreateTime from Object where PackageID = ?",
 		nodeID,
 		time.Now(),
 		packageID,
@@ -43,12 +45,12 @@ func (*PinnedObjectDB) CreateFromPackage(ctx SQLContext, packageID cdssdk.Packag
 }
 
 func (*PinnedObjectDB) Delete(ctx SQLContext, nodeID cdssdk.NodeID, objectID cdssdk.ObjectID) error {
-	_, err := ctx.Exec("delete from PinnedObject where NodeID = ? and ObjectID = ?")
+	_, err := ctx.Exec("delete from PinnedObject where NodeID = ? and ObjectID = ?", nodeID, objectID)
 	return err
 }
 
 func (*PinnedObjectDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID) error {
-	_, err := ctx.Exec("delete from PinnedObject where and ObjectID = ?")
+	_, err := ctx.Exec("delete from PinnedObject where ObjectID = ?", objectID)
 	return err
 }
 
@@ -58,6 +60,10 @@ func (*PinnedObjectDB) DeleteInPackage(ctx SQLContext, packageID cdssdk.PackageI
 }
 
 func (*PinnedObjectDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, objectIDs []cdssdk.ObjectID) error {
-	_, err := ctx.Exec("delete from PinnedObject where NodeID = ? and ObjectID in (?)", objectIDs)
+	query, args, err := sqlx.In("delete from PinnedObject where NodeID = ? and ObjectID in (?)", objectIDs)
+	if err != nil {
+		return err
+	}
+	_, err = ctx.Exec(query, args...)
 	return err
 }

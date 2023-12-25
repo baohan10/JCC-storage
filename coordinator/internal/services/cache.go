@@ -12,7 +12,7 @@ import (
 )
 
 func (svc *Service) CachePackageMoved(msg *coormq.CachePackageMoved) (*coormq.CachePackageMovedResp, *mq.CodeMessage) {
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		_, err := svc.db.Package().GetByID(tx, msg.PackageID)
 		if err != nil {
 			return fmt.Errorf("getting package by id: %w", err)

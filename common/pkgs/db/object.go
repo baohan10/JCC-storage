@@ -169,7 +169,12 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 }
 
 func (*ObjectDB) BatchDelete(ctx SQLContext, ids []cdssdk.ObjectID) error {
-	_, err := ctx.Exec("delete from Object where ObjectID in (?)", ids)
+	query, args, err := sqlx.In("delete from Object where ObjectID in (?)", ids)
+	if err != nil {
+		return err
+	}
+
+	_, err = ctx.Exec(query, args...)
 	return err
 }
 

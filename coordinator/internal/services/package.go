@@ -28,7 +28,7 @@ func (svc *Service) GetPackage(msg *coormq.GetPackage) (*coormq.GetPackageResp, 
 
 func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePackageResp, *mq.CodeMessage) {
 	var pkgID cdssdk.PackageID
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		var err error
 
 		isAvai, _ := svc.db.Bucket().IsAvailable(tx, msg.BucketID, msg.UserID)
@@ -54,7 +54,7 @@ func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePack
 }
 
 func (svc *Service) UpdatePackage(msg *coormq.UpdatePackage) (*coormq.UpdatePackageResp, *mq.CodeMessage) {
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		_, err := svc.db.Package().GetByID(tx, msg.PackageID)
 		if err != nil {
 			return fmt.Errorf("getting package by id: %w", err)
@@ -85,7 +85,7 @@ func (svc *Service) UpdatePackage(msg *coormq.UpdatePackage) (*coormq.UpdatePack
 }
 
 func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePackageResp, *mq.CodeMessage) {
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		isAvai, _ := svc.db.Package().IsAvailable(tx, msg.UserID, msg.PackageID)
 		if !isAvai {
 			return fmt.Errorf("package is not available to the user")
@@ -144,19 +144,17 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 	for _, obj := range objDetails {
 		// 只要存了文件的一个块，就认为此节点存了整个文件
 		for _, block := range obj.Blocks {
-			for _, nodeID := range block.CachedNodeIDs {
-				info, ok := nodeInfoMap[nodeID]
-				if !ok {
-					info = &cdssdk.NodePackageCachingInfo{
-						NodeID: nodeID,
-					}
-					nodeInfoMap[nodeID] = info
-
+			info, ok := nodeInfoMap[block.NodeID]
+			if !ok {
+				info = &cdssdk.NodePackageCachingInfo{
+					NodeID: block.NodeID,
 				}
+				nodeInfoMap[block.NodeID] = info
 
-				info.FileSize += obj.Object.Size
-				info.ObjectCount++
 			}
+
+			info.FileSize += obj.Object.Size
+			info.ObjectCount++
 		}
 	}
 

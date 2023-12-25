@@ -24,7 +24,7 @@ func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStora
 }
 
 func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coormq.StoragePackageLoadedResp, *mq.CodeMessage) {
-	err := svc.db.DoTx(sql.LevelLinearizable, func(tx *sqlx.Tx) error {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		err := svc.db.StoragePackage().Create(tx, msg.StorageID, msg.PackageID, msg.UserID)
 		if err != nil {
 			return fmt.Errorf("creating storage package: %w", err)
