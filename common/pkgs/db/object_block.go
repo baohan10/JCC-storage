@@ -31,6 +31,14 @@ func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index 
 	return err
 }
 
+func (db *ObjectBlockDB) BatchCreate(ctx SQLContext, blocks []stgmod.ObjectBlock) error {
+	_, err := sqlx.NamedExec(ctx,
+		"insert ignore into ObjectBlock(ObjectID, `Index`, NodeID, FileHash) values(:ObjectID, :Index, :NodeID, :FileHash)",
+		blocks,
+	)
+	return err
+}
+
 func (db *ObjectBlockDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID) error {
 	_, err := ctx.Exec("delete from ObjectBlock where ObjectID = ?", objectID)
 	return err
@@ -78,7 +86,7 @@ func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk
 		var blocks []stgmod.ObjectBlock
 		err = sqlx.Select(ctx,
 			&blocks,
-			"select * from ObjectBlock where ObjectID = ? order by Index",
+			"select * from ObjectBlock where ObjectID = ? order by `Index`",
 			obj.ObjectID,
 		)
 		if err != nil {
