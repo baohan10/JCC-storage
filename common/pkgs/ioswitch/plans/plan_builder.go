@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
@@ -60,7 +59,7 @@ func (b *PlanBuilder) FromExecutor() *FromExecutorStream {
 	}
 }
 
-func (b *PlanBuilder) AtAgent(node model.Node) *AgentPlanBuilder {
+func (b *PlanBuilder) AtAgent(node cdssdk.Node) *AgentPlanBuilder {
 	agtPlan, ok := b.agentPlans[node.NodeID]
 	if !ok {
 		agtPlan = &AgentPlanBuilder{
@@ -76,10 +75,10 @@ func (b *PlanBuilder) AtAgent(node model.Node) *AgentPlanBuilder {
 type FromExecutorStream struct {
 	owner  *PlanBuilder
 	info   *StreamInfo
-	toNode *model.Node
+	toNode *cdssdk.Node
 }
 
-func (s *FromExecutorStream) ToNode(node model.Node) *AgentStream {
+func (s *FromExecutorStream) ToNode(node cdssdk.Node) *AgentStream {
 	s.toNode = &node
 	return &AgentStream{
 		owner: s.owner.AtAgent(node),
@@ -89,7 +88,7 @@ func (s *FromExecutorStream) ToNode(node model.Node) *AgentStream {
 
 type ToExecutorStream struct {
 	info     *StreamInfo
-	fromNode *model.Node
+	fromNode *cdssdk.Node
 }
 
 type MultiStream struct {

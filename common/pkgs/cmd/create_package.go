@@ -12,7 +12,6 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -40,7 +39,7 @@ type ObjectUploadResult struct {
 }
 
 type UploadNodeInfo struct {
-	Node           model.Node
+	Node           cdssdk.Node
 	IsSameLocation bool
 }
 
@@ -76,7 +75,7 @@ func (t *CreatePackage) Execute(ctx *UpdatePackageContext) (*CreatePackageResult
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
-	userNodes := lo.Map(getUserNodesResp.Nodes, func(node model.Node, index int) UploadNodeInfo {
+	userNodes := lo.Map(getUserNodesResp.Nodes, func(node cdssdk.Node, index int) UploadNodeInfo {
 		return UploadNodeInfo{
 			Node:           node,
 			IsSameLocation: node.LocationID == stgglb.Local.LocationID,

@@ -3,7 +3,6 @@ package coordinator
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type NodeService interface {
@@ -21,7 +20,7 @@ type GetUserNodes struct {
 }
 type GetUserNodesResp struct {
 	mq.MessageBodyBase
-	Nodes []model.Node `json:"nodes"`
+	Nodes []cdssdk.Node `json:"nodes"`
 }
 
 func NewGetUserNodes(userID cdssdk.UserID) *GetUserNodes {
@@ -29,7 +28,7 @@ func NewGetUserNodes(userID cdssdk.UserID) *GetUserNodes {
 		UserID: userID,
 	}
 }
-func NewGetUserNodesResp(nodes []model.Node) *GetUserNodesResp {
+func NewGetUserNodesResp(nodes []cdssdk.Node) *GetUserNodesResp {
 	return &GetUserNodesResp{
 		Nodes: nodes,
 	}
@@ -47,7 +46,7 @@ type GetNodes struct {
 }
 type GetNodesResp struct {
 	mq.MessageBodyBase
-	Nodes []model.Node `json:"nodes"`
+	Nodes []cdssdk.Node `json:"nodes"`
 }
 
 func NewGetNodes(nodeIDs []cdssdk.NodeID) *GetNodes {
@@ -55,7 +54,7 @@ func NewGetNodes(nodeIDs []cdssdk.NodeID) *GetNodes {
 		NodeIDs: nodeIDs,
 	}
 }
-func NewGetNodesResp(nodes []model.Node) *GetNodesResp {
+func NewGetNodesResp(nodes []cdssdk.Node) *GetNodesResp {
 	return &GetNodesResp{
 		Nodes: nodes,
 	}

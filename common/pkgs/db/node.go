@@ -5,7 +5,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type NodeDB struct {
@@ -16,21 +15,21 @@ func (db *DB) Node() *NodeDB {
 	return &NodeDB{DB: db}
 }
 
-func (db *NodeDB) GetByID(ctx SQLContext, nodeID cdssdk.NodeID) (model.Node, error) {
-	var ret model.Node
+func (db *NodeDB) GetByID(ctx SQLContext, nodeID cdssdk.NodeID) (cdssdk.Node, error) {
+	var ret cdssdk.Node
 	err := sqlx.Get(ctx, &ret, "select * from Node where NodeID = ?", nodeID)
 	return ret, err
 }
 
-func (db *NodeDB) GetAllNodes(ctx SQLContext) ([]model.Node, error) {
-	var ret []model.Node
+func (db *NodeDB) GetAllNodes(ctx SQLContext) ([]cdssdk.Node, error) {
+	var ret []cdssdk.Node
 	err := sqlx.Select(ctx, &ret, "select * from Node")
 	return ret, err
 }
 
 // GetUserNodes 根据用户id查询可用node
-func (db *NodeDB) GetUserNodes(ctx SQLContext, userID cdssdk.UserID) ([]model.Node, error) {
-	var nodes []model.Node
+func (db *NodeDB) GetUserNodes(ctx SQLContext, userID cdssdk.UserID) ([]cdssdk.Node, error) {
+	var nodes []cdssdk.Node
 	err := sqlx.Select(ctx, &nodes, "select Node.* from UserNode, Node where UserNode.NodeID = Node.NodeID and UserNode.UserID=?", userID)
 	return nodes, err
 }

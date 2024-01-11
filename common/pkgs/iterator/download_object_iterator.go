@@ -28,7 +28,7 @@ type IterDownloadingObject struct {
 }
 
 type DownloadNodeInfo struct {
-	Node           model.Node
+	Node           cdssdk.Node
 	IsSameLocation bool
 }
 
@@ -141,7 +141,7 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Clie
 			continue
 		}
 
-		downloadNodes := lo.Map(getNodesResp.Nodes, func(node model.Node, index int) DownloadNodeInfo {
+		downloadNodes := lo.Map(getNodesResp.Nodes, func(node cdssdk.Node, index int) DownloadNodeInfo {
 			return DownloadNodeInfo{
 				Node:           node,
 				IsSameLocation: node.LocationID == stgglb.Local.LocationID,
@@ -186,7 +186,7 @@ func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx
 			continue
 		}
 
-		downloadNodes := lo.Map(getNodesResp.Nodes, func(node model.Node, index int) DownloadNodeInfo {
+		downloadNodes := lo.Map(getNodesResp.Nodes, func(node cdssdk.Node, index int) DownloadNodeInfo {
 			return DownloadNodeInfo{
 				Node:           node,
 				IsSameLocation: node.LocationID == stgglb.Local.LocationID,
