@@ -1,4 +1,4 @@
-package services
+package mq
 
 import (
 	"gitlink.org.cn/cloudream/common/consts/errorcode"

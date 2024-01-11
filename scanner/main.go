@@ -12,7 +12,7 @@ import (
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/config"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
-	"gitlink.org.cn/cloudream/storage/scanner/internal/services"
+	"gitlink.org.cn/cloudream/storage/scanner/internal/mq"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/tickevent"
 )
 
@@ -49,7 +49,7 @@ func main() {
 	eventExecutor := event.NewExecutor(db, distlockSvc)
 	go serveEventExecutor(&eventExecutor, &wg)
 
-	agtSvr, err := scmq.NewServer(services.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
+	agtSvr, err := scmq.NewServer(mq.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
 	if err != nil {
 		logger.Fatalf("new agent server failed, err: %s", err.Error())
 	}

@@ -1,4 +1,4 @@
-package services
+package mq
 
 import (
 	mydb "gitlink.org.cn/cloudream/storage/common/pkgs/db"
