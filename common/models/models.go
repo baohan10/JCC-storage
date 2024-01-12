@@ -13,14 +13,16 @@ type ObjectBlock struct {
 }
 
 type ObjectDetail struct {
-	Object cdssdk.Object `json:"object"`
-	Blocks []ObjectBlock `json:"blocks"`
+	Object   cdssdk.Object   `json:"object"`
+	PinnedAt []cdssdk.NodeID `json:"pinnedAt"`
+	Blocks   []ObjectBlock   `json:"blocks"`
 }
 
-func NewObjectDetail(object cdssdk.Object, blocks []ObjectBlock) ObjectDetail {
+func NewObjectDetail(object cdssdk.Object, pinnedAt []cdssdk.NodeID, blocks []ObjectBlock) ObjectDetail {
 	return ObjectDetail{
-		Object: object,
-		Blocks: blocks,
+		Object:   object,
+		PinnedAt: pinnedAt,
+		Blocks:   blocks,
 	}
 }
 

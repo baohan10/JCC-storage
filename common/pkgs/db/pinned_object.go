@@ -34,6 +34,11 @@ func (*PinnedObjectDB) Create(ctx SQLContext, nodeID cdssdk.NodeID, objectID cds
 	return err
 }
 
+func (*PinnedObjectDB) TryCreate(ctx SQLContext, nodeID cdssdk.NodeID, objectID cdssdk.ObjectID, createTime time.Time) error {
+	_, err := ctx.Exec("insert ignore into PinnedObject values(?,?,?)", nodeID, objectID, createTime)
+	return err
+}
+
 func (*PinnedObjectDB) CreateFromPackage(ctx SQLContext, packageID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
 	_, err := ctx.Exec(
 		"insert ignore into PinnedObject(NodeID, ObjectID, CreateTime) select ? as NodeID, ObjectID, ? as CreateTime from Object where PackageID = ?",
@@ -42,6 +47,16 @@ func (*PinnedObjectDB) CreateFromPackage(ctx SQLContext, packageID cdssdk.Packag
 		packageID,
 	)
 	return err
+}
+
+func (db *PinnedObjectDB) ObjectBatchCreate(ctx SQLContext, objectID cdssdk.ObjectID, nodeIDs []cdssdk.NodeID) error {
+	for _, id := range nodeIDs {
+		err := db.TryCreate(ctx, id, objectID, time.Now())
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (*PinnedObjectDB) Delete(ctx SQLContext, nodeID cdssdk.NodeID, objectID cdssdk.ObjectID) error {

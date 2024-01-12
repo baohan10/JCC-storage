@@ -2,14 +2,12 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 type ObjectBlockDB struct {
@@ -71,32 +69,6 @@ func (db *ObjectBlockDB) CountBlockWithHash(ctx SQLContext, fileHash string) (in
 	}
 
 	return cnt, err
-}
-
-func (db *ObjectBlockDB) GetPackageBlockDetails(ctx SQLContext, packageID cdssdk.PackageID) ([]stgmod.ObjectDetail, error) {
-	var objs []model.TempObject
-	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
-	if err != nil {
-		return nil, fmt.Errorf("getting objects: %w", err)
-	}
-
-	rets := make([]stgmod.ObjectDetail, 0, len(objs))
-
-	for _, obj := range objs {
-		var blocks []stgmod.ObjectBlock
-		err = sqlx.Select(ctx,
-			&blocks,
-			"select * from ObjectBlock where ObjectID = ? order by `Index`",
-			obj.ObjectID,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		rets = append(rets, stgmod.NewObjectDetail(obj.ToObject(), blocks))
-	}
-
-	return rets, nil
 }
 
 // 按逗号切割字符串，并将每一个部分解析为一个int64的ID。

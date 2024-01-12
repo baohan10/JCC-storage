@@ -83,6 +83,7 @@ type ChangeObjectRedundancyResp struct {
 type ChangeObjectRedundancyEntry struct {
 	ObjectID   cdssdk.ObjectID      `json:"objectID"`
 	Redundancy cdssdk.Redundancy    `json:"redundancy"`
+	PinnedAt   []cdssdk.NodeID      `json:"pinnedAt"`
 	Blocks     []stgmod.ObjectBlock `json:"blocks"`
 }
 

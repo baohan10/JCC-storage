@@ -6,6 +6,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -94,6 +95,38 @@ func (*ObjectDB) GetPackageObjects(ctx SQLContext, packageID cdssdk.PackageID) (
 	return lo.Map(ret, func(o model.TempObject, idx int) model.Object { return o.ToObject() }), err
 }
 
+func (db *ObjectDB) GetPackageObjectDetails(ctx SQLContext, packageID cdssdk.PackageID) ([]stgmod.ObjectDetail, error) {
+	var objs []model.TempObject
+	err := sqlx.Select(ctx, &objs, "select * from Object where PackageID = ? order by ObjectID asc", packageID)
+	if err != nil {
+		return nil, fmt.Errorf("getting objects: %w", err)
+	}
+
+	rets := make([]stgmod.ObjectDetail, 0, len(objs))
+
+	for _, obj := range objs {
+		var blocks []stgmod.ObjectBlock
+		err = sqlx.Select(ctx,
+			&blocks,
+			"select * from ObjectBlock where ObjectID = ? order by `Index`",
+			obj.ObjectID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var pinnedAt []cdssdk.NodeID
+		err = sqlx.Select(ctx, &pinnedAt, "select NodeID from PinnedObject where ObjectID = ?", obj.ObjectID)
+		if err != nil {
+			return nil, err
+		}
+
+		rets = append(rets, stgmod.NewObjectDetail(obj.ToObject(), pinnedAt, blocks))
+	}
+
+	return rets, nil
+}
+
 func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []coormq.AddObjectEntry) ([]cdssdk.ObjectID, error) {
 	objIDs := make([]cdssdk.ObjectID, 0, len(objs))
 	for _, obj := range objs {
@@ -151,7 +184,6 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 		}
 
 		for _, block := range obj.Blocks {
-			// 首次上传默认使用不分块的rep模式
 			err = db.ObjectBlock().Create(ctx, obj.ObjectID, block.Index, block.NodeID, block.FileHash)
 			if err != nil {
 				return fmt.Errorf("creating object block: %w", err)
@@ -162,6 +194,11 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 			if err != nil {
 				return fmt.Errorf("creating cache: %w", err)
 			}
+		}
+
+		err = db.PinnedObject().ObjectBatchCreate(ctx, obj.ObjectID, obj.PinnedAt)
+		if err != nil {
+			return fmt.Errorf("creating pinned object: %w", err)
 		}
 	}
 
