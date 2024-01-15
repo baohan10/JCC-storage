@@ -24,31 +24,7 @@ import (
 )
 
 func (svc *Service) StartStorageLoadPackage(msg *agtmq.StartStorageLoadPackage) (*agtmq.StartStorageLoadPackageResp, *mq.CodeMessage) {
-	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
-	if err != nil {
-		logger.Warnf("new coordinator client: %s", err.Error())
-
-		return nil, mq.Failed(errorcode.OperationFailed, "new coordinator client failed")
-	}
-	defer stgglb.CoordinatorMQPool.Release(coorCli)
-
-	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
-	if err != nil {
-		logger.WithField("StorageID", msg.StorageID).
-			Warnf("getting storage info: %s", err.Error())
-
-		return nil, mq.Failed(errorcode.OperationFailed, "get storage info failed")
-	}
-
-	outputDirPath := utils.MakeStorageLoadPackagePath(getStgResp.Directory, msg.UserID, msg.PackageID)
-	if err = os.MkdirAll(outputDirPath, 0755); err != nil {
-		logger.WithField("StorageID", msg.StorageID).
-			Warnf("creating output directory: %s", err.Error())
-
-		return nil, mq.Failed(errorcode.OperationFailed, "create output directory failed")
-	}
-
-	tsk := svc.taskManager.StartNew(mytask.NewStorageLoadPackage(msg.UserID, msg.PackageID, outputDirPath))
+	tsk := svc.taskManager.StartNew(mytask.NewStorageLoadPackage(msg.UserID, msg.PackageID, msg.StorageID))
 	return mq.ReplyOK(agtmq.NewStartStorageLoadPackageResp(tsk.ID()))
 }
 
@@ -70,7 +46,7 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 
 		loadTsk := tsk.Body().(*mytask.StorageLoadPackage)
 
-		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullPath))
+		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullOutputPath))
 
 	} else {
 		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
@@ -82,7 +58,7 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 
 			loadTsk := tsk.Body().(*mytask.StorageLoadPackage)
 
-			return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullPath))
+			return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullOutputPath))
 		}
 
 		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(false, "", ""))

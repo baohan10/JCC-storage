@@ -3,16 +3,20 @@ package iterator
 import (
 	"fmt"
 	"io"
-	"math/rand"
+	"math"
 	"reflect"
 
 	"github.com/samber/lo"
 
+	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	myio "gitlink.org.cn/cloudream/common/utils/io"
+	mysort "gitlink.org.cn/cloudream/common/utils/sort"
+	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
@@ -28,8 +32,10 @@ type IterDownloadingObject struct {
 }
 
 type DownloadNodeInfo struct {
-	Node           model.Node
-	IsSameLocation bool
+	Node         model.Node
+	ObjectPinned bool
+	Blocks       []stgmod.ObjectBlock
+	Distance     float64
 }
 
 type DownloadContext struct {
@@ -114,136 +120,192 @@ func (i *DownloadObjectIterator) Close() {
 	}
 }
 
-// chooseDownloadNode 选择一个下载节点
-// 1. 从与当前客户端相同地域的节点中随机选一个
-// 2. 没有用的话从所有节点中随机选一个
-func (i *DownloadObjectIterator) chooseDownloadNode(entries []DownloadNodeInfo) DownloadNodeInfo {
-	sameLocationEntries := lo.Filter(entries, func(e DownloadNodeInfo, i int) bool { return e.IsSameLocation })
-	if len(sameLocationEntries) > 0 {
-		return sameLocationEntries[rand.Intn(len(sameLocationEntries))]
+func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
+	allNodes, err := iter.sortDownloadNodes(coorCli, ctx, obj)
+	if err != nil {
+		return nil, err
+	}
+	bsc, blocks := iter.getMinReadingBlockSolution(allNodes, 1)
+	osc, node := iter.getMinReadingObjectSolution(allNodes, 1)
+	if bsc < osc {
+		return downloadFile(ctx, blocks[0].Node, blocks[0].Block.FileHash)
 	}
 
-	return entries[rand.Intn(len(entries))]
-}
-
-func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
-	if len(obj.Blocks) == 0 {
+	// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
+	if osc == math.MaxFloat64 {
 		return nil, fmt.Errorf("no node has this object")
 	}
 
-	//采取直接读，优先选内网节点
-	var chosenNodes []DownloadNodeInfo
-
-	grpBlocks := obj.GroupBlocks()
-	for _, grp := range grpBlocks {
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(grp.NodeIDs))
-		if err != nil {
-			continue
-		}
-
-		downloadNodes := lo.Map(getNodesResp.Nodes, func(node model.Node, index int) DownloadNodeInfo {
-			return DownloadNodeInfo{
-				Node:           node,
-				IsSameLocation: node.LocationID == stgglb.Local.LocationID,
-			}
-		})
-
-		chosenNodes = append(chosenNodes, iter.chooseDownloadNode(downloadNodes))
-	}
-
-	var fileStrs []io.ReadCloser
-
-	for i := range grpBlocks {
-		str, err := downloadFile(ctx, chosenNodes[i], grpBlocks[i].FileHash)
-		if err != nil {
-			for i -= 1; i >= 0; i-- {
-				fileStrs[i].Close()
-			}
-			return nil, fmt.Errorf("donwloading file: %w", err)
-		}
-
-		fileStrs = append(fileStrs, str)
-	}
-
-	fileReaders, filesCloser := myio.ToReaders(fileStrs)
-	return myio.AfterReadClosed(myio.Length(myio.Join(fileReaders), obj.Object.Size), func(c io.ReadCloser) {
-		filesCloser()
-	}), nil
+	return downloadFile(ctx, *node, obj.Object.FileHash)
 }
 
 func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
-	//采取直接读，优先选内网节点
-	var chosenNodes []DownloadNodeInfo
-	var chosenBlocks []stgmodels.GrouppedObjectBlock
-	grpBlocks := obj.GroupBlocks()
-	for i := range grpBlocks {
-		if len(chosenBlocks) == ecRed.K {
-			break
-		}
-
-		getNodesResp, err := coorCli.GetNodes(coormq.NewGetNodes(grpBlocks[i].NodeIDs))
-		if err != nil {
-			continue
-		}
-
-		downloadNodes := lo.Map(getNodesResp.Nodes, func(node model.Node, index int) DownloadNodeInfo {
-			return DownloadNodeInfo{
-				Node:           node,
-				IsSameLocation: node.LocationID == stgglb.Local.LocationID,
-			}
-		})
-
-		chosenBlocks = append(chosenBlocks, grpBlocks[i])
-		chosenNodes = append(chosenNodes, iter.chooseDownloadNode(downloadNodes))
-
-	}
-
-	if len(chosenBlocks) < ecRed.K {
-		return nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", ecRed.K, len(chosenBlocks))
-	}
-
-	var fileStrs []io.ReadCloser
-
-	rs, err := ec.NewRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
+	allNodes, err := iter.sortDownloadNodes(coorCli, ctx, obj)
 	if err != nil {
-		return nil, fmt.Errorf("new rs: %w", err)
+		return nil, err
 	}
+	bsc, blocks := iter.getMinReadingBlockSolution(allNodes, ecRed.K)
+	osc, node := iter.getMinReadingObjectSolution(allNodes, ecRed.K)
+	if bsc < osc {
+		var fileStrs []io.ReadCloser
 
-	for i := range chosenBlocks {
-		str, err := downloadFile(ctx, chosenNodes[i], chosenBlocks[i].FileHash)
+		rs, err := ec.NewRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
 		if err != nil {
-			for i -= 1; i >= 0; i-- {
-				fileStrs[i].Close()
-			}
-			return nil, fmt.Errorf("donwloading file: %w", err)
+			return nil, fmt.Errorf("new rs: %w", err)
 		}
 
-		fileStrs = append(fileStrs, str)
+		for i, b := range blocks {
+			str, err := downloadFile(ctx, b.Node, b.Block.FileHash)
+			if err != nil {
+				for i -= 1; i >= 0; i-- {
+					fileStrs[i].Close()
+				}
+				return nil, fmt.Errorf("donwloading file: %w", err)
+			}
+
+			fileStrs = append(fileStrs, str)
+		}
+
+		fileReaders, filesCloser := myio.ToReaders(fileStrs)
+
+		var indexes []int
+		for _, b := range blocks {
+			indexes = append(indexes, b.Block.Index)
+		}
+
+		outputs, outputsCloser := myio.ToReaders(rs.ReconstructData(fileReaders, indexes))
+		return myio.AfterReadClosed(myio.Length(myio.ChunkedJoin(outputs, int(ecRed.ChunkSize)), obj.Object.Size), func(c io.ReadCloser) {
+			filesCloser()
+			outputsCloser()
+		}), nil
 	}
 
-	fileReaders, filesCloser := myio.ToReaders(fileStrs)
-
-	var indexes []int
-	for _, b := range chosenBlocks {
-		indexes = append(indexes, b.Index)
+	// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
+	if osc == math.MaxFloat64 {
+		return nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", ecRed.K, len(blocks))
 	}
 
-	outputs, outputsCloser := myio.ToReaders(rs.ReconstructData(fileReaders, indexes))
-	return myio.AfterReadClosed(myio.Length(myio.ChunkedJoin(outputs, int(ecRed.ChunkSize)), obj.Object.Size), func(c io.ReadCloser) {
-		filesCloser()
-		outputsCloser()
+	return downloadFile(ctx, *node, obj.Object.FileHash)
+}
+
+func (iter *DownloadObjectIterator) sortDownloadNodes(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) ([]*DownloadNodeInfo, error) {
+	var nodeIDs []cdssdk.NodeID
+	for _, id := range obj.PinnedAt {
+		if !lo.Contains(nodeIDs, id) {
+			nodeIDs = append(nodeIDs, id)
+		}
+	}
+	for _, b := range obj.Blocks {
+		if !lo.Contains(nodeIDs, b.NodeID) {
+			nodeIDs = append(nodeIDs, b.NodeID)
+		}
+	}
+
+	getNodes, err := coorCli.GetNodes(coormq.NewGetNodes(nodeIDs))
+	if err != nil {
+		return nil, fmt.Errorf("getting nodes: %w", err)
+	}
+
+	downloadNodeMap := make(map[cdssdk.NodeID]*DownloadNodeInfo)
+	for _, id := range obj.PinnedAt {
+		node, ok := downloadNodeMap[id]
+		if !ok {
+			mod := *getNodes.GetNode(id)
+			node = &DownloadNodeInfo{
+				Node:         mod,
+				ObjectPinned: true,
+				Distance:     iter.getNodeDistance(mod),
+			}
+			downloadNodeMap[id] = node
+		}
+
+		node.ObjectPinned = true
+	}
+
+	for _, b := range obj.Blocks {
+		node, ok := downloadNodeMap[b.NodeID]
+		if !ok {
+			mod := *getNodes.GetNode(b.NodeID)
+			node = &DownloadNodeInfo{
+				Node:     mod,
+				Distance: iter.getNodeDistance(mod),
+			}
+			downloadNodeMap[b.NodeID] = node
+		}
+
+		node.Blocks = append(node.Blocks, b)
+	}
+
+	return mysort.Sort(lo.Values(downloadNodeMap), func(left, right *DownloadNodeInfo) int {
+		return mysort.Cmp(left.Distance, right.Distance)
 	}), nil
 }
 
-func downloadFile(ctx *DownloadContext, node DownloadNodeInfo, fileHash string) (io.ReadCloser, error) {
-	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-	nodeIP := node.Node.ExternalIP
-	grpcPort := node.Node.ExternalGRPCPort
-	if node.IsSameLocation {
-		nodeIP = node.Node.LocalIP
-		grpcPort = node.Node.LocalGRPCPort
+type downloadBlock struct {
+	Node  model.Node
+	Block stgmod.ObjectBlock
+}
 
-		logger.Infof("client and node %d are at the same location, use local ip", node.Node.NodeID)
+func (iter *DownloadObjectIterator) getMinReadingBlockSolution(sortedNodes []*DownloadNodeInfo, k int) (float64, []downloadBlock) {
+	gotBlocksMap := bitmap.Bitmap64(0)
+	var gotBlocks []downloadBlock
+	dist := float64(0.0)
+	for _, n := range sortedNodes {
+		for _, b := range n.Blocks {
+			if !gotBlocksMap.Get(b.Index) {
+				gotBlocks = append(gotBlocks, downloadBlock{
+					Node:  n.Node,
+					Block: b,
+				})
+				gotBlocksMap.Set(b.Index, true)
+				dist += n.Distance
+			}
+
+			if len(gotBlocks) >= k {
+				return dist, gotBlocks
+			}
+		}
+	}
+
+	return math.MaxFloat64, gotBlocks
+}
+
+func (iter *DownloadObjectIterator) getMinReadingObjectSolution(sortedNodes []*DownloadNodeInfo, k int) (float64, *model.Node) {
+	dist := math.MaxFloat64
+	var downloadNode *model.Node
+	for _, n := range sortedNodes {
+		if n.ObjectPinned && float64(k)*n.Distance < dist {
+			dist = float64(k) * n.Distance
+			downloadNode = &n.Node
+		}
+	}
+
+	return dist, downloadNode
+}
+
+func (iter *DownloadObjectIterator) getNodeDistance(node model.Node) float64 {
+	if stgglb.Local.NodeID != nil {
+		if node.NodeID == *stgglb.Local.NodeID {
+			return consts.NodeDistanceSameNode
+		}
+	}
+
+	if node.LocationID == stgglb.Local.LocationID {
+		return consts.NodeDistanceSameLocation
+	}
+
+	return consts.NodeDistanceOther
+}
+
+func downloadFile(ctx *DownloadContext, node model.Node, fileHash string) (io.ReadCloser, error) {
+	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
+	nodeIP := node.ExternalIP
+	grpcPort := node.ExternalGRPCPort
+	if node.LocationID == stgglb.Local.LocationID {
+		nodeIP = node.LocalIP
+		grpcPort = node.LocalGRPCPort
+
+		logger.Infof("client and node %d are at the same location, use local ip", node.NodeID)
 	}
 
 	if stgglb.IPFSPool != nil {
@@ -257,7 +319,7 @@ func downloadFile(ctx *DownloadContext, node DownloadNodeInfo, fileHash string) 
 		logger.Warnf("download from local IPFS failed, so try to download from node %s, err: %s", nodeIP, err.Error())
 	}
 
-	return downloadFromNode(ctx, node.Node.NodeID, nodeIP, grpcPort, fileHash)
+	return downloadFromNode(ctx, node.NodeID, nodeIP, grpcPort, fileHash)
 }
 
 func downloadFromNode(ctx *DownloadContext, nodeID cdssdk.NodeID, nodeIP string, grpcPort int, fileHash string) (io.ReadCloser, error) {

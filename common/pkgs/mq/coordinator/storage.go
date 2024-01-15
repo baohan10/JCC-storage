@@ -5,6 +5,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
@@ -55,19 +56,21 @@ var _ = Register(Service.StoragePackageLoaded)
 
 type StoragePackageLoaded struct {
 	mq.MessageBodyBase
-	UserID    cdssdk.UserID    `json:"userID"`
-	StorageID cdssdk.StorageID `json:"storageID"`
-	PackageID cdssdk.PackageID `json:"packageID"`
+	UserID       cdssdk.UserID        `json:"userID"`
+	StorageID    cdssdk.StorageID     `json:"storageID"`
+	PackageID    cdssdk.PackageID     `json:"packageID"`
+	PinnedBlocks []stgmod.ObjectBlock `json:"pinnedBlocks"`
 }
 type StoragePackageLoadedResp struct {
 	mq.MessageBodyBase
 }
 
-func NewStoragePackageLoaded(userID cdssdk.UserID, stgID cdssdk.StorageID, packageID cdssdk.PackageID) *StoragePackageLoaded {
+func NewStoragePackageLoaded(userID cdssdk.UserID, stgID cdssdk.StorageID, packageID cdssdk.PackageID, pinnedBlocks []stgmod.ObjectBlock) *StoragePackageLoaded {
 	return &StoragePackageLoaded{
-		UserID:    userID,
-		PackageID: packageID,
-		StorageID: stgID,
+		UserID:       userID,
+		PackageID:    packageID,
+		StorageID:    stgID,
+		PinnedBlocks: pinnedBlocks,
 	}
 }
 func NewStoragePackageLoadedResp() *StoragePackageLoadedResp {
