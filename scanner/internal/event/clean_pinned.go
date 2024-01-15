@@ -7,12 +7,14 @@ import (
 	"strconv"
 
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	mylo "gitlink.org.cn/cloudream/common/utils/lo"
 	mymath "gitlink.org.cn/cloudream/common/utils/math"
 	myref "gitlink.org.cn/cloudream/common/utils/reflect"
 	mysort "gitlink.org.cn/cloudream/common/utils/sort"
+	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
@@ -92,11 +94,11 @@ type doingContext struct {
 	readerNodeIDs       []cdssdk.NodeID              // 近期可能访问此对象的节点
 	nodesSortedByReader map[cdssdk.NodeID][]nodeDist // 拥有数据的节点到每个可能访问对象的节点按距离排序
 	nodeInfos           map[cdssdk.NodeID]*model.Node
-	blockList           []objectBlock             // 排序后的块分布情况
-	nodeBlockBitmaps    map[cdssdk.NodeID]*bitmap // 用位图的形式表示每一个节点上有哪些块
-	allBlockTypeCount   int                       // object总共被分成了几块
-	minBlockTypeCount   int                       // 最少要几块才能恢复出完整的object
-	nodeCombTree        combinatorialTree         // 节点组合树，用于加速计算容灾度
+	blockList           []objectBlock                      // 排序后的块分布情况
+	nodeBlockBitmaps    map[cdssdk.NodeID]*bitmap.Bitmap64 // 用位图的形式表示每一个节点上有哪些块
+	allBlockTypeCount   int                                // object总共被分成了几块
+	minBlockTypeCount   int                                // 最少要几块才能恢复出完整的object
+	nodeCombTree        combinatorialTree                  // 节点组合树，用于加速计算容灾度
 
 	maxScore         float64 // 搜索过程中得到过的最大分数
 	maxScoreRmBlocks []bool  // 最大分数对应的删除方案
@@ -121,7 +123,7 @@ type nodeDist struct {
 
 type combinatorialTree struct {
 	nodes               []combinatorialTreeNode
-	blocksMaps          map[int]bitmap
+	blocksMaps          map[int]bitmap.Bitmap64
 	nodeIDToLocalNodeID map[cdssdk.NodeID]int
 	localNodeIDToNodeID []cdssdk.NodeID
 }
@@ -132,9 +134,9 @@ const (
 	iterActionBreak = 2
 )
 
-func newCombinatorialTree(nodeBlocksMaps map[cdssdk.NodeID]*bitmap) combinatorialTree {
+func newCombinatorialTree(nodeBlocksMaps map[cdssdk.NodeID]*bitmap.Bitmap64) combinatorialTree {
 	tree := combinatorialTree{
-		blocksMaps:          make(map[int]bitmap),
+		blocksMaps:          make(map[int]bitmap.Bitmap64),
 		nodeIDToLocalNodeID: make(map[cdssdk.NodeID]int),
 	}
 
@@ -193,7 +195,7 @@ func (t *combinatorialTree) GetDepth(index int) int {
 
 // 更新某一个算力中心节点的块分布位图，同时更新它对应组合树节点的所有子节点。
 // 如果更新到某个节点时，已有K个块，那么就不会再更新它的子节点
-func (t *combinatorialTree) UpdateBitmap(nodeID cdssdk.NodeID, mp bitmap, k int) {
+func (t *combinatorialTree) UpdateBitmap(nodeID cdssdk.NodeID, mp bitmap.Bitmap64, k int) {
 	t.blocksMaps[t.nodeIDToLocalNodeID[nodeID]] = mp
 	// 首先定义两种遍历树节点时的移动方式：
 	//  1. 竖直移动（深度增加）：从一个节点移动到它最左边的子节点。每移动一步，index+1
@@ -327,31 +329,7 @@ func (t *combinatorialTree) itering(index int, parentIndex int, depth int, do fu
 type combinatorialTreeNode struct {
 	localNodeID  int
 	parent       *combinatorialTreeNode
-	blocksBitmap bitmap // 选择了这个中心之后，所有中心一共包含多少种块
-}
-
-type bitmap uint64
-
-func (b *bitmap) Set(index int, val bool) {
-	if val {
-		*b |= 1 << index
-	} else {
-		*b &= ^(1 << index)
-	}
-}
-
-func (b *bitmap) Or(other *bitmap) {
-	*b |= *other
-}
-
-func (b *bitmap) Weight() int {
-	v := *b
-	cnt := 0
-	for v > 0 {
-		cnt++
-		v &= (v - 1)
-	}
-	return cnt
+	blocksBitmap bitmap.Bitmap64 // 选择了这个中心之后，所有中心一共包含多少种块
 }
 
 func (t *CleanPinned) doOne(execCtx ExecuteContext, readerNodeIDs []cdssdk.NodeID, coorCli *coormq.Client, obj stgmod.ObjectDetail) (*coormq.ChangeObjectRedundancyEntry, error) {
@@ -364,7 +342,7 @@ func (t *CleanPinned) doOne(execCtx ExecuteContext, readerNodeIDs []cdssdk.NodeI
 		readerNodeIDs:       readerNodeIDs,
 		nodesSortedByReader: make(map[cdssdk.NodeID][]nodeDist),
 		nodeInfos:           make(map[cdssdk.NodeID]*model.Node),
-		nodeBlockBitmaps:    make(map[cdssdk.NodeID]*bitmap),
+		nodeBlockBitmaps:    make(map[cdssdk.NodeID]*bitmap.Bitmap64),
 	}
 
 	err := t.getNodeInfos(&ctx, coorCli, obj)
@@ -532,7 +510,7 @@ func (t *CleanPinned) makeNodeBlockBitmap(ctx *doingContext) {
 	for _, b := range ctx.blockList {
 		mp, ok := ctx.nodeBlockBitmaps[b.NodeID]
 		if !ok {
-			nb := bitmap(0)
+			nb := bitmap.Bitmap64(0)
 			mp = &nb
 			ctx.nodeBlockBitmaps[b.NodeID] = mp
 		}
@@ -549,19 +527,19 @@ func (t *CleanPinned) sortNodeByReaderDistance(ctx *doingContext) {
 				// 同节点时距离视为0.1
 				nodeDists = append(nodeDists, nodeDist{
 					NodeID:   n,
-					Distance: 0.1,
+					Distance: consts.NodeDistanceSameNode,
 				})
 			} else if ctx.nodeInfos[r].LocationID == ctx.nodeInfos[n].LocationID {
 				// 同地区时距离视为1
 				nodeDists = append(nodeDists, nodeDist{
 					NodeID:   n,
-					Distance: 1,
+					Distance: consts.NodeDistanceSameLocation,
 				})
 			} else {
 				// 不同地区时距离视为5
 				nodeDists = append(nodeDists, nodeDist{
 					NodeID:   n,
-					Distance: 5,
+					Distance: consts.NodeDistanceOther,
 				})
 			}
 		}
@@ -607,7 +585,7 @@ func (t *CleanPinned) calcMinAccessCost(ctx *doingContext) float64 {
 	cost := math.MaxFloat64
 	for _, reader := range ctx.readerNodeIDs {
 		tarNodes := ctx.nodesSortedByReader[reader]
-		gotBlocks := bitmap(0)
+		gotBlocks := bitmap.Bitmap64(0)
 		thisCost := 0.0
 
 		for _, tar := range tarNodes {

@@ -3,17 +3,23 @@ package task
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	myref "gitlink.org.cn/cloudream/common/utils/reflect"
+	mysort "gitlink.org.cn/cloudream/common/utils/sort"
+	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -87,7 +93,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 	defer mutex.Unlock()
 
 	for _, obj := range getObjectDetails.Objects {
-		err := t.downloadOne(ipfsCli, outputDirPath, obj)
+		err := t.downloadOne(coorCli, ipfsCli, outputDirPath, obj)
 		if err != nil {
 			return err
 		}
@@ -101,7 +107,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 	return err
 }
 
-func (t *StorageLoadPackage) downloadOne(ipfsCli *ipfs.PoolClient, dir string, obj stgmod.ObjectDetail) error {
+func (t *StorageLoadPackage) downloadOne(coorCli *coormq.Client, ipfsCli *ipfs.PoolClient, dir string, obj stgmod.ObjectDetail) error {
 	var file io.ReadCloser
 
 	switch red := obj.Object.Redundancy.(type) {
@@ -120,7 +126,7 @@ func (t *StorageLoadPackage) downloadOne(ipfsCli *ipfs.PoolClient, dir string, o
 		file = reader
 
 	case *cdssdk.ECRedundancy:
-		reader, pinnedBlocks, err := t.downloadECObject(ipfsCli, obj, red)
+		reader, pinnedBlocks, err := t.downloadECObject(coorCli, ipfsCli, obj, red)
 		if err != nil {
 			return fmt.Errorf("downloading ec object: %w", err)
 		}
@@ -153,14 +159,12 @@ func (t *StorageLoadPackage) downloadOne(ipfsCli *ipfs.PoolClient, dir string, o
 }
 
 func (t *StorageLoadPackage) downloadNoneOrRepObject(ipfsCli *ipfs.PoolClient, obj stgmod.ObjectDetail) (io.ReadCloser, error) {
-	if len(obj.Blocks) == 0 {
+	if len(obj.Blocks) == 0 && len(obj.PinnedAt) == 0 {
 		return nil, fmt.Errorf("no node has this object")
 	}
 
-	// 异步pin，不管实际有没有成功
-	go func() {
-		ipfsCli.Pin(obj.Object.FileHash)
-	}()
+	// 不管实际有没有成功
+	ipfsCli.Pin(obj.Object.FileHash)
 
 	file, err := ipfsCli.OpenRead(obj.Object.FileHash)
 	if err != nil {
@@ -170,62 +174,179 @@ func (t *StorageLoadPackage) downloadNoneOrRepObject(ipfsCli *ipfs.PoolClient, o
 	return file, nil
 }
 
-func (t *StorageLoadPackage) downloadECObject(ipfsCli *ipfs.PoolClient, obj stgmod.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, []stgmod.ObjectBlock, error) {
-	var chosenBlocks []stgmod.GrouppedObjectBlock
-	grpBlocks := obj.GroupBlocks()
-	for i := range grpBlocks {
-		if len(chosenBlocks) == ecRed.K {
-			break
-		}
-
-		chosenBlocks = append(chosenBlocks, grpBlocks[i])
-	}
-
-	if len(chosenBlocks) < ecRed.K {
-		return nil, nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", ecRed.K, len(chosenBlocks))
-	}
-
-	var fileStrs []io.ReadCloser
-
-	rs, err := ec.NewRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
+func (t *StorageLoadPackage) downloadECObject(coorCli *coormq.Client, ipfsCli *ipfs.PoolClient, obj stgmod.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, []stgmod.ObjectBlock, error) {
+	allNodes, err := t.sortDownloadNodes(coorCli, obj)
 	if err != nil {
-		return nil, nil, fmt.Errorf("new rs: %w", err)
+		return nil, nil, err
 	}
+	bsc, blocks := t.getMinReadingBlockSolution(allNodes, ecRed.K)
+	osc, _ := t.getMinReadingObjectSolution(allNodes, ecRed.K)
+	if bsc < osc {
+		var fileStrs []io.ReadCloser
 
-	for i := range chosenBlocks {
-		// 异步pin，不管实际有没有成功
-		go func() {
-			ipfsCli.Pin(chosenBlocks[i].FileHash)
-		}()
-
-		str, err := ipfsCli.OpenRead(chosenBlocks[i].FileHash)
+		rs, err := ec.NewRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
 		if err != nil {
-			for i -= 1; i >= 0; i-- {
-				fileStrs[i].Close()
-			}
-			return nil, nil, fmt.Errorf("donwloading file: %w", err)
+			return nil, nil, fmt.Errorf("new rs: %w", err)
 		}
 
-		fileStrs = append(fileStrs, str)
+		for i := range blocks {
+			// 不管实际有没有成功
+			ipfsCli.Pin(blocks[i].Block.FileHash)
+
+			str, err := ipfsCli.OpenRead(blocks[i].Block.FileHash)
+			if err != nil {
+				for i -= 1; i >= 0; i-- {
+					fileStrs[i].Close()
+				}
+				return nil, nil, fmt.Errorf("donwloading file: %w", err)
+			}
+
+			fileStrs = append(fileStrs, str)
+		}
+
+		fileReaders, filesCloser := myio.ToReaders(fileStrs)
+
+		var indexes []int
+		var pinnedBlocks []stgmod.ObjectBlock
+		for _, b := range blocks {
+			indexes = append(indexes, b.Block.Index)
+			pinnedBlocks = append(pinnedBlocks, stgmod.ObjectBlock{
+				ObjectID: b.Block.ObjectID,
+				Index:    b.Block.Index,
+				NodeID:   *stgglb.Local.NodeID,
+				FileHash: b.Block.FileHash,
+			})
+		}
+
+		outputs, outputsCloser := myio.ToReaders(rs.ReconstructData(fileReaders, indexes))
+		return myio.AfterReadClosed(myio.Length(myio.ChunkedJoin(outputs, int(ecRed.ChunkSize)), obj.Object.Size), func(c io.ReadCloser) {
+			filesCloser()
+			outputsCloser()
+		}), pinnedBlocks, nil
 	}
 
-	fileReaders, filesCloser := myio.ToReaders(fileStrs)
-
-	var indexes []int
-	var pinnedBlocks []stgmod.ObjectBlock
-	for _, b := range chosenBlocks {
-		indexes = append(indexes, b.Index)
-		pinnedBlocks = append(pinnedBlocks, stgmod.ObjectBlock{
-			ObjectID: b.ObjectID,
-			Index:    b.Index,
-			NodeID:   *stgglb.Local.NodeID,
-			FileHash: b.FileHash,
-		})
+	// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
+	if osc == math.MaxFloat64 {
+		return nil, nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", ecRed.K, len(blocks))
 	}
 
-	outputs, outputsCloser := myio.ToReaders(rs.ReconstructData(fileReaders, indexes))
-	return myio.AfterReadClosed(myio.Length(myio.ChunkedJoin(outputs, int(ecRed.ChunkSize)), obj.Object.Size), func(c io.ReadCloser) {
-		filesCloser()
-		outputsCloser()
-	}), pinnedBlocks, nil
+	// 如果是直接读取的文件，那么就不需要Pin文件块
+	str, err := ipfsCli.OpenRead(obj.Object.FileHash)
+	return str, nil, err
+}
+
+type downloadNodeInfo struct {
+	Node         model.Node
+	ObjectPinned bool
+	Blocks       []stgmod.ObjectBlock
+	Distance     float64
+}
+
+func (t *StorageLoadPackage) sortDownloadNodes(coorCli *coormq.Client, obj stgmod.ObjectDetail) ([]*downloadNodeInfo, error) {
+	var nodeIDs []cdssdk.NodeID
+	for _, id := range obj.PinnedAt {
+		if !lo.Contains(nodeIDs, id) {
+			nodeIDs = append(nodeIDs, id)
+		}
+	}
+	for _, b := range obj.Blocks {
+		if !lo.Contains(nodeIDs, b.NodeID) {
+			nodeIDs = append(nodeIDs, b.NodeID)
+		}
+	}
+
+	getNodes, err := coorCli.GetNodes(coormq.NewGetNodes(nodeIDs))
+	if err != nil {
+		return nil, fmt.Errorf("getting nodes: %w", err)
+	}
+
+	downloadNodeMap := make(map[cdssdk.NodeID]*downloadNodeInfo)
+	for _, id := range obj.PinnedAt {
+		node, ok := downloadNodeMap[id]
+		if !ok {
+			mod := *getNodes.GetNode(id)
+			node = &downloadNodeInfo{
+				Node:         mod,
+				ObjectPinned: true,
+				Distance:     t.getNodeDistance(mod),
+			}
+			downloadNodeMap[id] = node
+		}
+
+		node.ObjectPinned = true
+	}
+
+	for _, b := range obj.Blocks {
+		node, ok := downloadNodeMap[b.NodeID]
+		if !ok {
+			mod := *getNodes.GetNode(b.NodeID)
+			node = &downloadNodeInfo{
+				Node:     mod,
+				Distance: t.getNodeDistance(mod),
+			}
+			downloadNodeMap[b.NodeID] = node
+		}
+
+		node.Blocks = append(node.Blocks, b)
+	}
+
+	return mysort.Sort(lo.Values(downloadNodeMap), func(left, right *downloadNodeInfo) int {
+		return mysort.Cmp(left.Distance, right.Distance)
+	}), nil
+}
+
+type downloadBlock struct {
+	Node  model.Node
+	Block stgmod.ObjectBlock
+}
+
+func (t *StorageLoadPackage) getMinReadingBlockSolution(sortedNodes []*downloadNodeInfo, k int) (float64, []downloadBlock) {
+	gotBlocksMap := bitmap.Bitmap64(0)
+	var gotBlocks []downloadBlock
+	dist := float64(0.0)
+	for _, n := range sortedNodes {
+		for _, b := range n.Blocks {
+			if !gotBlocksMap.Get(b.Index) {
+				gotBlocks = append(gotBlocks, downloadBlock{
+					Node:  n.Node,
+					Block: b,
+				})
+				gotBlocksMap.Set(b.Index, true)
+				dist += n.Distance
+			}
+
+			if len(gotBlocks) >= k {
+				return dist, gotBlocks
+			}
+		}
+	}
+
+	return math.MaxFloat64, gotBlocks
+}
+
+func (t *StorageLoadPackage) getMinReadingObjectSolution(sortedNodes []*downloadNodeInfo, k int) (float64, *model.Node) {
+	dist := math.MaxFloat64
+	var downloadNode *model.Node
+	for _, n := range sortedNodes {
+		if n.ObjectPinned && float64(k)*n.Distance < dist {
+			dist = float64(k) * n.Distance
+			downloadNode = &n.Node
+		}
+	}
+
+	return dist, downloadNode
+}
+
+func (t *StorageLoadPackage) getNodeDistance(node model.Node) float64 {
+	if stgglb.Local.NodeID != nil {
+		if node.NodeID == *stgglb.Local.NodeID {
+			return consts.NodeDistanceSameNode
+		}
+	}
+
+	if node.LocationID == stgglb.Local.LocationID {
+		return consts.NodeDistanceSameLocation
+	}
+
+	return consts.NodeDistanceOther
 }

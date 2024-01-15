@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 )
 
-func newTreeTest(nodeBlocksMap []bitmap) combinatorialTree {
+func newTreeTest(nodeBlocksMap []bitmap.Bitmap64) combinatorialTree {
 	tree := combinatorialTree{
-		blocksMaps:          make(map[int]bitmap),
+		blocksMaps:          make(map[int]bitmap.Bitmap64),
 		nodeIDToLocalNodeID: make(map[cdssdk.NodeID]int),
 	}
 
@@ -79,25 +80,25 @@ func Test_iterCombBits(t *testing.T) {
 func Test_newCombinatorialTree(t *testing.T) {
 	testcases := []struct {
 		title                    string
-		nodeBlocks               []bitmap
+		nodeBlocks               []bitmap.Bitmap64
 		expectedTreeNodeLocalIDs []int
 		expectedTreeNodeBitmaps  []int
 	}{
 		{
 			title:                    "1个节点",
-			nodeBlocks:               []bitmap{1},
+			nodeBlocks:               []bitmap.Bitmap64{1},
 			expectedTreeNodeLocalIDs: []int{-1, 0},
 			expectedTreeNodeBitmaps:  []int{0, 1},
 		},
 		{
 			title:                    "2个节点",
-			nodeBlocks:               []bitmap{1, 0},
+			nodeBlocks:               []bitmap.Bitmap64{1, 0},
 			expectedTreeNodeLocalIDs: []int{-1, 0, 1, 1},
 			expectedTreeNodeBitmaps:  []int{0, 1, 1, 0},
 		},
 		{
 			title:                    "4个节点",
-			nodeBlocks:               []bitmap{1, 2, 4, 8},
+			nodeBlocks:               []bitmap.Bitmap64{1, 2, 4, 8},
 			expectedTreeNodeLocalIDs: []int{-1, 0, 1, 2, 3, 3, 2, 3, 3, 1, 2, 3, 3, 2, 3, 3},
 			expectedTreeNodeBitmaps:  []int{0, 1, 3, 7, 15, 11, 5, 13, 9, 2, 6, 14, 10, 4, 12, 8},
 		},
@@ -123,71 +124,71 @@ func Test_newCombinatorialTree(t *testing.T) {
 func Test_UpdateBitmap(t *testing.T) {
 	testcases := []struct {
 		title                   string
-		nodeBlocks              []bitmap
+		nodeBlocks              []bitmap.Bitmap64
 		updatedNodeID           cdssdk.NodeID
-		updatedBitmap           bitmap
+		updatedBitmap           bitmap.Bitmap64
 		k                       int
 		expectedTreeNodeBitmaps []int
 	}{
 
 		{
 			title:                   "4个节点，更新但值不变",
-			nodeBlocks:              []bitmap{1, 2, 4, 8},
+			nodeBlocks:              []bitmap.Bitmap64{1, 2, 4, 8},
 			updatedNodeID:           cdssdk.NodeID(0),
-			updatedBitmap:           bitmap(1),
+			updatedBitmap:           bitmap.Bitmap64(1),
 			k:                       4,
 			expectedTreeNodeBitmaps: []int{0, 1, 3, 7, 15, 11, 5, 13, 9, 2, 6, 14, 10, 4, 12, 8},
 		},
 
 		{
 			title:                   "4个节点，更新0",
-			nodeBlocks:              []bitmap{1, 2, 4, 8},
+			nodeBlocks:              []bitmap.Bitmap64{1, 2, 4, 8},
 			updatedNodeID:           cdssdk.NodeID(0),
-			updatedBitmap:           bitmap(2),
+			updatedBitmap:           bitmap.Bitmap64(2),
 			k:                       4,
 			expectedTreeNodeBitmaps: []int{0, 2, 2, 6, 14, 10, 6, 14, 10, 2, 6, 14, 10, 4, 12, 8},
 		},
 
 		{
 			title:                   "4个节点，更新1",
-			nodeBlocks:              []bitmap{1, 2, 4, 8},
+			nodeBlocks:              []bitmap.Bitmap64{1, 2, 4, 8},
 			updatedNodeID:           cdssdk.NodeID(1),
-			updatedBitmap:           bitmap(1),
+			updatedBitmap:           bitmap.Bitmap64(1),
 			k:                       4,
 			expectedTreeNodeBitmaps: []int{0, 1, 1, 5, 13, 9, 5, 13, 9, 1, 5, 13, 9, 4, 12, 8},
 		},
 
 		{
 			title:                   "4个节点，更新2",
-			nodeBlocks:              []bitmap{1, 2, 4, 8},
+			nodeBlocks:              []bitmap.Bitmap64{1, 2, 4, 8},
 			updatedNodeID:           cdssdk.NodeID(2),
-			updatedBitmap:           bitmap(1),
+			updatedBitmap:           bitmap.Bitmap64(1),
 			k:                       4,
 			expectedTreeNodeBitmaps: []int{0, 1, 3, 3, 11, 11, 1, 9, 9, 2, 3, 11, 10, 1, 9, 8},
 		},
 
 		{
 			title:                   "4个节点，更新3",
-			nodeBlocks:              []bitmap{1, 2, 4, 8},
+			nodeBlocks:              []bitmap.Bitmap64{1, 2, 4, 8},
 			updatedNodeID:           cdssdk.NodeID(3),
-			updatedBitmap:           bitmap(1),
+			updatedBitmap:           bitmap.Bitmap64(1),
 			k:                       4,
 			expectedTreeNodeBitmaps: []int{0, 1, 3, 7, 7, 3, 5, 5, 1, 2, 6, 7, 3, 4, 5, 1},
 		},
 
 		{
 			title:                   "4个节点，k<4，更新0，0之前没有k个块，现在拥有",
-			nodeBlocks:              []bitmap{1, 2, 4, 8},
+			nodeBlocks:              []bitmap.Bitmap64{1, 2, 4, 8},
 			updatedNodeID:           cdssdk.NodeID(0),
-			updatedBitmap:           bitmap(3),
+			updatedBitmap:           bitmap.Bitmap64(3),
 			k:                       2,
 			expectedTreeNodeBitmaps: []int{0, 3, 3, 7, 15, 11, 5, 13, 9, 2, 6, 14, 10, 4, 12, 8},
 		},
 		{
 			title:                   "4个节点，k<4，更新0，0之前有k个块，现在没有",
-			nodeBlocks:              []bitmap{3, 4, 0, 0},
+			nodeBlocks:              []bitmap.Bitmap64{3, 4, 0, 0},
 			updatedNodeID:           cdssdk.NodeID(0),
-			updatedBitmap:           bitmap(0),
+			updatedBitmap:           bitmap.Bitmap64(0),
 			k:                       2,
 			expectedTreeNodeBitmaps: []int{0, 0, 4, 4, 4, 4, 0, 0, 0, 4, 4, 4, 4, 0, 0, 0},
 		},
@@ -211,43 +212,43 @@ func Test_UpdateBitmap(t *testing.T) {
 func Test_FindKBlocksMaxDepth(t *testing.T) {
 	testcases := []struct {
 		title      string
-		nodeBlocks []bitmap
+		nodeBlocks []bitmap.Bitmap64
 		k          int
 		expected   int
 	}{
 		{
 			title:      "每个节点各有一个块",
-			nodeBlocks: []bitmap{1, 2, 4, 8},
+			nodeBlocks: []bitmap.Bitmap64{1, 2, 4, 8},
 			k:          2,
 			expected:   2,
 		},
 		{
 			title:      "所有节点加起来块数不足",
-			nodeBlocks: []bitmap{1, 1, 1, 1},
+			nodeBlocks: []bitmap.Bitmap64{1, 1, 1, 1},
 			k:          2,
 			expected:   4,
 		},
 		{
 			title:      "不同节点有相同块",
-			nodeBlocks: []bitmap{1, 1, 2, 4},
+			nodeBlocks: []bitmap.Bitmap64{1, 1, 2, 4},
 			k:          2,
 			expected:   3,
 		},
 		{
 			title:      "一个节点就拥有所有块",
-			nodeBlocks: []bitmap{3, 6, 12, 24},
+			nodeBlocks: []bitmap.Bitmap64{3, 6, 12, 24},
 			k:          2,
 			expected:   1,
 		},
 		{
 			title:      "只有一块，且只在某一个节点1",
-			nodeBlocks: []bitmap{1, 0},
+			nodeBlocks: []bitmap.Bitmap64{1, 0},
 			k:          1,
 			expected:   2,
 		},
 		{
 			title:      "只有一块，且只在某一个节点2",
-			nodeBlocks: []bitmap{0, 1},
+			nodeBlocks: []bitmap.Bitmap64{0, 1},
 			k:          1,
 			expected:   2,
 		},
