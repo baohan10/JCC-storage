@@ -35,7 +35,7 @@ func (svc *Service) GetPackageObjectDetails(msg *coormq.GetPackageObjectDetails)
 			return fmt.Errorf("getting package by id: %w", err)
 		}
 
-		details, err = svc.db.ObjectBlock().GetPackageBlockDetails(tx, msg.PackageID)
+		details, err = svc.db.Object().GetPackageObjectDetails(tx, msg.PackageID)
 		if err != nil {
 			return fmt.Errorf("getting package block details: %w", err)
 		}

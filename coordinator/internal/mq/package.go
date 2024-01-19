@@ -131,7 +131,7 @@ func (svc *Service) GetPackageCachedNodes(msg *coormq.GetPackageCachedNodes) (*c
 	}
 
 	// 这个函数只是统计哪些节点缓存了Package中的数据，不需要多么精确，所以可以不用事务
-	objDetails, err := svc.db.ObjectBlock().GetPackageBlockDetails(svc.db.SQLCtx(), msg.PackageID)
+	objDetails, err := svc.db.Object().GetPackageObjectDetails(svc.db.SQLCtx(), msg.PackageID)
 	if err != nil {
 		logger.WithField("PackageID", msg.PackageID).
 			Warnf("get package block details: %s", err.Error())

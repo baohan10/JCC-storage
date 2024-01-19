@@ -25,6 +25,15 @@ func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStora
 
 func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coormq.StoragePackageLoadedResp, *mq.CodeMessage) {
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+		// 可以不用检查用户是否存在
+		if ok, _ := svc.db.Package().IsAvailable(tx, msg.UserID, msg.PackageID); !ok {
+			return fmt.Errorf("package is not available to user")
+		}
+
+		if ok, _ := svc.db.Storage().IsAvailable(tx, msg.UserID, msg.StorageID); !ok {
+			return fmt.Errorf("storage is not available to user")
+		}
+
 		err := svc.db.StoragePackage().Create(tx, msg.StorageID, msg.PackageID, msg.UserID)
 		if err != nil {
 			return fmt.Errorf("creating storage package: %w", err)
@@ -33,6 +42,23 @@ func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coo
 		err = svc.db.StoragePackageLog().Create(tx, msg.StorageID, msg.PackageID, msg.UserID, time.Now())
 		if err != nil {
 			return fmt.Errorf("creating storage package log: %w", err)
+		}
+
+		stg, err := svc.db.Storage().GetByID(tx, msg.StorageID)
+		if err != nil {
+			return fmt.Errorf("getting storage: %w", err)
+		}
+
+		err = svc.db.PinnedObject().CreateFromPackage(tx, msg.PackageID, stg.NodeID)
+		if err != nil {
+			return fmt.Errorf("creating pinned object from package: %w", err)
+		}
+
+		if len(msg.PinnedBlocks) > 0 {
+			err = svc.db.ObjectBlock().BatchCreate(tx, msg.PinnedBlocks)
+			if err != nil {
+				return fmt.Errorf("batch creating object block: %w", err)
+			}
 		}
 
 		return nil

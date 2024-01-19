@@ -59,6 +59,15 @@ func NewGetNodesResp(nodes []cdssdk.Node) *GetNodesResp {
 		Nodes: nodes,
 	}
 }
+func (r *GetNodesResp) GetNode(id cdssdk.NodeID) *cdssdk.Node {
+	for _, n := range r.Nodes {
+		if n.NodeID == id {
+			return &n
+		}
+	}
+
+	return nil
+}
 func (client *Client) GetNodes(msg *GetNodes) (*GetNodesResp, error) {
 	return mq.Request(Service.GetNodes, client.rabbitCli, msg)
 }

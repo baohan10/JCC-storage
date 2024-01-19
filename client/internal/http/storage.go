@@ -40,7 +40,7 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 		return
 	}
 
-	taskID, err := s.svc.StorageSvc().StartStorageLoadPackage(*req.UserID, *req.PackageID, *req.StorageID)
+	nodeID, taskID, err := s.svc.StorageSvc().StartStorageLoadPackage(*req.UserID, *req.PackageID, *req.StorageID)
 	if err != nil {
 		log.Warnf("start storage load package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage load package failed"))
@@ -48,7 +48,7 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 	}
 
 	for {
-		complete, fullPath, err := s.svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
+		complete, fullPath, err := s.svc.StorageSvc().WaitStorageLoadPackage(nodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				log.Warnf("loading complete with: %s", err.Error())

@@ -8,13 +8,13 @@ import (
 )
 
 func StorageLoadPackage(ctx CommandContext, packageID cdssdk.PackageID, storageID cdssdk.StorageID) error {
-	taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageLoadPackage(0, packageID, storageID)
+	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageLoadPackage(0, packageID, storageID)
 	if err != nil {
 		return fmt.Errorf("start loading package to storage: %w", err)
 	}
 
 	for {
-		complete, fullPath, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageLoadPackage(taskID, time.Second*10)
+		complete, fullPath, err := ctx.Cmdline.Svc.StorageSvc().WaitStorageLoadPackage(nodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				return fmt.Errorf("moving complete with: %w", err)
