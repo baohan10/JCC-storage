@@ -4,7 +4,6 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
 )
@@ -31,7 +30,7 @@ func (e *BatchAllAgentCheckCache) Execute(ctx ExecuteContext) {
 			return
 		}
 
-		e.nodeIDs = lo.Map(nodes, func(node model.Node, index int) cdssdk.NodeID { return node.NodeID })
+		e.nodeIDs = lo.Map(nodes, func(node cdssdk.Node, index int) cdssdk.NodeID { return node.NodeID })
 
 		log.Debugf("new check start, get all nodes")
 	}

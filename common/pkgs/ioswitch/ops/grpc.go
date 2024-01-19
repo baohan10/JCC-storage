@@ -7,16 +7,16 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 type GRPCSend struct {
 	LocalID  ioswitch.StreamID `json:"localID"`
 	RemoteID ioswitch.StreamID `json:"remoteID"`
-	Node     model.Node        `json:"node"`
+	Node     cdssdk.Node       `json:"node"`
 }
 
 func (o *GRPCSend) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
@@ -49,7 +49,7 @@ func (o *GRPCSend) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 type GRPCFetch struct {
 	RemoteID ioswitch.StreamID `json:"remoteID"`
 	LocalID  ioswitch.StreamID `json:"localID"`
-	Node     model.Node        `json:"node"`
+	Node     cdssdk.Node       `json:"node"`
 }
 
 func (o *GRPCFetch) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {

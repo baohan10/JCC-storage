@@ -11,7 +11,6 @@ import (
 	"gitlink.org.cn/cloudream/common/utils/sort"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -36,7 +35,7 @@ func NewCheckPackageRedundancy(evt *scevt.CheckPackageRedundancy) *CheckPackageR
 }
 
 type NodeLoadInfo struct {
-	Node             model.Node
+	Node             cdssdk.Node
 	LoadsRecentMonth int
 	LoadsRecentYear  int
 }

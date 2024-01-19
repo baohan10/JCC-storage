@@ -6,7 +6,6 @@ import (
 	"github.com/samber/lo"
 	. "github.com/smartystreets/goconvey/convey"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 )
 
 func Test_chooseSoManyNodes(t *testing.T) {
@@ -19,8 +18,8 @@ func Test_chooseSoManyNodes(t *testing.T) {
 		{
 			title: "节点数量充足",
 			allNodes: []*NodeLoadInfo{
-				{Node: model.Node{NodeID: cdssdk.NodeID(1)}},
-				{Node: model.Node{NodeID: cdssdk.NodeID(2)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(1)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(2)}},
 			},
 			count:           2,
 			expectedNodeIDs: []cdssdk.NodeID{1, 2},
@@ -28,9 +27,9 @@ func Test_chooseSoManyNodes(t *testing.T) {
 		{
 			title: "节点数量超过",
 			allNodes: []*NodeLoadInfo{
-				{Node: model.Node{NodeID: cdssdk.NodeID(1)}},
-				{Node: model.Node{NodeID: cdssdk.NodeID(2)}},
-				{Node: model.Node{NodeID: cdssdk.NodeID(3)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(1)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(2)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(3)}},
 			},
 			count:           2,
 			expectedNodeIDs: []cdssdk.NodeID{1, 2},
@@ -38,7 +37,7 @@ func Test_chooseSoManyNodes(t *testing.T) {
 		{
 			title: "只有一个节点，节点数量不够",
 			allNodes: []*NodeLoadInfo{
-				{Node: model.Node{NodeID: cdssdk.NodeID(1)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(1)}},
 			},
 			count:           3,
 			expectedNodeIDs: []cdssdk.NodeID{1, 1, 1},
@@ -46,8 +45,8 @@ func Test_chooseSoManyNodes(t *testing.T) {
 		{
 			title: "多个同地区节点，节点数量不够",
 			allNodes: []*NodeLoadInfo{
-				{Node: model.Node{NodeID: cdssdk.NodeID(1)}},
-				{Node: model.Node{NodeID: cdssdk.NodeID(2)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(1)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(2)}},
 			},
 			count:           5,
 			expectedNodeIDs: []cdssdk.NodeID{1, 1, 1, 2, 2},
@@ -55,8 +54,8 @@ func Test_chooseSoManyNodes(t *testing.T) {
 		{
 			title: "节点数量不够，且在不同地区",
 			allNodes: []*NodeLoadInfo{
-				{Node: model.Node{NodeID: cdssdk.NodeID(1), LocationID: cdssdk.LocationID(1)}},
-				{Node: model.Node{NodeID: cdssdk.NodeID(2), LocationID: cdssdk.LocationID(2)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(1), LocationID: cdssdk.LocationID(1)}},
+				{Node: cdssdk.Node{NodeID: cdssdk.NodeID(2), LocationID: cdssdk.LocationID(2)}},
 			},
 			count:           5,
 			expectedNodeIDs: []cdssdk.NodeID{1, 2, 1, 2, 1},

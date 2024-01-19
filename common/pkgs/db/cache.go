@@ -74,8 +74,8 @@ func (*CacheDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes
 }
 
 // GetCachingFileNodes 查找缓存了指定文件的节点
-func (*CacheDB) GetCachingFileNodes(ctx SQLContext, fileHash string) ([]model.Node, error) {
-	var x []model.Node
+func (*CacheDB) GetCachingFileNodes(ctx SQLContext, fileHash string) ([]cdssdk.Node, error) {
+	var x []cdssdk.Node
 	err := sqlx.Select(ctx, &x,
 		"select Node.* from Cache, Node where Cache.FileHash=? and Cache.NodeID = Node.NodeID", fileHash)
 	return x, err
@@ -88,8 +88,8 @@ func (*CacheDB) DeleteNodeAll(ctx SQLContext, nodeID cdssdk.NodeID) error {
 }
 
 // FindCachingFileUserNodes 在缓存表中查询指定数据所在的节点
-func (*CacheDB) FindCachingFileUserNodes(ctx SQLContext, userID cdssdk.NodeID, fileHash string) ([]model.Node, error) {
-	var x []model.Node
+func (*CacheDB) FindCachingFileUserNodes(ctx SQLContext, userID cdssdk.NodeID, fileHash string) ([]cdssdk.Node, error) {
+	var x []cdssdk.Node
 	err := sqlx.Select(ctx, &x,
 		"select Node.* from Cache, UserNode, Node where"+
 			" Cache.FileHash=? and Cache.NodeID = UserNode.NodeID and"+

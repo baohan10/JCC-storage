@@ -2,14 +2,13 @@ package plans
 
 import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
 )
 
 type AgentPlanBuilder struct {
 	owner *PlanBuilder
-	node  model.Node
+	node  cdssdk.Node
 	ops   []ioswitch.Op
 }
 
@@ -30,7 +29,7 @@ func (b *AgentPlanBuilder) Build(planID ioswitch.PlanID) (AgentPlan, error) {
 	}, nil
 }
 
-func (b *AgentPlanBuilder) GRCPFetch(node model.Node, str *AgentStream) *AgentStream {
+func (b *AgentPlanBuilder) GRCPFetch(node cdssdk.Node, str *AgentStream) *AgentStream {
 	agtStr := &AgentStream{
 		owner: b,
 		info:  b.owner.newStream(),
@@ -45,7 +44,7 @@ func (b *AgentPlanBuilder) GRCPFetch(node model.Node, str *AgentStream) *AgentSt
 	return agtStr
 }
 
-func (s *AgentStream) GRPCSend(node model.Node) *AgentStream {
+func (s *AgentStream) GRPCSend(node cdssdk.Node) *AgentStream {
 	agtStr := &AgentStream{
 		owner: s.owner.owner.AtAgent(node),
 		info:  s.owner.owner.newStream(),

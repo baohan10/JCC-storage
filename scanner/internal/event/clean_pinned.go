@@ -17,7 +17,6 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -93,7 +92,7 @@ type doingContext struct {
 	execCtx             ExecuteContext
 	readerNodeIDs       []cdssdk.NodeID              // 近期可能访问此对象的节点
 	nodesSortedByReader map[cdssdk.NodeID][]nodeDist // 拥有数据的节点到每个可能访问对象的节点按距离排序
-	nodeInfos           map[cdssdk.NodeID]*model.Node
+	nodeInfos           map[cdssdk.NodeID]*cdssdk.Node
 	blockList           []objectBlock                      // 排序后的块分布情况
 	nodeBlockBitmaps    map[cdssdk.NodeID]*bitmap.Bitmap64 // 用位图的形式表示每一个节点上有哪些块
 	allBlockTypeCount   int                                // object总共被分成了几块
@@ -341,7 +340,7 @@ func (t *CleanPinned) doOne(execCtx ExecuteContext, readerNodeIDs []cdssdk.NodeI
 		execCtx:             execCtx,
 		readerNodeIDs:       readerNodeIDs,
 		nodesSortedByReader: make(map[cdssdk.NodeID][]nodeDist),
-		nodeInfos:           make(map[cdssdk.NodeID]*model.Node),
+		nodeInfos:           make(map[cdssdk.NodeID]*cdssdk.Node),
 		nodeBlockBitmaps:    make(map[cdssdk.NodeID]*bitmap.Bitmap64),
 	}
 

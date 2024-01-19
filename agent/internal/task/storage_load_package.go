@@ -19,7 +19,6 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -236,7 +235,7 @@ func (t *StorageLoadPackage) downloadECObject(coorCli *coormq.Client, ipfsCli *i
 }
 
 type downloadNodeInfo struct {
-	Node         model.Node
+	Node         cdssdk.Node
 	ObjectPinned bool
 	Blocks       []stgmod.ObjectBlock
 	Distance     float64
@@ -296,7 +295,7 @@ func (t *StorageLoadPackage) sortDownloadNodes(coorCli *coormq.Client, obj stgmo
 }
 
 type downloadBlock struct {
-	Node  model.Node
+	Node  cdssdk.Node
 	Block stgmod.ObjectBlock
 }
 
@@ -324,9 +323,9 @@ func (t *StorageLoadPackage) getMinReadingBlockSolution(sortedNodes []*downloadN
 	return math.MaxFloat64, gotBlocks
 }
 
-func (t *StorageLoadPackage) getMinReadingObjectSolution(sortedNodes []*downloadNodeInfo, k int) (float64, *model.Node) {
+func (t *StorageLoadPackage) getMinReadingObjectSolution(sortedNodes []*downloadNodeInfo, k int) (float64, *cdssdk.Node) {
 	dist := math.MaxFloat64
-	var downloadNode *model.Node
+	var downloadNode *cdssdk.Node
 	for _, n := range sortedNodes {
 		if n.ObjectPinned && float64(k)*n.Distance < dist {
 			dist = float64(k) * n.Distance
@@ -337,7 +336,7 @@ func (t *StorageLoadPackage) getMinReadingObjectSolution(sortedNodes []*download
 	return dist, downloadNode
 }
 
-func (t *StorageLoadPackage) getNodeDistance(node model.Node) float64 {
+func (t *StorageLoadPackage) getNodeDistance(node cdssdk.Node) float64 {
 	if stgglb.Local.NodeID != nil {
 		if node.NodeID == *stgglb.Local.NodeID {
 			return consts.NodeDistanceSameNode

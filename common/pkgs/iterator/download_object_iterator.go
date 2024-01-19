@@ -32,7 +32,7 @@ type IterDownloadingObject struct {
 }
 
 type DownloadNodeInfo struct {
-	Node         model.Node
+	Node         cdssdk.Node
 	ObjectPinned bool
 	Blocks       []stgmod.ObjectBlock
 	Distance     float64
@@ -242,7 +242,7 @@ func (iter *DownloadObjectIterator) sortDownloadNodes(coorCli *coormq.Client, ct
 }
 
 type downloadBlock struct {
-	Node  model.Node
+	Node  cdssdk.Node
 	Block stgmod.ObjectBlock
 }
 
@@ -270,9 +270,9 @@ func (iter *DownloadObjectIterator) getMinReadingBlockSolution(sortedNodes []*Do
 	return math.MaxFloat64, gotBlocks
 }
 
-func (iter *DownloadObjectIterator) getMinReadingObjectSolution(sortedNodes []*DownloadNodeInfo, k int) (float64, *model.Node) {
+func (iter *DownloadObjectIterator) getMinReadingObjectSolution(sortedNodes []*DownloadNodeInfo, k int) (float64, *cdssdk.Node) {
 	dist := math.MaxFloat64
-	var downloadNode *model.Node
+	var downloadNode *cdssdk.Node
 	for _, n := range sortedNodes {
 		if n.ObjectPinned && float64(k)*n.Distance < dist {
 			dist = float64(k) * n.Distance
@@ -283,7 +283,7 @@ func (iter *DownloadObjectIterator) getMinReadingObjectSolution(sortedNodes []*D
 	return dist, downloadNode
 }
 
-func (iter *DownloadObjectIterator) getNodeDistance(node model.Node) float64 {
+func (iter *DownloadObjectIterator) getNodeDistance(node cdssdk.Node) float64 {
 	if stgglb.Local.NodeID != nil {
 		if node.NodeID == *stgglb.Local.NodeID {
 			return consts.NodeDistanceSameNode
@@ -297,7 +297,7 @@ func (iter *DownloadObjectIterator) getNodeDistance(node model.Node) float64 {
 	return consts.NodeDistanceOther
 }
 
-func downloadFile(ctx *DownloadContext, node model.Node, fileHash string) (io.ReadCloser, error) {
+func downloadFile(ctx *DownloadContext, node cdssdk.Node, fileHash string) (io.ReadCloser, error) {
 	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
 	nodeIP := node.ExternalIP
 	grpcPort := node.ExternalGRPCPort
