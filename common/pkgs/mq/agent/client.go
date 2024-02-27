@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"sync"
+
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
@@ -33,18 +35,34 @@ type Pool interface {
 }
 
 type pool struct {
-	mqcfg *stgmq.Config
+	mqcfg   *stgmq.Config
+	shareds map[cdssdk.NodeID]*Client
+	lock    sync.Mutex
 }
 
 func NewPool(mqcfg *stgmq.Config) Pool {
 	return &pool{
-		mqcfg: mqcfg,
+		mqcfg:   mqcfg,
+		shareds: make(map[cdssdk.NodeID]*Client),
 	}
 }
 func (p *pool) Acquire(id cdssdk.NodeID) (*Client, error) {
-	return NewClient(id, p.mqcfg)
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	cli, ok := p.shareds[id]
+	if !ok {
+		var err error
+		cli, err = NewClient(id, p.mqcfg)
+		if err != nil {
+			return nil, err
+		}
+		p.shareds[id] = cli
+	}
+
+	return cli, nil
 }
 
 func (p *pool) Release(cli *Client) {
-	cli.Close()
+	// TODO 定时关闭
 }

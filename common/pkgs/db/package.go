@@ -80,7 +80,7 @@ func (db *PackageDB) GetUserPackage(ctx SQLContext, userID cdssdk.UserID, packag
 func (db *PackageDB) Create(ctx SQLContext, bucketID cdssdk.BucketID, name string) (cdssdk.PackageID, error) {
 	// 根据packagename和bucketid查询，若不存在则插入，若存在则返回错误
 	var packageID int64
-	err := sqlx.Get(ctx, &packageID, "select PackageID from Package where Name = ? AND BucketID = ?", name, bucketID)
+	err := sqlx.Get(ctx, &packageID, "select PackageID from Package where Name = ? AND BucketID = ? for update", name, bucketID)
 	// 无错误代表存在记录
 	if err == nil {
 		return 0, fmt.Errorf("package with given Name and BucketID already exists")

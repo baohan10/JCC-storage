@@ -46,8 +46,11 @@ type DownloadObjectIterator struct {
 
 	objectDetails []stgmodels.ObjectDetail
 	currentIndex  int
+	inited        bool
 
 	downloadCtx *DownloadContext
+	coorCli     *coormq.Client
+	allNodes    map[cdssdk.NodeID]cdssdk.Node
 }
 
 func NewDownloadObjectIterator(objectDetails []stgmodels.ObjectDetail, downloadCtx *DownloadContext) *DownloadObjectIterator {
@@ -58,27 +61,60 @@ func NewDownloadObjectIterator(objectDetails []stgmodels.ObjectDetail, downloadC
 }
 
 func (i *DownloadObjectIterator) MoveNext() (*IterDownloadingObject, error) {
-	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
-	if err != nil {
-		return nil, fmt.Errorf("new coordinator client: %w", err)
+	if !i.inited {
+		if err := i.init(); err != nil {
+			return nil, err
+		}
+
+		i.inited = true
 	}
-	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	if i.currentIndex >= len(i.objectDetails) {
 		return nil, ErrNoMoreItem
 	}
 
-	item, err := i.doMove(coorCli)
+	item, err := i.doMove()
 	i.currentIndex++
 	return item, err
 }
 
-func (iter *DownloadObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloadingObject, error) {
+func (i *DownloadObjectIterator) init() error {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new coordinator client: %w", err)
+	}
+	i.coorCli = coorCli
+
+	allNodeIDs := make(map[cdssdk.NodeID]bool)
+	for _, obj := range i.objectDetails {
+		for _, p := range obj.PinnedAt {
+			allNodeIDs[p] = true
+		}
+
+		for _, b := range obj.Blocks {
+			allNodeIDs[b.NodeID] = true
+		}
+	}
+
+	getNodes, err := coorCli.GetNodes(coormq.NewGetNodes(lo.Keys(allNodeIDs)))
+	if err != nil {
+		return fmt.Errorf("getting nodes: %w", err)
+	}
+
+	i.allNodes = make(map[cdssdk.NodeID]cdssdk.Node)
+	for _, n := range getNodes.Nodes {
+		i.allNodes[n.NodeID] = n
+	}
+
+	return nil
+}
+
+func (iter *DownloadObjectIterator) doMove() (*IterDownloadingObject, error) {
 	obj := iter.objectDetails[iter.currentIndex]
 
 	switch red := obj.Object.Redundancy.(type) {
 	case *cdssdk.NoneRedundancy:
-		reader, err := iter.downloadNoneOrRepObject(coorCli, iter.downloadCtx, obj)
+		reader, err := iter.downloadNoneOrRepObject(obj)
 		if err != nil {
 			return nil, fmt.Errorf("downloading object: %w", err)
 		}
@@ -89,7 +125,7 @@ func (iter *DownloadObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloa
 		}, nil
 
 	case *cdssdk.RepRedundancy:
-		reader, err := iter.downloadNoneOrRepObject(coorCli, iter.downloadCtx, obj)
+		reader, err := iter.downloadNoneOrRepObject(obj)
 		if err != nil {
 			return nil, fmt.Errorf("downloading rep object: %w", err)
 		}
@@ -100,7 +136,7 @@ func (iter *DownloadObjectIterator) doMove(coorCli *coormq.Client) (*IterDownloa
 		}, nil
 
 	case *cdssdk.ECRedundancy:
-		reader, err := iter.downloadECObject(coorCli, iter.downloadCtx, obj, red)
+		reader, err := iter.downloadECObject(obj, red)
 		if err != nil {
 			return nil, fmt.Errorf("downloading ec object: %w", err)
 		}
@@ -120,15 +156,15 @@ func (i *DownloadObjectIterator) Close() {
 	}
 }
 
-func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
-	allNodes, err := iter.sortDownloadNodes(coorCli, ctx, obj)
+func (iter *DownloadObjectIterator) downloadNoneOrRepObject(obj stgmodels.ObjectDetail) (io.ReadCloser, error) {
+	allNodes, err := iter.sortDownloadNodes(obj)
 	if err != nil {
 		return nil, err
 	}
 	bsc, blocks := iter.getMinReadingBlockSolution(allNodes, 1)
 	osc, node := iter.getMinReadingObjectSolution(allNodes, 1)
 	if bsc < osc {
-		return downloadFile(ctx, blocks[0].Node, blocks[0].Block.FileHash)
+		return downloadFile(iter.downloadCtx, blocks[0].Node, blocks[0].Block.FileHash)
 	}
 
 	// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
@@ -136,11 +172,11 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(coorCli *coormq.Clie
 		return nil, fmt.Errorf("no node has this object")
 	}
 
-	return downloadFile(ctx, *node, obj.Object.FileHash)
+	return downloadFile(iter.downloadCtx, *node, obj.Object.FileHash)
 }
 
-func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
-	allNodes, err := iter.sortDownloadNodes(coorCli, ctx, obj)
+func (iter *DownloadObjectIterator) downloadECObject(obj stgmodels.ObjectDetail, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
+	allNodes, err := iter.sortDownloadNodes(obj)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +191,7 @@ func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx
 		}
 
 		for i, b := range blocks {
-			str, err := downloadFile(ctx, b.Node, b.Block.FileHash)
+			str, err := downloadFile(iter.downloadCtx, b.Node, b.Block.FileHash)
 			if err != nil {
 				for i -= 1; i >= 0; i-- {
 					fileStrs[i].Close()
@@ -185,10 +221,10 @@ func (iter *DownloadObjectIterator) downloadECObject(coorCli *coormq.Client, ctx
 		return nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", ecRed.K, len(blocks))
 	}
 
-	return downloadFile(ctx, *node, obj.Object.FileHash)
+	return downloadFile(iter.downloadCtx, *node, obj.Object.FileHash)
 }
 
-func (iter *DownloadObjectIterator) sortDownloadNodes(coorCli *coormq.Client, ctx *DownloadContext, obj stgmodels.ObjectDetail) ([]*DownloadNodeInfo, error) {
+func (iter *DownloadObjectIterator) sortDownloadNodes(obj stgmodels.ObjectDetail) ([]*DownloadNodeInfo, error) {
 	var nodeIDs []cdssdk.NodeID
 	for _, id := range obj.PinnedAt {
 		if !lo.Contains(nodeIDs, id) {
@@ -201,16 +237,11 @@ func (iter *DownloadObjectIterator) sortDownloadNodes(coorCli *coormq.Client, ct
 		}
 	}
 
-	getNodes, err := coorCli.GetNodes(coormq.NewGetNodes(nodeIDs))
-	if err != nil {
-		return nil, fmt.Errorf("getting nodes: %w", err)
-	}
-
 	downloadNodeMap := make(map[cdssdk.NodeID]*DownloadNodeInfo)
 	for _, id := range obj.PinnedAt {
 		node, ok := downloadNodeMap[id]
 		if !ok {
-			mod := *getNodes.GetNode(id)
+			mod := iter.allNodes[id]
 			node = &DownloadNodeInfo{
 				Node:         mod,
 				ObjectPinned: true,
@@ -225,7 +256,7 @@ func (iter *DownloadObjectIterator) sortDownloadNodes(coorCli *coormq.Client, ct
 	for _, b := range obj.Blocks {
 		node, ok := downloadNodeMap[b.NodeID]
 		if !ok {
-			mod := *getNodes.GetNode(b.NodeID)
+			mod := iter.allNodes[b.NodeID]
 			node = &DownloadNodeInfo{
 				Node:     mod,
 				Distance: iter.getNodeDistance(mod),

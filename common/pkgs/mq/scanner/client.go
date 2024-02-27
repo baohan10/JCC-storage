@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"sync"
+
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
 )
@@ -30,7 +32,9 @@ type Pool interface {
 }
 
 type pool struct {
-	mqcfg *stgmq.Config
+	mqcfg  *stgmq.Config
+	shared *Client
+	lock   sync.Mutex
 }
 
 func NewPool(mqcfg *stgmq.Config) Pool {
@@ -39,9 +43,18 @@ func NewPool(mqcfg *stgmq.Config) Pool {
 	}
 }
 func (p *pool) Acquire() (*Client, error) {
-	return NewClient(p.mqcfg)
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	if p.shared == nil {
+		var err error
+		p.shared, err = NewClient(p.mqcfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return p.shared, nil
 }
 
 func (p *pool) Release(cli *Client) {
-	cli.Close()
 }

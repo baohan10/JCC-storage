@@ -30,6 +30,7 @@
         "etcdUsername": "",
         "etcdPassword": "",
         "etcdLockLeaseTimeSec": 5,
-        "description": "I am a agent"
+        "randomReleasingDelayMs": 3000,
+        "serviceDescription": "I am a agent"
     }
 }

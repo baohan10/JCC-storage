@@ -44,7 +44,19 @@ func (*CacheDB) Create(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID, pr
 	return nil
 }
 
-func (*CacheDB) BatchCreate(ctx SQLContext, fileHashes []string, nodeID cdssdk.NodeID, priority int) error {
+// 批量创建缓存记录
+func (*CacheDB) BatchCreate(ctx SQLContext, caches []model.Cache) error {
+	return BatchNamedExec(
+		ctx,
+		"insert into Cache(FileHash,NodeID,CreateTime,Priority) values(:FileHash,:NodeID,:CreateTime,:Priority)"+
+			" on duplicate key update CreateTime=values(CreateTime), Priority=values(Priority)",
+		4,
+		caches,
+		nil,
+	)
+}
+
+func (*CacheDB) BatchCreateOnSameNode(ctx SQLContext, fileHashes []string, nodeID cdssdk.NodeID, priority int) error {
 	var caches []model.Cache
 	var nowTime = time.Now()
 	for _, hash := range fileHashes {
@@ -56,8 +68,9 @@ func (*CacheDB) BatchCreate(ctx SQLContext, fileHashes []string, nodeID cdssdk.N
 		})
 	}
 
-	_, err := sqlx.NamedExec(ctx, "insert into Cache(FileHash,NodeID,CreateTime,Priority) values(:FileHash,:NodeID,:CreateTime,:Priority)"+
-		" on duplicate key update CreateTime=values(CreateTime), Priority=values(Priority)",
+	_, err := sqlx.NamedExec(ctx,
+		"insert into Cache(FileHash,NodeID,CreateTime,Priority) values(:FileHash,:NodeID,:CreateTime,:Priority)"+
+			" on duplicate key update CreateTime=values(CreateTime), Priority=values(Priority)",
 		caches,
 	)
 	return err

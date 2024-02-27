@@ -105,7 +105,7 @@ func (t *AgentCheckCache) checkCache(execCtx ExecuteContext, tx *sqlx.Tx, realFi
 	}
 
 	if len(realFileHashesCp) > 0 {
-		err = execCtx.Args.DB.Cache().BatchCreate(tx, lo.Keys(realFileHashesCp), t.NodeID, 0)
+		err = execCtx.Args.DB.Cache().BatchCreateOnSameNode(tx, lo.Keys(realFileHashesCp), t.NodeID, 0)
 		if err != nil {
 			log.Warnf("batch create node caches: %w", err)
 			return

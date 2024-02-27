@@ -30,15 +30,26 @@ func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index 
 }
 
 func (db *ObjectBlockDB) BatchCreate(ctx SQLContext, blocks []stgmod.ObjectBlock) error {
-	_, err := sqlx.NamedExec(ctx,
+	return BatchNamedExec(ctx,
 		"insert ignore into ObjectBlock(ObjectID, `Index`, NodeID, FileHash) values(:ObjectID, :Index, :NodeID, :FileHash)",
+		4,
 		blocks,
+		nil,
 	)
-	return err
 }
 
 func (db *ObjectBlockDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID) error {
 	_, err := ctx.Exec("delete from ObjectBlock where ObjectID = ?", objectID)
+	return err
+}
+
+func (db *ObjectBlockDB) BatchDeleteByObjectID(ctx SQLContext, objectIDs []cdssdk.ObjectID) error {
+	// TODO in语句有长度限制
+	query, args, err := sqlx.In("delete from ObjectBlock where ObjectID in (?)", objectIDs)
+	if err != nil {
+		return err
+	}
+	_, err = ctx.Exec(query, args...)
 	return err
 }
 

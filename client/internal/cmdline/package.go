@@ -46,6 +46,8 @@ func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outp
 	}
 	defer objIter.Close()
 
+	madeDirs := make(map[string]bool)
+
 	for {
 		objInfo, err := objIter.MoveNext()
 		if err == iterator.ErrNoMoreItem {
@@ -61,8 +63,11 @@ func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outp
 			fullPath := filepath.Join(outputDir, objInfo.Object.Path)
 
 			dirPath := filepath.Dir(fullPath)
-			if err := os.MkdirAll(dirPath, 0755); err != nil {
-				return fmt.Errorf("creating object dir: %w", err)
+			if !madeDirs[dirPath] {
+				if err := os.MkdirAll(dirPath, 0755); err != nil {
+					return fmt.Errorf("creating object dir: %w", err)
+				}
+				madeDirs[dirPath] = true
 			}
 
 			outputFile, err := os.Create(fullPath)
@@ -135,6 +140,7 @@ func PackageCreatePackage(ctx CommandContext, name string, rootPath string, buck
 				})
 			}
 			fmt.Print(tb.Render())
+			fmt.Printf("\n%v", uploadObjectResult.PackageID)
 			return nil
 		}
 

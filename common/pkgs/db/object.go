@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
@@ -23,6 +24,23 @@ func (db *ObjectDB) GetByID(ctx SQLContext, objectID cdssdk.ObjectID) (model.Obj
 	var ret model.TempObject
 	err := sqlx.Get(ctx, &ret, "select * from Object where ObjectID = ?", objectID)
 	return ret.ToObject(), err
+}
+
+func (db *ObjectDB) BatchGetPackageObjectIDs(ctx SQLContext, pkgID cdssdk.PackageID, pathes []string) ([]cdssdk.ObjectID, error) {
+	// TODO In语句
+	stmt, args, err := sqlx.In("select ObjectID from Object force index(PackagePath) where PackageID=? and Path in (?)", pkgID, pathes)
+	if err != nil {
+		return nil, err
+	}
+	stmt = ctx.Rebind(stmt)
+
+	objIDs := make([]cdssdk.ObjectID, 0, len(pathes))
+	err = sqlx.Select(ctx, &objIDs, stmt, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return objIDs, nil
 }
 
 func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string, redundancy cdssdk.Redundancy) (int64, error) {
@@ -75,6 +93,15 @@ func (db *ObjectDB) CreateOrUpdate(ctx SQLContext, packageID cdssdk.PackageID, p
 	return objID, false, nil
 }
 
+// 批量创建或者更新记录
+func (db *ObjectDB) BatchCreateOrUpdate(ctx SQLContext, objs []cdssdk.Object) error {
+	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy)" +
+		" values(:PackageID,:Path,:Size,:FileHash,:Redundancy)" +
+		" on duplicate key update Size = values(Size), FileHash = values(FileHash), Redundancy = values(Redundancy)"
+
+	return BatchNamedExec(ctx, sql, 5, objs, nil)
+}
+
 func (*ObjectDB) UpdateFileInfo(ctx SQLContext, objectID cdssdk.ObjectID, fileSize int64) (bool, error) {
 	ret, err := ctx.Exec("update Object set FileSize = ? where ObjectID = ?", fileSize, objectID)
 	if err != nil {
@@ -104,102 +131,188 @@ func (db *ObjectDB) GetPackageObjectDetails(ctx SQLContext, packageID cdssdk.Pac
 
 	rets := make([]stgmod.ObjectDetail, 0, len(objs))
 
-	for _, obj := range objs {
-		var blocks []stgmod.ObjectBlock
-		err = sqlx.Select(ctx,
-			&blocks,
-			"select * from ObjectBlock where ObjectID = ? order by `Index`",
-			obj.ObjectID,
-		)
-		if err != nil {
-			return nil, err
+	var allBlocks []stgmod.ObjectBlock
+	err = sqlx.Select(ctx, &allBlocks, "select ObjectBlock.* from ObjectBlock, Object where PackageID = ? and ObjectBlock.ObjectID = Object.ObjectID order by ObjectBlock.ObjectID, `Index` asc", packageID)
+	if err != nil {
+		return nil, fmt.Errorf("getting all object blocks: %w", err)
+	}
+
+	var allPinnedObjs []cdssdk.PinnedObject
+	err = sqlx.Select(ctx, &allPinnedObjs, "select PinnedObject.* from PinnedObject, Object where PackageID = ? and PinnedObject.ObjectID = Object.ObjectID order by PinnedObject.ObjectID", packageID)
+	if err != nil {
+		return nil, fmt.Errorf("getting all pinned objects: %w", err)
+	}
+
+	blksCur := 0
+	pinnedsCur := 0
+	for _, temp := range objs {
+		detail := stgmod.ObjectDetail{
+			Object: temp.ToObject(),
 		}
 
-		var pinnedAt []cdssdk.NodeID
-		err = sqlx.Select(ctx, &pinnedAt, "select NodeID from PinnedObject where ObjectID = ?", obj.ObjectID)
-		if err != nil {
-			return nil, err
+		// 1. 查询Object和ObjectBlock时均按照ObjectID升序排序
+		// 2. ObjectBlock结果集中的不同ObjectID数只会比Object结果集的少
+		// 因此在两个结果集上同时从头开始遍历时，如果两边的ObjectID字段不同，那么一定是ObjectBlock这边的ObjectID > Object的ObjectID，
+		// 此时让Object的遍历游标前进，直到两边的ObjectID再次相等
+		for ; blksCur < len(allBlocks); blksCur++ {
+			if allBlocks[blksCur].ObjectID != temp.ObjectID {
+				break
+			}
+			detail.Blocks = append(detail.Blocks, allBlocks[blksCur])
 		}
 
-		rets = append(rets, stgmod.NewObjectDetail(obj.ToObject(), pinnedAt, blocks))
+		for ; pinnedsCur < len(allPinnedObjs); pinnedsCur++ {
+			if allPinnedObjs[pinnedsCur].ObjectID != temp.ObjectID {
+				break
+			}
+			detail.PinnedAt = append(detail.PinnedAt, allPinnedObjs[pinnedsCur].NodeID)
+		}
+
+		rets = append(rets, detail)
 	}
 
 	return rets, nil
 }
 
-func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, objs []coormq.AddObjectEntry) ([]cdssdk.ObjectID, error) {
-	objIDs := make([]cdssdk.ObjectID, 0, len(objs))
-	for _, obj := range objs {
-		// 创建对象的记录
-		objID, isCreate, err := db.CreateOrUpdate(ctx, packageID, obj.Path, obj.Size, obj.FileHash)
-		if err != nil {
-			return nil, fmt.Errorf("creating object: %w", err)
-		}
+func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []coormq.AddObjectEntry) ([]cdssdk.ObjectID, error) {
+	objs := make([]cdssdk.Object, 0, len(adds))
+	for _, add := range adds {
+		objs = append(objs, cdssdk.Object{
+			PackageID:  packageID,
+			Path:       add.Path,
+			Size:       add.Size,
+			FileHash:   add.FileHash,
+			Redundancy: cdssdk.NewNoneRedundancy(), // 首次上传默认使用不分块的none模式
+		})
+	}
 
-		objIDs = append(objIDs, objID)
+	err := db.BatchCreateOrUpdate(ctx, objs)
+	if err != nil {
+		return nil, fmt.Errorf("batch create or update objects: %w", err)
+	}
 
-		if !isCreate {
-			// 删除原本所有的编码块记录，重新添加
-			if err = db.ObjectBlock().DeleteByObjectID(ctx, objID); err != nil {
-				return nil, fmt.Errorf("deleting all object block: %w", err)
-			}
+	pathes := make([]string, 0, len(adds))
+	for _, add := range adds {
+		pathes = append(pathes, add.Path)
+	}
+	objIDs, err := db.BatchGetPackageObjectIDs(ctx, packageID, pathes)
+	if err != nil {
+		return nil, fmt.Errorf("batch get object ids: %w", err)
+	}
 
-			// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
-			if err = db.PinnedObject().DeleteByObjectID(ctx, objID); err != nil {
-				return nil, fmt.Errorf("deleting all pinned object: %w", err)
-			}
-		}
+	err = db.ObjectBlock().BatchDeleteByObjectID(ctx, objIDs)
+	if err != nil {
+		return nil, fmt.Errorf("batch delete object blocks: %w", err)
+	}
 
-		// 首次上传默认使用不分块的none模式
-		err = db.ObjectBlock().Create(ctx, objID, 0, obj.NodeID, obj.FileHash)
-		if err != nil {
-			return nil, fmt.Errorf("creating object block: %w", err)
-		}
+	err = db.PinnedObject().BatchDeleteByObjectID(ctx, objIDs)
+	if err != nil {
+		return nil, fmt.Errorf("batch delete pinned objects: %w", err)
+	}
 
-		// 创建缓存记录
-		err = db.Cache().Create(ctx, obj.FileHash, obj.NodeID, 0)
-		if err != nil {
-			return nil, fmt.Errorf("creating cache: %w", err)
-		}
+	objBlocks := make([]stgmod.ObjectBlock, 0, len(adds))
+	for i, add := range adds {
+		objBlocks = append(objBlocks, stgmod.ObjectBlock{
+			ObjectID: objIDs[i],
+			Index:    0,
+			NodeID:   add.NodeID,
+			FileHash: add.FileHash,
+		})
+	}
+
+	err = db.ObjectBlock().BatchCreate(ctx, objBlocks)
+	if err != nil {
+		return nil, fmt.Errorf("batch create object blocks: %w", err)
+	}
+
+	caches := make([]model.Cache, 0, len(adds))
+	for _, add := range adds {
+		caches = append(caches, model.Cache{
+			FileHash:   add.FileHash,
+			NodeID:     add.NodeID,
+			CreateTime: time.Now(),
+			Priority:   0,
+		})
+	}
+
+	err = db.Cache().BatchCreate(ctx, caches)
+	if err != nil {
+		return nil, fmt.Errorf("batch create caches: %w", err)
 	}
 
 	return objIDs, nil
 }
 
 func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeObjectRedundancyEntry) error {
+	objIDs := make([]cdssdk.ObjectID, 0, len(objs))
+	dummyObjs := make([]cdssdk.Object, 0, len(objs))
 	for _, obj := range objs {
-		_, err := ctx.Exec("update Object set Redundancy = ? where ObjectID = ?", obj.Redundancy, obj.ObjectID)
-		if err != nil {
-			return fmt.Errorf("updating object: %w", err)
-		}
+		objIDs = append(objIDs, obj.ObjectID)
+		dummyObjs = append(dummyObjs, cdssdk.Object{
+			ObjectID:   obj.ObjectID,
+			Redundancy: obj.Redundancy,
+		})
+	}
 
-		// 删除原本所有的编码块记录，重新添加
-		if err = db.ObjectBlock().DeleteByObjectID(ctx, obj.ObjectID); err != nil {
-			return fmt.Errorf("deleting all object block: %w", err)
-		}
+	// 目前只能使用这种方式来同时更新大量数据
+	err := BatchNamedExec(ctx,
+		"insert into Object(ObjectID, PackageID, Path, Size, FileHash, Redundancy)"+
+			" values(:ObjectID, :PackageID, :Path, :Size, :FileHash, :Redundancy) as new"+
+			" on duplicate key update Redundancy=new.Redundancy", 6, dummyObjs, nil)
+	if err != nil {
+		return fmt.Errorf("batch update object redundancy: %w", err)
+	}
 
-		// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
-		if err = db.PinnedObject().DeleteByObjectID(ctx, obj.ObjectID); err != nil {
-			return fmt.Errorf("deleting all pinned object: %w", err)
-		}
+	// 删除原本所有的编码块记录，重新添加
+	err = db.ObjectBlock().BatchDeleteByObjectID(ctx, objIDs)
+	if err != nil {
+		return fmt.Errorf("batch delete object blocks: %w", err)
+	}
 
-		for _, block := range obj.Blocks {
-			err = db.ObjectBlock().Create(ctx, obj.ObjectID, block.Index, block.NodeID, block.FileHash)
-			if err != nil {
-				return fmt.Errorf("creating object block: %w", err)
-			}
+	// 删除原本Pin住的Object。暂不考虑FileHash没有变化的情况
+	err = db.PinnedObject().BatchDeleteByObjectID(ctx, objIDs)
+	if err != nil {
+		return fmt.Errorf("batch delete pinned object: %w", err)
+	}
 
-			// 创建缓存记录
-			err = db.Cache().Create(ctx, block.FileHash, block.NodeID, 0)
-			if err != nil {
-				return fmt.Errorf("creating cache: %w", err)
-			}
-		}
+	blocks := make([]stgmod.ObjectBlock, 0, len(objs))
+	for _, obj := range objs {
+		blocks = append(blocks, obj.Blocks...)
+	}
+	err = db.ObjectBlock().BatchCreate(ctx, blocks)
+	if err != nil {
+		return fmt.Errorf("batch create object blocks: %w", err)
+	}
 
-		err = db.PinnedObject().ObjectBatchCreate(ctx, obj.ObjectID, obj.PinnedAt)
-		if err != nil {
-			return fmt.Errorf("creating pinned object: %w", err)
+	caches := make([]model.Cache, 0, len(objs))
+	for _, obj := range objs {
+		for _, blk := range obj.Blocks {
+			caches = append(caches, model.Cache{
+				FileHash:   blk.FileHash,
+				NodeID:     blk.NodeID,
+				CreateTime: time.Now(),
+				Priority:   0,
+			})
 		}
+	}
+	err = db.Cache().BatchCreate(ctx, caches)
+	if err != nil {
+		return fmt.Errorf("batch create object caches: %w", err)
+	}
+
+	pinneds := make([]cdssdk.PinnedObject, 0, len(objs))
+	for _, obj := range objs {
+		for _, p := range obj.PinnedAt {
+			pinneds = append(pinneds, cdssdk.PinnedObject{
+				ObjectID:   obj.ObjectID,
+				NodeID:     p,
+				CreateTime: time.Now(),
+			})
+		}
+	}
+	err = db.PinnedObject().BatchTryCreate(ctx, pinneds)
+	if err != nil {
+		return fmt.Errorf("batch create pinned objects: %w", err)
 	}
 
 	return nil

@@ -18,6 +18,11 @@ type SQLContext interface {
 	sqlx.Queryer
 	sqlx.Execer
 	sqlx.Ext
+	sqlx.Preparer
+
+	NamedQuery(query string, arg interface{}) (*sqlx.Rows, error)
+	NamedExec(query string, arg interface{}) (sql.Result, error)
+	PrepareNamed(query string) (*sqlx.NamedStmt, error)
 }
 
 func NewDB(cfg *config.Config) (*DB, error) {
