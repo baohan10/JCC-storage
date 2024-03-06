@@ -8,6 +8,7 @@ import (
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
 type CacheService struct {
@@ -54,4 +55,19 @@ func (svc *CacheService) WaitCacheMovePackage(nodeID cdssdk.NodeID, taskID strin
 	}
 
 	return true, nil
+}
+
+func (svc *CacheService) CacheRemovePackage(packageID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new agent client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	_, err = coorCli.CacheRemovePackage(coormq.ReqCacheRemoveMovedPackage(packageID, nodeID))
+	if err != nil {
+		return fmt.Errorf("requesting to coordinator: %w", err)
+	}
+
+	return nil
 }

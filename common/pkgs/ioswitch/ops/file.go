@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
@@ -22,6 +23,12 @@ func (o *FileWrite) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 		return err
 	}
 	defer str[0].Stream.Close()
+
+	dir := path.Dir(o.FilePath)
+	err = os.MkdirAll(dir, 0777)
+	if err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
 
 	file, err := os.Create(o.FilePath)
 	if err != nil {

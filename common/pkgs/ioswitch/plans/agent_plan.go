@@ -243,3 +243,24 @@ func (b *AgentPlanBuilder) ChunkedJoin(chunkSize int, streams ...*AgentStream) *
 
 	return agtStr
 }
+
+func (s *AgentStream) Clone(cnt int) *MultiStream {
+	mstr := &MultiStream{}
+
+	var outputStrIDs []ioswitch.StreamID
+	for i := 0; i < cnt; i++ {
+		info := s.owner.owner.newStream()
+		mstr.Streams = append(mstr.Streams, &AgentStream{
+			owner: s.owner,
+			info:  info,
+		})
+		outputStrIDs = append(outputStrIDs, info.ID)
+	}
+
+	s.owner.ops = append(s.owner.ops, &ops.Clone{
+		InputID:   s.info.ID,
+		OutputIDs: outputStrIDs,
+	})
+
+	return mstr
+}

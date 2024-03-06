@@ -68,12 +68,13 @@ func (*CacheDB) BatchCreateOnSameNode(ctx SQLContext, fileHashes []string, nodeI
 		})
 	}
 
-	_, err := sqlx.NamedExec(ctx,
+	return BatchNamedExec(ctx,
 		"insert into Cache(FileHash,NodeID,CreateTime,Priority) values(:FileHash,:NodeID,:CreateTime,:Priority)"+
 			" on duplicate key update CreateTime=values(CreateTime), Priority=values(Priority)",
+		4,
 		caches,
+		nil,
 	)
-	return err
 }
 
 func (*CacheDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes []string) error {
