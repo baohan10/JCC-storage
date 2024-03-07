@@ -34,7 +34,7 @@ func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coo
 			return fmt.Errorf("storage is not available to user")
 		}
 
-		err := svc.db.StoragePackage().Create(tx, msg.StorageID, msg.PackageID, msg.UserID)
+		err := svc.db.StoragePackage().CreateOrUpdate(tx, msg.StorageID, msg.PackageID, msg.UserID)
 		if err != nil {
 			return fmt.Errorf("creating storage package: %w", err)
 		}

@@ -103,6 +103,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 		return fmt.Errorf("loading package to storage: %w", err)
 	}
 
+	// TODO 要防止下载的临时文件被删除
 	return err
 }
 
