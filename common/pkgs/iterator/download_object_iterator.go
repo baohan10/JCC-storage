@@ -13,7 +13,7 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	myio "gitlink.org.cn/cloudream/common/utils/io"
-	mysort "gitlink.org.cn/cloudream/common/utils/sort"
+	"gitlink.org.cn/cloudream/common/utils/sort2"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
@@ -267,8 +267,8 @@ func (iter *DownloadObjectIterator) sortDownloadNodes(obj stgmodels.ObjectDetail
 		node.Blocks = append(node.Blocks, b)
 	}
 
-	return mysort.Sort(lo.Values(downloadNodeMap), func(left, right *DownloadNodeInfo) int {
-		return mysort.Cmp(left.Distance, right.Distance)
+	return sort2.Sort(lo.Values(downloadNodeMap), func(left, right *DownloadNodeInfo) int {
+		return sort2.Cmp(left.Distance, right.Distance)
 	}), nil
 }
 

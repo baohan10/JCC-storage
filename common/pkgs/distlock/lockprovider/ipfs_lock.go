@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	mylo "gitlink.org.cn/cloudream/common/utils/lo"
+	"gitlink.org.cn/cloudream/common/utils/lo2"
 )
 
 const (
@@ -129,9 +129,9 @@ func (l *IPFSNodeLock) Lock(reqID string, lock distlock.Lock) error {
 func (l *IPFSNodeLock) Unlock(reqID string, lock distlock.Lock) error {
 	switch lock.Name {
 	case IPFSBuzyLock:
-		l.buzyReqIDs = mylo.Remove(l.buzyReqIDs, reqID)
+		l.buzyReqIDs = lo2.Remove(l.buzyReqIDs, reqID)
 	case IPFSGCLock:
-		l.gcReqIDs = mylo.Remove(l.gcReqIDs, reqID)
+		l.gcReqIDs = lo2.Remove(l.gcReqIDs, reqID)
 	default:
 		return fmt.Errorf("unknow lock name: %s", lock.Name)
 	}

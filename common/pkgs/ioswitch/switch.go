@@ -8,7 +8,7 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	"gitlink.org.cn/cloudream/common/utils/lo"
+	"gitlink.org.cn/cloudream/common/utils/lo2"
 )
 
 var ErrPlanFinished = errors.New("plan is finished")
@@ -232,7 +232,7 @@ func (s *Switch) StreamReady(planID PlanID, stream Stream) {
 			return
 		}
 
-		plan.waittings = lo.RemoveAt(plan.waittings, i)
+		plan.waittings = lo2.RemoveAt(plan.waittings, i)
 		wa.Complete()
 		return
 	}
