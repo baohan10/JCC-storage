@@ -40,7 +40,7 @@ func (t *IPFSPin) Execute(task *task.Task[TaskContext], ctx TaskContext, complet
 		err = ipfsCli.Pin(fileHash)
 		if err != nil {
 			err := fmt.Errorf("pin file failed, err: %w", err)
-			log.WithField("FileHash", t.FileHashes).Warn(err.Error())
+			log.WithField("FileHash", fileHash).Warn(err.Error())
 
 			complete(err, CompleteOption{
 				RemovingDelay: time.Minute,
