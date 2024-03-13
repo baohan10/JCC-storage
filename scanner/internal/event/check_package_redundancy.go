@@ -8,7 +8,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/common/utils/sort"
+	"gitlink.org.cn/cloudream/common/utils/sort2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
@@ -110,7 +110,10 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	defRep := cdssdk.DefaultRepRedundancy
 	defEC := cdssdk.DefaultECRedundancy
 
+	// TODO 目前rep的备份数量固定为2，所以这里直接选出两个节点
+	mostBlockNodeIDs := t.summaryRepObjectBlockNodes(getObjs.Objects, 2)
 	newRepNodes := t.chooseNewNodesForRep(&defRep, allNodes)
+	rechoosedRepNodes := t.rechooseNodesForRep(mostBlockNodeIDs, &defRep, allNodes)
 	newECNodes := t.chooseNewNodesForEC(&defEC, allNodes)
 
 	// 加锁
@@ -149,8 +152,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 				log.WithField("ObjectID", obj.Object.ObjectID).Debugf("redundancy: rep -> ec")
 				entry, err = t.repToEC(obj, &defEC, newECNodes)
 			} else {
-				uploadNodes := t.rechooseNodesForRep(obj, red, allNodes)
-				entry, err = t.repToRep(obj, &defRep, uploadNodes)
+				entry, err = t.repToRep(obj, &defRep, rechoosedRepNodes)
 			}
 
 		case *cdssdk.ECRedundancy:
@@ -183,8 +185,43 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	}
 }
 
+// 统计每个对象块所在的节点，选出块最多的不超过nodeCnt个节点
+func (t *CheckPackageRedundancy) summaryRepObjectBlockNodes(objs []stgmod.ObjectDetail, nodeCnt int) []cdssdk.NodeID {
+	type nodeBlocks struct {
+		NodeID cdssdk.NodeID
+		Count  int
+	}
+
+	nodeBlocksMap := make(map[cdssdk.NodeID]*nodeBlocks)
+	for _, obj := range objs {
+		shouldUseEC := obj.Object.Size > config.Cfg().ECFileSizeThreshold
+		if _, ok := obj.Object.Redundancy.(*cdssdk.RepRedundancy); ok && !shouldUseEC {
+			for _, block := range obj.Blocks {
+				if _, ok := nodeBlocksMap[block.NodeID]; !ok {
+					nodeBlocksMap[block.NodeID] = &nodeBlocks{
+						NodeID: block.NodeID,
+						Count:  0,
+					}
+				}
+				nodeBlocksMap[block.NodeID].Count++
+			}
+		}
+	}
+
+	nodes := lo.Values(nodeBlocksMap)
+	sort2.Sort(nodes, func(left *nodeBlocks, right *nodeBlocks) int {
+		return right.Count - left.Count
+	})
+
+	ids := lo.Map(nodes, func(item *nodeBlocks, idx int) cdssdk.NodeID { return item.NodeID })
+	if len(ids) > nodeCnt {
+		ids = ids[:nodeCnt]
+	}
+	return ids
+}
+
 func (t *CheckPackageRedundancy) chooseNewNodesForRep(red *cdssdk.RepRedundancy, allNodes map[cdssdk.NodeID]*NodeLoadInfo) []*NodeLoadInfo {
-	sortedNodes := sort.Sort(lo.Values(allNodes), func(left *NodeLoadInfo, right *NodeLoadInfo) int {
+	sortedNodes := sort2.Sort(lo.Values(allNodes), func(left *NodeLoadInfo, right *NodeLoadInfo) int {
 		dm := right.LoadsRecentMonth - left.LoadsRecentMonth
 		if dm != 0 {
 			return dm
@@ -197,7 +234,7 @@ func (t *CheckPackageRedundancy) chooseNewNodesForRep(red *cdssdk.RepRedundancy,
 }
 
 func (t *CheckPackageRedundancy) chooseNewNodesForEC(red *cdssdk.ECRedundancy, allNodes map[cdssdk.NodeID]*NodeLoadInfo) []*NodeLoadInfo {
-	sortedNodes := sort.Sort(lo.Values(allNodes), func(left *NodeLoadInfo, right *NodeLoadInfo) int {
+	sortedNodes := sort2.Sort(lo.Values(allNodes), func(left *NodeLoadInfo, right *NodeLoadInfo) int {
 		dm := right.LoadsRecentMonth - left.LoadsRecentMonth
 		if dm != 0 {
 			return dm
@@ -209,36 +246,36 @@ func (t *CheckPackageRedundancy) chooseNewNodesForEC(red *cdssdk.ECRedundancy, a
 	return t.chooseSoManyNodes(red.N, sortedNodes)
 }
 
-func (t *CheckPackageRedundancy) rechooseNodesForRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, allNodes map[cdssdk.NodeID]*NodeLoadInfo) []*NodeLoadInfo {
+func (t *CheckPackageRedundancy) rechooseNodesForRep(mostBlockNodeIDs []cdssdk.NodeID, red *cdssdk.RepRedundancy, allNodes map[cdssdk.NodeID]*NodeLoadInfo) []*NodeLoadInfo {
 	type rechooseNode struct {
 		*NodeLoadInfo
-		CachedBlockIndex int
+		HasBlock bool
 	}
 
 	var rechooseNodes []*rechooseNode
 	for _, node := range allNodes {
-		cachedBlockIndex := -1
-		for _, block := range obj.Blocks {
-			if block.NodeID == node.Node.NodeID {
-				cachedBlockIndex = block.Index
+		hasBlock := false
+		for _, id := range mostBlockNodeIDs {
+			if id == node.Node.NodeID {
+				hasBlock = true
 				break
 			}
 		}
 
 		rechooseNodes = append(rechooseNodes, &rechooseNode{
-			NodeLoadInfo:     node,
-			CachedBlockIndex: cachedBlockIndex,
+			NodeLoadInfo: node,
+			HasBlock:     hasBlock,
 		})
 	}
 
-	sortedNodes := sort.Sort(rechooseNodes, func(left *rechooseNode, right *rechooseNode) int {
+	sortedNodes := sort2.Sort(rechooseNodes, func(left *rechooseNode, right *rechooseNode) int {
 		dm := right.LoadsRecentMonth - left.LoadsRecentMonth
 		if dm != 0 {
 			return dm
 		}
 
 		// 已经缓存了文件块的节点优先选择
-		v := sort.CmpBool(right.CachedBlockIndex > -1, left.CachedBlockIndex > -1)
+		v := sort2.CmpBool(right.HasBlock, left.HasBlock)
 		if v != 0 {
 			return v
 		}
@@ -271,14 +308,14 @@ func (t *CheckPackageRedundancy) rechooseNodesForEC(obj stgmod.ObjectDetail, red
 		})
 	}
 
-	sortedNodes := sort.Sort(rechooseNodes, func(left *rechooseNode, right *rechooseNode) int {
+	sortedNodes := sort2.Sort(rechooseNodes, func(left *rechooseNode, right *rechooseNode) int {
 		dm := right.LoadsRecentMonth - left.LoadsRecentMonth
 		if dm != 0 {
 			return dm
 		}
 
 		// 已经缓存了文件块的节点优先选择
-		v := sort.CmpBool(right.CachedBlockIndex > -1, left.CachedBlockIndex > -1)
+		v := sort2.CmpBool(right.CachedBlockIndex > -1, left.CachedBlockIndex > -1)
 		if v != 0 {
 			return v
 		}
@@ -627,7 +664,7 @@ func (t *CheckPackageRedundancy) pinObject(nodeID cdssdk.NodeID, fileHash string
 	}
 	defer stgglb.AgentMQPool.Release(agtCli)
 
-	_, err = agtCli.PinObject(agtmq.ReqPinObject(fileHash, false))
+	_, err = agtCli.PinObject(agtmq.ReqPinObject([]string{fileHash}, false))
 	if err != nil {
 		return fmt.Errorf("start pinning object: %w", err)
 	}

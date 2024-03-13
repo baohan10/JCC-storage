@@ -10,22 +10,13 @@ import (
 )
 
 type IPFSPin struct {
-	FileHash string
+	FileHashes []string
 }
 
-func NewIPFSPin(fileHash string) *IPFSPin {
+func NewIPFSPin(fileHashes []string) *IPFSPin {
 	return &IPFSPin{
-		FileHash: fileHash,
+		FileHashes: fileHashes,
 	}
-}
-
-func (t *IPFSPin) Compare(other *Task) bool {
-	tsk, ok := other.Body().(*IPFSPin)
-	if !ok {
-		return false
-	}
-
-	return t.FileHash == tsk.FileHash
 }
 
 func (t *IPFSPin) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
@@ -45,15 +36,17 @@ func (t *IPFSPin) Execute(task *task.Task[TaskContext], ctx TaskContext, complet
 	}
 	defer ipfsCli.Close()
 
-	err = ipfsCli.Pin(t.FileHash)
-	if err != nil {
-		err := fmt.Errorf("pin file failed, err: %w", err)
-		log.WithField("FileHash", t.FileHash).Warn(err.Error())
+	for _, fileHash := range t.FileHashes {
+		err = ipfsCli.Pin(fileHash)
+		if err != nil {
+			err := fmt.Errorf("pin file failed, err: %w", err)
+			log.WithField("FileHash", t.FileHashes).Warn(err.Error())
 
-		complete(err, CompleteOption{
-			RemovingDelay: time.Minute,
-		})
-		return
+			complete(err, CompleteOption{
+				RemovingDelay: time.Minute,
+			})
+			return
+		}
 	}
 
 	complete(nil, CompleteOption{

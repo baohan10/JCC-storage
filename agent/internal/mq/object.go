@@ -9,12 +9,12 @@ import (
 )
 
 func (svc *Service) PinObject(msg *agtmq.PinObject) (*agtmq.PinObjectResp, *mq.CodeMessage) {
-	logger.WithField("FileHash", msg.FileHash).Debugf("pin object")
+	logger.WithField("FileHash", msg.FileHashes).Debugf("pin object")
 
-	tsk := svc.taskManager.StartComparable(task.NewIPFSPin(msg.FileHash))
+	tsk := svc.taskManager.StartNew(task.NewIPFSPin(msg.FileHashes))
 
 	if tsk.Error() != nil {
-		logger.WithField("FileHash", msg.FileHash).
+		logger.WithField("FileHash", msg.FileHashes).
 			Warnf("pin object failed, err: %s", tsk.Error().Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "pin object failed")
 	}
