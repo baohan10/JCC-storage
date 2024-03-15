@@ -81,8 +81,8 @@ type ChangeObjectRedundancyResp struct {
 	mq.MessageBodyBase
 }
 type ChangeObjectRedundancyEntry struct {
-	ObjectID   cdssdk.ObjectID      `json:"objectID"`
-	Redundancy cdssdk.Redundancy    `json:"redundancy"`
+	ObjectID   cdssdk.ObjectID      `json:"objectID" db:"ObjectID"`
+	Redundancy cdssdk.Redundancy    `json:"redundancy" db:"Redundancy"`
 	PinnedAt   []cdssdk.NodeID      `json:"pinnedAt"`
 	Blocks     []stgmod.ObjectBlock `json:"blocks"`
 }

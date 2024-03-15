@@ -29,6 +29,12 @@ func CacheMovePackage(ctx CommandContext, packageID cdssdk.PackageID, nodeID cds
 	}
 }
 
+func CacheRemovePackage(ctx CommandContext, packageID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
+	return ctx.Cmdline.Svc.CacheSvc().CacheRemovePackage(packageID, nodeID)
+}
+
 func init() {
 	commands.Add(CacheMovePackage, "cache", "move")
+
+	commands.Add(CacheRemovePackage, "cache", "remove")
 }

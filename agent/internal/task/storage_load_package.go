@@ -15,7 +15,7 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myio "gitlink.org.cn/cloudream/common/utils/io"
 	myref "gitlink.org.cn/cloudream/common/utils/reflect"
-	mysort "gitlink.org.cn/cloudream/common/utils/sort"
+	"gitlink.org.cn/cloudream/common/utils/sort2"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
@@ -103,6 +103,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 		return fmt.Errorf("loading package to storage: %w", err)
 	}
 
+	// TODO 要防止下载的临时文件被删除
 	return err
 }
 
@@ -289,8 +290,8 @@ func (t *StorageLoadPackage) sortDownloadNodes(coorCli *coormq.Client, obj stgmo
 		node.Blocks = append(node.Blocks, b)
 	}
 
-	return mysort.Sort(lo.Values(downloadNodeMap), func(left, right *downloadNodeInfo) int {
-		return mysort.Cmp(left.Distance, right.Distance)
+	return sort2.Sort(lo.Values(downloadNodeMap), func(left, right *downloadNodeInfo) int {
+		return sort2.Cmp(left.Distance, right.Distance)
 	}), nil
 }
 

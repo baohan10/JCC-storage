@@ -79,7 +79,7 @@ func (client *Client) CreatePackage(msg *CreatePackage) (*CreatePackageResp, err
 	return mq.Request(Service.CreatePackage, client.rabbitCli, msg)
 }
 
-// 更新EC备份模式的Package
+// 更新Package
 var _ = Register(Service.UpdatePackage)
 
 type UpdatePackage struct {
@@ -116,7 +116,7 @@ func NewAddObjectEntry(path string, size int64, fileHash string, nodeIDs cdssdk.
 		NodeID:   nodeIDs,
 	}
 }
-func (client *Client) UpdateECPackage(msg *UpdatePackage) (*UpdatePackageResp, error) {
+func (client *Client) UpdatePackage(msg *UpdatePackage) (*UpdatePackageResp, error) {
 	return mq.Request(Service.UpdatePackage, client.rabbitCli, msg)
 }
 

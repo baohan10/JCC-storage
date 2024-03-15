@@ -24,6 +24,7 @@
         "etcdUsername": "",
         "etcdPassword": "",
         "etcdLockLeaseTimeSec": 5,
-        "description": "I am a scanner"
+        "randomReleasingDelayMs": 3000,
+        "serviceDescription": "I am a scanner"
     }
 }

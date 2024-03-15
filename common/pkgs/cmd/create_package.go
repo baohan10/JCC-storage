@@ -139,6 +139,10 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
 	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	// 为所有文件选择相同的上传节点
+	uploadNode := chooseUploadNode(userNodes, nodeAffinity)
 
 	var uploadRets []ObjectUploadResult
 	//上传文件夹
@@ -154,8 +158,6 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 		err = func() error {
 			defer objInfo.File.Close()
 
-			uploadNode := chooseUploadNode(userNodes, nodeAffinity)
-
 			fileHash, err := uploadFile(objInfo.File, uploadNode)
 			if err != nil {
 				return fmt.Errorf("uploading file: %w", err)
@@ -165,9 +167,6 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 				Info:  objInfo,
 				Error: err,
 			})
-			if err != nil {
-				return fmt.Errorf("uploading object: %w", err)
-			}
 
 			adds = append(adds, coormq.NewAddObjectEntry(objInfo.Path, objInfo.Size, fileHash, uploadNode.Node.NodeID))
 			return nil
@@ -177,7 +176,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 		}
 	}
 
-	_, err = coorCli.UpdateECPackage(coormq.NewUpdatePackage(packageID, adds, nil))
+	_, err = coorCli.UpdatePackage(coormq.NewUpdatePackage(packageID, adds, nil))
 	if err != nil {
 		return nil, fmt.Errorf("updating package: %w", err)
 	}
@@ -262,7 +261,7 @@ func pinIPFSFile(nodeID cdssdk.NodeID, fileHash string) error {
 	defer stgglb.AgentMQPool.Release(agtCli)
 
 	// 然后让最近节点pin本地上传的文件
-	_, err = agtCli.PinObject(agtmq.ReqPinObject(fileHash, false))
+	_, err = agtCli.PinObject(agtmq.ReqPinObject([]string{fileHash}, false))
 	if err != nil {
 		return fmt.Errorf("start pinning object: %w", err)
 	}

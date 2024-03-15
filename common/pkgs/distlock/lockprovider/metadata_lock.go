@@ -5,7 +5,7 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	mylo "gitlink.org.cn/cloudream/common/utils/lo"
+	"gitlink.org.cn/cloudream/common/utils/lo2"
 )
 
 const (
@@ -96,10 +96,10 @@ func (l *MetadataLock) removeElementLock(lock distlock.Lock, locks []*metadataEl
 		return locks
 	}
 
-	lck.requestIDs = mylo.Remove(lck.requestIDs, reqID)
+	lck.requestIDs = lo2.Remove(lck.requestIDs, reqID)
 
 	if len(lck.requestIDs) == 0 {
-		locks = mylo.RemoveAt(locks, index)
+		locks = lo2.RemoveAt(locks, index)
 	}
 
 	return locks

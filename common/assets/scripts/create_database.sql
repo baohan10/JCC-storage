@@ -157,8 +157,8 @@ create table StoragePackage (
 );
 
 create table StoragePackageLog (
-  PackageID int not null comment '包ID',
   StorageID int not null comment '存储服务ID',
+  PackageID int not null comment '包ID',
   UserID int not null comment '调度了此文件的用户ID',
   CreateTime timestamp not null comment '加载Package完成的时间'
 );

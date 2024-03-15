@@ -34,8 +34,9 @@ func (*StoragePackageDB) GetAllByStorageID(ctx SQLContext, storageID cdssdk.Stor
 	return ret, err
 }
 
-func (*StoragePackageDB) Create(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
-	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)", storageID, packageID, userID, model.StoragePackageStateNormal)
+func (*StoragePackageDB) CreateOrUpdate(ctx SQLContext, storageID cdssdk.StorageID, packageID cdssdk.PackageID, userID cdssdk.UserID) error {
+	_, err := ctx.Exec("insert into StoragePackage values(?,?,?,?)"+
+		" on duplicate key update State=values(State)", storageID, packageID, userID, model.StoragePackageStateNormal)
 	return err
 }
 

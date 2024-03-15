@@ -2,7 +2,7 @@ package reqbuilder
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
-	mylo "gitlink.org.cn/cloudream/common/utils/lo"
+	"gitlink.org.cn/cloudream/common/utils/lo2"
 )
 
 type LockRequestBuilder struct {
@@ -15,7 +15,7 @@ func NewBuilder() *LockRequestBuilder {
 
 func (b *LockRequestBuilder) Build() distlock.LockRequest {
 	return distlock.LockRequest{
-		Locks: mylo.ArrayClone(b.locks),
+		Locks: lo2.ArrayClone(b.locks),
 	}
 }
 
