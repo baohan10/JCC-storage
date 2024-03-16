@@ -8,7 +8,7 @@ import (
 )
 
 func BucketListUserBuckets(ctx CommandContext) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 
 	buckets, err := ctx.Cmdline.Svc.BucketSvc().GetUserBuckets(userID)
 	if err != nil {
@@ -29,7 +29,7 @@ func BucketListUserBuckets(ctx CommandContext) error {
 }
 
 func BucketCreateBucket(ctx CommandContext, bucketName string) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 
 	bucketID, err := ctx.Cmdline.Svc.BucketSvc().CreateBucket(userID, bucketName)
 	if err != nil {
@@ -41,7 +41,7 @@ func BucketCreateBucket(ctx CommandContext, bucketName string) error {
 }
 
 func BucketDeleteBucket(ctx CommandContext, bucketID cdssdk.BucketID) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 
 	err := ctx.Cmdline.Svc.BucketSvc().DeleteBucket(userID, bucketID)
 	if err != nil {

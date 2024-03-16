@@ -8,7 +8,7 @@ import (
 )
 
 func CacheMovePackage(ctx CommandContext, packageID cdssdk.PackageID, nodeID cdssdk.NodeID) error {
-	taskID, err := ctx.Cmdline.Svc.CacheSvc().StartCacheMovePackage(0, packageID, nodeID)
+	taskID, err := ctx.Cmdline.Svc.CacheSvc().StartCacheMovePackage(1, packageID, nodeID)
 	if err != nil {
 		return fmt.Errorf("start cache moving package: %w", err)
 	}

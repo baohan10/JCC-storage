@@ -8,7 +8,7 @@ import (
 )
 
 func StorageLoadPackage(ctx CommandContext, packageID cdssdk.PackageID, storageID cdssdk.StorageID) error {
-	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageLoadPackage(0, packageID, storageID)
+	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageLoadPackage(1, packageID, storageID)
 	if err != nil {
 		return fmt.Errorf("start loading package to storage: %w", err)
 	}
@@ -31,7 +31,7 @@ func StorageLoadPackage(ctx CommandContext, packageID cdssdk.PackageID, storageI
 }
 
 func StorageCreatePackage(ctx CommandContext, bucketID cdssdk.BucketID, name string, storageID cdssdk.StorageID, path string) error {
-	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageCreatePackage(0, bucketID, name, storageID, path, nil)
+	nodeID, taskID, err := ctx.Cmdline.Svc.StorageSvc().StartStorageCreatePackage(1, bucketID, name, storageID, path, nil)
 	if err != nil {
 		return fmt.Errorf("start storage uploading package: %w", err)
 	}
