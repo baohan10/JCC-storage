@@ -46,11 +46,7 @@ type UserStorage struct {
 	StorageID cdssdk.StorageID `db:"StorageID" json:"storageID"`
 }
 
-type Bucket struct {
-	BucketID  cdssdk.BucketID `db:"BucketID" json:"bucketID"`
-	Name      string          `db:"Name" json:"name"`
-	CreatorID cdssdk.UserID   `db:"CreatorID" json:"creatorID"`
-}
+type Bucket = cdssdk.Bucket
 
 type Package = cdssdk.Package
 

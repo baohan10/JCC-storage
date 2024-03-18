@@ -14,7 +14,7 @@ type StorageService struct {
 	*Server
 }
 
-func (s *Server) StorageSvc() *StorageService {
+func (s *Server) Storage() *StorageService {
 	return &StorageService{
 		Server: s,
 	}

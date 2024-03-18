@@ -2,13 +2,10 @@ package services
 
 import (
 	"fmt"
-	"time"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
-	mytask "gitlink.org.cn/cloudream/storage/client/internal/task"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	agtcmd "gitlink.org.cn/cloudream/storage/common/pkgs/cmd"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -37,6 +34,21 @@ func (svc *PackageService) Get(userID cdssdk.UserID, packageID cdssdk.PackageID)
 	return &getResp.Package, nil
 }
 
+func (svc *PackageService) Create(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string) (cdssdk.PackageID, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return 0, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	resp, err := coorCli.CreatePackage(coormq.NewCreatePackage(userID, bucketID, name))
+	if err != nil {
+		return 0, fmt.Errorf("creating package: %w", err)
+	}
+
+	return resp.PackageID, nil
+}
+
 func (svc *PackageService) DownloadPackage(userID cdssdk.UserID, packageID cdssdk.PackageID) (iterator.DownloadingObjectIterator, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
@@ -54,34 +66,6 @@ func (svc *PackageService) DownloadPackage(userID cdssdk.UserID, packageID cdssd
 	})
 
 	return iter, nil
-}
-
-func (svc *PackageService) StartCreatingPackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewCreatePackage(userID, bucketID, name, objIter, nodeAffinity))
-	return tsk.ID(), nil
-}
-
-func (svc *PackageService) WaitCreatingPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.CreatePackageResult, error) {
-	tsk := svc.TaskMgr.FindByID(taskID)
-	if tsk.WaitTimeout(waitTimeout) {
-		cteatePkgTask := tsk.Body().(*mytask.CreatePackage)
-		return true, cteatePkgTask.Result, tsk.Error()
-	}
-	return false, nil, nil
-}
-
-func (svc *PackageService) StartUpdatingPackage(userID cdssdk.UserID, packageID cdssdk.PackageID, objIter iterator.UploadingObjectIterator) (string, error) {
-	tsk := svc.TaskMgr.StartNew(mytask.NewUpdatePackage(userID, packageID, objIter))
-	return tsk.ID(), nil
-}
-
-func (svc *PackageService) WaitUpdatingPackage(taskID string, waitTimeout time.Duration) (bool, *agtcmd.UpdatePackageResult, error) {
-	tsk := svc.TaskMgr.FindByID(taskID)
-	if tsk.WaitTimeout(waitTimeout) {
-		updatePkgTask := tsk.Body().(*mytask.UpdatePackage)
-		return true, updatePkgTask.Result, tsk.Error()
-	}
-	return false, nil, nil
 }
 
 func (svc *PackageService) DeletePackage(userID cdssdk.UserID, packageID cdssdk.PackageID) error {

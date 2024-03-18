@@ -74,7 +74,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	}
 
 	// TODO UserID
-	getNodes, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(0))
+	getNodes, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(1))
 	if err != nil {
 		log.Warnf("getting all nodes: %s", err.Error())
 		return

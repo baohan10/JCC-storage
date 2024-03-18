@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -13,7 +12,7 @@ import (
 )
 
 func PackageListBucketPackages(ctx CommandContext, bucketID cdssdk.BucketID) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 
 	packages, err := ctx.Cmdline.Svc.BucketSvc().GetBucketPackages(userID, bucketID)
 	if err != nil {
@@ -34,13 +33,15 @@ func PackageListBucketPackages(ctx CommandContext, bucketID cdssdk.BucketID) err
 }
 
 func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outputDir string) error {
+	userID := cdssdk.UserID(1)
+
 	err := os.MkdirAll(outputDir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("create output directory %s failed, err: %w", outputDir, err)
 	}
 
 	// 下载文件
-	objIter, err := ctx.Cmdline.Svc.PackageSvc().DownloadPackage(0, packageID)
+	objIter, err := ctx.Cmdline.Svc.PackageSvc().DownloadPackage(userID, packageID)
 	if err != nil {
 		return fmt.Errorf("download object failed, err: %w", err)
 	}
@@ -91,108 +92,20 @@ func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outp
 	return nil
 }
 
-func PackageCreatePackage(ctx CommandContext, name string, rootPath string, bucketID cdssdk.BucketID, nodeAffinity []cdssdk.NodeID) error {
-	rootPath = filepath.Clean(rootPath)
+func PackageCreatePackage(ctx CommandContext, bucketID cdssdk.BucketID, name string) error {
+	userID := cdssdk.UserID(1)
 
-	var uploadFilePathes []string
-	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if !fi.IsDir() {
-			uploadFilePathes = append(uploadFilePathes, fname)
-		}
-
-		return nil
-	})
+	pkgID, err := ctx.Cmdline.Svc.PackageSvc().Create(userID, bucketID, name)
 	if err != nil {
-		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
+		return err
 	}
 
-	var nodeAff *cdssdk.NodeID
-	if len(nodeAffinity) > 0 {
-		n := cdssdk.NodeID(nodeAffinity[0])
-		nodeAff = &n
-	}
-
-	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartCreatingPackage(0, bucketID, name, objIter, nodeAff)
-
-	if err != nil {
-		return fmt.Errorf("upload file data failed, err: %w", err)
-	}
-
-	for {
-		complete, uploadObjectResult, err := ctx.Cmdline.Svc.PackageSvc().WaitCreatingPackage(taskID, time.Second*5)
-		if complete {
-			if err != nil {
-				return fmt.Errorf("uploading package: %w", err)
-			}
-
-			tb := table.NewWriter()
-
-			tb.AppendHeader(table.Row{"Path", "ObjectID"})
-			for i := 0; i < len(uploadObjectResult.ObjectResults); i++ {
-				tb.AppendRow(table.Row{
-					uploadObjectResult.ObjectResults[i].Info.Path,
-					uploadObjectResult.ObjectResults[i].ObjectID,
-				})
-			}
-			fmt.Print(tb.Render())
-			fmt.Printf("\n%v", uploadObjectResult.PackageID)
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("wait uploading: %w", err)
-		}
-	}
-}
-
-func PackageUpdatePackage(ctx CommandContext, packageID cdssdk.PackageID, rootPath string) error {
-	//userID := int64(0)
-
-	var uploadFilePathes []string
-	err := filepath.WalkDir(rootPath, func(fname string, fi os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if !fi.IsDir() {
-			uploadFilePathes = append(uploadFilePathes, fname)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("open directory %s failed, err: %w", rootPath, err)
-	}
-
-	objIter := iterator.NewUploadingObjectIterator(rootPath, uploadFilePathes)
-	taskID, err := ctx.Cmdline.Svc.PackageSvc().StartUpdatingPackage(0, packageID, objIter)
-	if err != nil {
-		return fmt.Errorf("update package %d failed, err: %w", packageID, err)
-	}
-
-	for {
-		complete, _, err := ctx.Cmdline.Svc.PackageSvc().WaitUpdatingPackage(taskID, time.Second*5)
-		if complete {
-			if err != nil {
-				return fmt.Errorf("updating package: %w", err)
-			}
-
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("wait updating: %w", err)
-		}
-	}
+	fmt.Printf("%v\n", pkgID)
+	return nil
 }
 
 func PackageDeletePackage(ctx CommandContext, packageID cdssdk.PackageID) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 	err := ctx.Cmdline.Svc.PackageSvc().DeletePackage(userID, packageID)
 	if err != nil {
 		return fmt.Errorf("delete package %d failed, err: %w", packageID, err)
@@ -201,7 +114,7 @@ func PackageDeletePackage(ctx CommandContext, packageID cdssdk.PackageID) error 
 }
 
 func PackageGetCachedNodes(ctx CommandContext, packageID cdssdk.PackageID) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 	resp, err := ctx.Cmdline.Svc.PackageSvc().GetCachedNodes(userID, packageID)
 	fmt.Printf("resp: %v\n", resp)
 	if err != nil {
@@ -211,7 +124,7 @@ func PackageGetCachedNodes(ctx CommandContext, packageID cdssdk.PackageID) error
 }
 
 func PackageGetLoadedNodes(ctx CommandContext, packageID cdssdk.PackageID) error {
-	userID := cdssdk.UserID(0)
+	userID := cdssdk.UserID(1)
 	nodeIDs, err := ctx.Cmdline.Svc.PackageSvc().GetLoadedNodes(userID, packageID)
 	fmt.Printf("nodeIDs: %v\n", nodeIDs)
 	if err != nil {
@@ -226,8 +139,6 @@ func init() {
 	commands.MustAdd(PackageDownloadPackage, "pkg", "get")
 
 	commands.MustAdd(PackageCreatePackage, "pkg", "new")
-
-	commands.MustAdd(PackageUpdatePackage, "pkg", "update")
 
 	commands.MustAdd(PackageDeletePackage, "pkg", "delete")
 

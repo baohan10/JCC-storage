@@ -1,6 +1,8 @@
 package coordinator
 
 import (
+	"time"
+
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
@@ -92,10 +94,11 @@ type UpdatePackageResp struct {
 	mq.MessageBodyBase
 }
 type AddObjectEntry struct {
-	Path     string        `json:"path"`
-	Size     int64         `json:"size,string"`
-	FileHash string        `json:"fileHash"`
-	NodeID   cdssdk.NodeID `json:"nodeID"`
+	Path       string        `json:"path"`
+	Size       int64         `json:"size,string"`
+	FileHash   string        `json:"fileHash"`
+	UploadTime time.Time     `json:"uploadTime"` // 开始上传文件的时间
+	NodeID     cdssdk.NodeID `json:"nodeID"`
 }
 
 func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectEntry, deletes []cdssdk.ObjectID) *UpdatePackage {
@@ -108,12 +111,13 @@ func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectEntry, deletes
 func NewUpdatePackageResp() *UpdatePackageResp {
 	return &UpdatePackageResp{}
 }
-func NewAddObjectEntry(path string, size int64, fileHash string, nodeIDs cdssdk.NodeID) AddObjectEntry {
+func NewAddObjectEntry(path string, size int64, fileHash string, uploadTime time.Time, nodeID cdssdk.NodeID) AddObjectEntry {
 	return AddObjectEntry{
-		Path:     path,
-		Size:     size,
-		FileHash: fileHash,
-		NodeID:   nodeIDs,
+		Path:       path,
+		Size:       size,
+		FileHash:   fileHash,
+		UploadTime: uploadTime,
+		NodeID:     nodeID,
 	}
 }
 func (client *Client) UpdatePackage(msg *UpdatePackage) (*UpdatePackageResp, error) {

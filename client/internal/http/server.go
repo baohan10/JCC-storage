@@ -39,18 +39,22 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) initRouters() {
-	s.engine.GET("/object/download", s.ObjectSvc().Download)
-	s.engine.GET(cdssdk.ObjectGetPackageObjectsPath, s.ObjectSvc().GetPackageObjects)
+	s.engine.GET(cdssdk.ObjectDownloadPath, s.Object().Download)
+	s.engine.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
+	s.engine.GET(cdssdk.ObjectGetPackageObjectsPath, s.Object().GetPackageObjects)
 
-	s.engine.GET("/package/get", s.PackageSvc().Get)
-	s.engine.POST("/package/upload", s.PackageSvc().Upload)
-	s.engine.POST("/package/delete", s.PackageSvc().Delete)
-	s.engine.GET("/package/getCachedNodes", s.PackageSvc().GetCachedNodes)
-	s.engine.GET("/package/getLoadedNodes", s.PackageSvc().GetLoadedNodes)
+	s.engine.GET(cdssdk.PackageGetPath, s.Package().Get)
+	s.engine.POST(cdssdk.PackageCreatePath, s.Package().Create)
+	s.engine.POST("/package/delete", s.Package().Delete)
+	s.engine.GET("/package/getCachedNodes", s.Package().GetCachedNodes)
+	s.engine.GET("/package/getLoadedNodes", s.Package().GetLoadedNodes)
 
-	s.engine.POST("/storage/loadPackage", s.StorageSvc().LoadPackage)
-	s.engine.POST("/storage/createPackage", s.StorageSvc().CreatePackage)
-	s.engine.GET("/storage/getInfo", s.StorageSvc().GetInfo)
+	s.engine.POST("/storage/loadPackage", s.Storage().LoadPackage)
+	s.engine.POST("/storage/createPackage", s.Storage().CreatePackage)
+	s.engine.GET("/storage/getInfo", s.Storage().GetInfo)
 
-	s.engine.POST(cdssdk.CacheMovePackagePath, s.CacheSvc().MovePackage)
+	s.engine.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
+
+	s.engine.POST(cdssdk.BucketCreatePath, s.Bucket().Create)
+	s.engine.POST(cdssdk.BucketDeletePath, s.Bucket().Delete)
 }

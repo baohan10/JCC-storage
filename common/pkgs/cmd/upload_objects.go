@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"time"
 
 	"github.com/samber/lo"
 
@@ -18,17 +19,15 @@ import (
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
-type CreatePackage struct {
+type UploadObjects struct {
 	userID       cdssdk.UserID
-	bucketID     cdssdk.BucketID
-	name         string
+	packageID    cdssdk.PackageID
 	objectIter   iterator.UploadingObjectIterator
 	nodeAffinity *cdssdk.NodeID
 }
 
-type CreatePackageResult struct {
-	PackageID     cdssdk.PackageID
-	ObjectResults []ObjectUploadResult
+type UploadObjectsResult struct {
+	Objects []ObjectUploadResult
 }
 
 type ObjectUploadResult struct {
@@ -43,31 +42,25 @@ type UploadNodeInfo struct {
 	IsSameLocation bool
 }
 
-type UpdatePackageContext struct {
+type UploadObjectsContext struct {
 	Distlock *distlock.Service
 }
 
-func NewCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) *CreatePackage {
-	return &CreatePackage{
+func NewUploadObjects(userID cdssdk.UserID, packageID cdssdk.PackageID, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) *UploadObjects {
+	return &UploadObjects{
 		userID:       userID,
-		bucketID:     bucketID,
-		name:         name,
+		packageID:    packageID,
 		objectIter:   objIter,
 		nodeAffinity: nodeAffinity,
 	}
 }
 
-func (t *CreatePackage) Execute(ctx *UpdatePackageContext) (*CreatePackageResult, error) {
+func (t *UploadObjects) Execute(ctx *UploadObjectsContext) (*UploadObjectsResult, error) {
 	defer t.objectIter.Close()
 
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
-	}
-
-	createPkgResp, err := coorCli.CreatePackage(coormq.NewCreatePackage(t.userID, t.bucketID, t.name))
-	if err != nil {
-		return nil, fmt.Errorf("creating package: %w", err)
 	}
 
 	getUserNodesResp, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(t.userID))
@@ -103,14 +96,13 @@ func (t *CreatePackage) Execute(ctx *UpdatePackageContext) (*CreatePackageResult
 	}
 	defer ipfsMutex.Unlock()
 
-	rets, err := uploadAndUpdatePackage(createPkgResp.PackageID, t.objectIter, userNodes, t.nodeAffinity)
+	rets, err := uploadAndUpdatePackage(t.packageID, t.objectIter, userNodes, t.nodeAffinity)
 	if err != nil {
 		return nil, err
 	}
 
-	return &CreatePackageResult{
-		PackageID:     createPkgResp.PackageID,
-		ObjectResults: rets,
+	return &UploadObjectsResult{
+		Objects: rets,
 	}, nil
 }
 
@@ -158,6 +150,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 		err = func() error {
 			defer objInfo.File.Close()
 
+			uploadTime := time.Now()
 			fileHash, err := uploadFile(objInfo.File, uploadNode)
 			if err != nil {
 				return fmt.Errorf("uploading file: %w", err)
@@ -168,7 +161,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 				Error: err,
 			})
 
-			adds = append(adds, coormq.NewAddObjectEntry(objInfo.Path, objInfo.Size, fileHash, uploadNode.Node.NodeID))
+			adds = append(adds, coormq.NewAddObjectEntry(objInfo.Path, objInfo.Size, fileHash, uploadTime, uploadNode.Node.NodeID))
 			return nil
 		}()
 		if err != nil {
