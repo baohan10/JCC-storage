@@ -177,6 +177,18 @@ func (r *Collector) ping(node cdssdk.Node) Connectivity {
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
 
+	// 第一次ping保证网络连接建立成功
+	err = agtCli.Ping(*stgglb.Local.NodeID)
+	if err != nil {
+		log.Warnf("pre ping: %v", err)
+		return Connectivity{
+			ToNodeID: node.NodeID,
+			Delay:    nil,
+			TestTime: time.Now(),
+		}
+	}
+
+	// 第二次ping计算延迟
 	start := time.Now()
 	err = agtCli.Ping(*stgglb.Local.NodeID)
 	if err != nil {
