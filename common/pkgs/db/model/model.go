@@ -20,12 +20,6 @@ type Storage struct {
 	State     string           `db:"State" json:"state"`
 }
 
-type NodeDelay struct {
-	SourceNodeID      int64 `db:"SourceNodeID"`
-	DestinationNodeID int64 `db:"DestinationNodeID"`
-	DelayInMs         int   `db:"DelayInMs"`
-}
-
 type User struct {
 	UserID   cdssdk.UserID `db:"UserID" json:"userID"`
 	Password string        `db:"PassWord" json:"password"`
@@ -51,6 +45,8 @@ type Bucket = cdssdk.Bucket
 type Package = cdssdk.Package
 
 type Object = cdssdk.Object
+
+type NodeConnectivity = cdssdk.NodeConnectivity
 
 // 由于Object的Redundancy字段是interface，所以不能直接将查询结果scan成Object，必须先scan成TempObject，
 // 再.ToObject()转成Object

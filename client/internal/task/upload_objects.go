@@ -25,7 +25,8 @@ func NewUploadObjects(userID cdssdk.UserID, packageID cdssdk.PackageID, objectIt
 
 func (t *UploadObjects) Execute(task *task.Task[TaskContext], ctx TaskContext, complete CompleteFn) {
 	ret, err := t.cmd.Execute(&cmd.UploadObjectsContext{
-		Distlock: ctx.distlock,
+		Distlock:     ctx.distlock,
+		Connectivity: ctx.connectivity,
 	})
 
 	t.Result = ret

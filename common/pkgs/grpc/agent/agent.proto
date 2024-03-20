@@ -40,11 +40,18 @@ message FetchStreamReq {
     string StreamID = 2;
 }
 
+message PingReq {
+    int64 FromNodeID = 1;
+}
+message PingResp {}
+
 service Agent {
     rpc SendIPFSFile(stream FileDataPacket)returns(SendIPFSFileResp){}
     rpc GetIPFSFile(GetIPFSFileReq)returns(stream FileDataPacket){}
 
     rpc SendStream(stream StreamDataPacket)returns(SendStreamResp){}
     rpc FetchStream(FetchStreamReq)returns(stream StreamDataPacket){}
+
+    rpc Ping(PingReq) returns(PingResp){}
 }
 

@@ -12,6 +12,7 @@ import (
 	"gitlink.org.cn/cloudream/storage/client/internal/services"
 	"gitlink.org.cn/cloudream/storage/client/internal/task"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 )
 
@@ -37,6 +38,10 @@ func main() {
 		stgglb.InitIPFSPool(config.Cfg().IPFS)
 	}
 
+	// 启动网络连通性检测，并就地检测一次
+	conCol := connectivity.NewCollector(&config.Cfg().Connectivity, nil)
+	conCol.CollectInPlace()
+
 	distlockSvc, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {
 		logger.Warnf("new distlock service failed, err: %s", err.Error())
@@ -44,7 +49,7 @@ func main() {
 	}
 	go serveDistLock(distlockSvc)
 
-	taskMgr := task.NewManager(distlockSvc)
+	taskMgr := task.NewManager(distlockSvc, &conCol)
 
 	svc, err := services.NewService(distlockSvc, &taskMgr)
 	if err != nil {

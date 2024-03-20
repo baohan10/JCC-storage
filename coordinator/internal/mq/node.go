@@ -1,6 +1,10 @@
 package mq
 
 import (
+	"database/sql"
+	"fmt"
+
+	"github.com/jmoiron/sqlx"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/pkgs/mq"
@@ -45,4 +49,49 @@ func (svc *Service) GetNodes(msg *coormq.GetNodes) (*coormq.GetNodesResp, *mq.Co
 	}
 
 	return mq.ReplyOK(coormq.NewGetNodesResp(nodes))
+}
+
+func (svc *Service) GetNodeConnectivities(msg *coormq.GetNodeConnectivities) (*coormq.GetNodeConnectivitiesResp, *mq.CodeMessage) {
+	cons, err := svc.db.NodeConnectivity().BatchGetByFromNode(svc.db.SQLCtx(), msg.NodeIDs)
+	if err != nil {
+		logger.Warnf("batch get node connectivities by from node: %s", err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "batch get node connectivities by from node failed")
+	}
+
+	return mq.ReplyOK(coormq.RespGetNodeConnectivities(cons))
+}
+
+func (svc *Service) UpdateNodeConnectivities(msg *coormq.UpdateNodeConnectivities) (*coormq.UpdateNodeConnectivitiesResp, *mq.CodeMessage) {
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+		// 只有发起节点和目的节点都存在，才能插入这条记录到数据库
+		allNodes, err := svc.db.Node().GetAllNodes(tx)
+		if err != nil {
+			return fmt.Errorf("getting all nodes: %w", err)
+		}
+
+		allNodeID := make(map[cdssdk.NodeID]bool)
+		for _, node := range allNodes {
+			allNodeID[node.NodeID] = true
+		}
+
+		var avaiCons []cdssdk.NodeConnectivity
+		for _, con := range msg.Connectivities {
+			if allNodeID[con.FromNodeID] && allNodeID[con.ToNodeID] {
+				avaiCons = append(avaiCons, con)
+			}
+		}
+
+		err = svc.db.NodeConnectivity().BatchUpdateOrCreate(tx, avaiCons)
+		if err != nil {
+			return fmt.Errorf("batch update or create node connectivities: %s", err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		logger.Warn(err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, err.Error())
+	}
+
+	return mq.ReplyOK(coormq.RespUpdateNodeConnectivities())
 }

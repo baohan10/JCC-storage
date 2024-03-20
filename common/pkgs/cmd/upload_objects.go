@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"time"
 
@@ -11,8 +12,10 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/common/utils/sort2"
 
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -39,11 +42,13 @@ type ObjectUploadResult struct {
 
 type UploadNodeInfo struct {
 	Node           cdssdk.Node
+	Delay          time.Duration
 	IsSameLocation bool
 }
 
 type UploadObjectsContext struct {
-	Distlock *distlock.Service
+	Distlock     *distlock.Service
+	Connectivity *connectivity.Collector
 }
 
 func NewUploadObjects(userID cdssdk.UserID, packageID cdssdk.PackageID, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) *UploadObjects {
@@ -68,12 +73,24 @@ func (t *UploadObjects) Execute(ctx *UploadObjectsContext) (*UploadObjectsResult
 		return nil, fmt.Errorf("getting user nodes: %w", err)
 	}
 
+	cons := ctx.Connectivity.GetAll()
 	userNodes := lo.Map(getUserNodesResp.Nodes, func(node cdssdk.Node, index int) UploadNodeInfo {
+		delay := time.Duration(math.MaxInt64)
+
+		con, ok := cons[node.NodeID]
+		if ok && con.Delay != nil {
+			delay = *con.Delay
+		}
+
 		return UploadNodeInfo{
 			Node:           node,
+			Delay:          delay,
 			IsSameLocation: node.LocationID == stgglb.Local.LocationID,
 		}
 	})
+	if len(userNodes) == 0 {
+		return nil, fmt.Errorf("user no available nodes")
+	}
 
 	// 给上传节点的IPFS加锁
 	ipfsReqBlder := reqbuilder.NewBuilder()
@@ -109,7 +126,7 @@ func (t *UploadObjects) Execute(ctx *UploadObjectsContext) (*UploadObjectsResult
 // chooseUploadNode 选择一个上传文件的节点
 // 1. 选择设置了亲和性的节点
 // 2. 从与当前客户端相同地域的节点中随机选一个
-// 3. 没有用的话从所有节点中随机选一个
+// 3. 没有的话从所有节点选择延迟最低的节点
 func chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) UploadNodeInfo {
 	if nodeAffinity != nil {
 		aff, ok := lo.Find(nodes, func(node UploadNodeInfo) bool { return node.Node.NodeID == *nodeAffinity })
@@ -123,7 +140,10 @@ func chooseUploadNode(nodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) Uploa
 		return sameLocationNodes[rand.Intn(len(sameLocationNodes))]
 	}
 
-	return nodes[rand.Intn(len(nodes))]
+	// 选择延迟最低的节点
+	nodes = sort2.Sort(nodes, func(e1, e2 UploadNodeInfo) int { return sort2.Cmp(e1.Delay, e2.Delay) })
+
+	return nodes[0]
 }
 
 func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.UploadingObjectIterator, userNodes []UploadNodeInfo, nodeAffinity *cdssdk.NodeID) ([]ObjectUploadResult, error) {
