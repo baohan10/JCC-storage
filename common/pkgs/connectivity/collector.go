@@ -188,20 +188,29 @@ func (r *Collector) ping(node cdssdk.Node) Connectivity {
 		}
 	}
 
-	// 第二次ping计算延迟
-	start := time.Now()
-	err = agtCli.Ping(*stgglb.Local.NodeID)
-	if err != nil {
-		log.Warnf("ping: %v", err)
-		return Connectivity{
-			ToNodeID: node.NodeID,
-			Delay:    nil,
-			TestTime: time.Now(),
+	// 后几次ping计算延迟
+	var avgDelay time.Duration
+	for i := 0; i < 3; i++ {
+		start := time.Now()
+		err = agtCli.Ping(*stgglb.Local.NodeID)
+		if err != nil {
+			log.Warnf("ping: %v", err)
+			return Connectivity{
+				ToNodeID: node.NodeID,
+				Delay:    nil,
+				TestTime: time.Now(),
+			}
 		}
-	}
 
-	// 此时间差为一个来回的时间，因此单程延迟需要除以2
-	delay := time.Since(start) / 2
+		// 此时间差为一个来回的时间，因此单程延迟需要除以2
+		delay := time.Since(start) / 2
+		avgDelay += delay
+
+		// 每次ping之间间隔1秒
+		<-time.After(time.Second)
+	}
+	delay := avgDelay / 3
+
 	return Connectivity{
 		ToNodeID: node.NodeID,
 		Delay:    &delay,
