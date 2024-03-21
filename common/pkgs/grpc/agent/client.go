@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -210,10 +209,8 @@ func (c *Client) FetchStream(planID ioswitch.PlanID, streamID ioswitch.StreamID)
 	}, nil
 }
 
-func (c *Client) Ping(fromNodeID cdssdk.NodeID) error {
-	_, err := c.cli.Ping(context.Background(), &PingReq{
-		FromNodeID: int64(fromNodeID),
-	})
+func (c *Client) Ping() error {
+	_, err := c.cli.Ping(context.Background(), &PingReq{})
 	return err
 }
 

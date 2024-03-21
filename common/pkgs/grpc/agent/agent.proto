@@ -40,9 +40,7 @@ message FetchStreamReq {
     string StreamID = 2;
 }
 
-message PingReq {
-    int64 FromNodeID = 1;
-}
+message PingReq {}
 message PingResp {}
 
 service Agent {
