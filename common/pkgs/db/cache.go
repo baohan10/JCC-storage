@@ -46,6 +46,9 @@ func (*CacheDB) Create(ctx SQLContext, fileHash string, nodeID cdssdk.NodeID, pr
 
 // 批量创建缓存记录
 func (*CacheDB) BatchCreate(ctx SQLContext, caches []model.Cache) error {
+	if len(caches) == 0 {
+		return nil
+	}
 	return BatchNamedExec(
 		ctx,
 		"insert into Cache(FileHash,NodeID,CreateTime,Priority) values(:FileHash,:NodeID,:CreateTime,:Priority)"+
@@ -57,6 +60,10 @@ func (*CacheDB) BatchCreate(ctx SQLContext, caches []model.Cache) error {
 }
 
 func (*CacheDB) BatchCreateOnSameNode(ctx SQLContext, fileHashes []string, nodeID cdssdk.NodeID, priority int) error {
+	if len(fileHashes) == 0 {
+		return nil
+	}
+
 	var caches []model.Cache
 	var nowTime = time.Now()
 	for _, hash := range fileHashes {
@@ -78,6 +85,10 @@ func (*CacheDB) BatchCreateOnSameNode(ctx SQLContext, fileHashes []string, nodeI
 }
 
 func (*CacheDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes []string) error {
+	if len(fileHashes) == 0 {
+		return nil
+	}
+
 	// TODO in语句有长度限制
 	query, args, err := sqlx.In("delete from Cache where NodeID = ? and FileHash in (?)", nodeID, fileHashes)
 	if err != nil {

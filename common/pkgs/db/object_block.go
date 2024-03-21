@@ -30,6 +30,10 @@ func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index 
 }
 
 func (db *ObjectBlockDB) BatchCreate(ctx SQLContext, blocks []stgmod.ObjectBlock) error {
+	if len(blocks) == 0 {
+		return nil
+	}
+
 	return BatchNamedExec(ctx,
 		"insert ignore into ObjectBlock(ObjectID, `Index`, NodeID, FileHash) values(:ObjectID, :Index, :NodeID, :FileHash)",
 		4,
@@ -44,6 +48,10 @@ func (db *ObjectBlockDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.Object
 }
 
 func (db *ObjectBlockDB) BatchDeleteByObjectID(ctx SQLContext, objectIDs []cdssdk.ObjectID) error {
+	if len(objectIDs) == 0 {
+		return nil
+	}
+
 	// TODO in语句有长度限制
 	query, args, err := sqlx.In("delete from ObjectBlock where ObjectID in (?)", objectIDs)
 	if err != nil {
@@ -59,6 +67,10 @@ func (db *ObjectBlockDB) DeleteInPackage(ctx SQLContext, packageID cdssdk.Packag
 }
 
 func (db *ObjectBlockDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, fileHashes []string) error {
+	if len(fileHashes) == 0 {
+		return nil
+	}
+
 	query, args, err := sqlx.In("delete from ObjectBlock where NodeID = ? and FileHash in (?)", nodeID, fileHashes)
 	if err != nil {
 		return err

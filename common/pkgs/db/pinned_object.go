@@ -40,6 +40,10 @@ func (*PinnedObjectDB) TryCreate(ctx SQLContext, nodeID cdssdk.NodeID, objectID 
 }
 
 func (*PinnedObjectDB) BatchTryCreate(ctx SQLContext, pinneds []cdssdk.PinnedObject) error {
+	if len(pinneds) == 0 {
+		return nil
+	}
+
 	return BatchNamedExec(ctx, "insert ignore into PinnedObject values(:NodeID,:ObjectID,:CreateTime)", 3, pinneds, nil)
 }
 
@@ -54,6 +58,10 @@ func (*PinnedObjectDB) CreateFromPackage(ctx SQLContext, packageID cdssdk.Packag
 }
 
 func (db *PinnedObjectDB) ObjectBatchCreate(ctx SQLContext, objectID cdssdk.ObjectID, nodeIDs []cdssdk.NodeID) error {
+	if len(nodeIDs) == 0 {
+		return nil
+	}
+
 	for _, id := range nodeIDs {
 		err := db.TryCreate(ctx, id, objectID, time.Now())
 		if err != nil {
@@ -74,6 +82,10 @@ func (*PinnedObjectDB) DeleteByObjectID(ctx SQLContext, objectID cdssdk.ObjectID
 }
 
 func (*PinnedObjectDB) BatchDeleteByObjectID(ctx SQLContext, objectIDs []cdssdk.ObjectID) error {
+	if len(objectIDs) == 0 {
+		return nil
+	}
+
 	// TODO in语句有长度限制
 	query, args, err := sqlx.In("delete from PinnedObject where ObjectID in (?)", objectIDs)
 	if err != nil {
@@ -94,7 +106,11 @@ func (*PinnedObjectDB) DeleteInPackageAtNode(ctx SQLContext, packageID cdssdk.Pa
 }
 
 func (*PinnedObjectDB) NodeBatchDelete(ctx SQLContext, nodeID cdssdk.NodeID, objectIDs []cdssdk.ObjectID) error {
-	query, args, err := sqlx.In("delete from PinnedObject where NodeID = ? and ObjectID in (?)", objectIDs)
+	if len(objectIDs) == 0 {
+		return nil
+	}
+
+	query, args, err := sqlx.In("delete from PinnedObject where NodeID = ? and ObjectID in (?)", nodeID, objectIDs)
 	if err != nil {
 		return err
 	}

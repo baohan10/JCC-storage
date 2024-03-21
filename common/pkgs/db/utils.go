@@ -31,7 +31,7 @@ func BatchNamedExec[T any](ctx SQLContext, sql string, argCnt int, arr []T, call
 
 		ret, err := ctx.NamedExec(sql, arr[:curBatchSize])
 		if err != nil {
-			return nil
+			return err
 		}
 		if callback != nil && !callback(ret) {
 			return nil
@@ -63,7 +63,7 @@ func BatchNamedQuery[T any](ctx SQLContext, sql string, argCnt int, arr []T, cal
 
 		ret, err := ctx.NamedQuery(sql, arr[:curBatchSize])
 		if err != nil {
-			return nil
+			return err
 		}
 		if callback != nil && !callback(ret) {
 			return nil
