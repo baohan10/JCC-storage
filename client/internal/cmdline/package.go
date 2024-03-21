@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -33,6 +34,11 @@ func PackageListBucketPackages(ctx CommandContext, bucketID cdssdk.BucketID) err
 }
 
 func PackageDownloadPackage(ctx CommandContext, packageID cdssdk.PackageID, outputDir string) error {
+	startTime := time.Now()
+	defer func() {
+		fmt.Printf("%v\n", time.Since(startTime).Seconds())
+	}()
+
 	userID := cdssdk.UserID(1)
 
 	err := os.MkdirAll(outputDir, os.ModePerm)

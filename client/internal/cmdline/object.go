@@ -11,6 +11,11 @@ import (
 )
 
 var _ = MustAddCmd(func(ctx CommandContext, packageID cdssdk.PackageID, rootPath string, nodeAffinity []cdssdk.NodeID) error {
+	startTime := time.Now()
+	defer func() {
+		fmt.Printf("%v\n", time.Since(startTime).Seconds())
+	}()
+
 	userID := cdssdk.UserID(1)
 
 	var uploadFilePathes []string
