@@ -6,6 +6,7 @@ import (
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	c "gitlink.org.cn/cloudream/common/utils/config"
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/grpc"
 	stgmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq"
 )
@@ -19,6 +20,7 @@ type Config struct {
 	RabbitMQ         stgmq.Config               `json:"rabbitMQ"`
 	IPFS             ipfs.Config                `json:"ipfs"`
 	DistLock         distlock.Config            `json:"distlock"`
+	Connectivity     connectivity.Config        `json:"connectivity"`
 }
 
 var cfg Config

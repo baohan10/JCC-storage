@@ -52,12 +52,13 @@ insert into
 values
   (1, "HuaWei-Cloud", 1, "/", "Online");
 
-create table NodeDelay (
-  SourceNodeID int not null comment '发起检测的节点ID',
-  DestinationNodeID int not null comment '被检测节点的ID',
-  DelayInMs int not null comment '发起节点与被检测节点间延迟(毫秒)',
-  primary key(SourceNodeID, DestinationNodeID)
-) comment = '节点延迟表';
+create table NodeConnectivity (
+  FromNodeID int not null comment '发起检测的节点ID',
+  ToNodeID int not null comment '被检测节点的ID',
+  Delay float comment '发起节点与被检测节点间延迟(毫秒)，为null代表节点不可达',
+  TestTime timestamp comment '进行连通性测试的时间',
+  primary key(FromNodeID, ToNodeID)
+) comment = '节点连通性表';
 
 create table User (
   UserID int not null primary key comment '用户ID',
@@ -122,6 +123,8 @@ create table Object (
   Size bigint not null comment '对象大小(Byte)',
   FileHash varchar(100) not null comment '完整对象的FileHash',
   Redundancy JSON not null comment '冗余策略',
+  CreateTime timestamp not null comment '创建时间',
+  UpdateTime timestamp not null comment '更新时间',
   UNIQUE KEY PackagePath (PackageID, Path)
 ) comment = '对象表';
 

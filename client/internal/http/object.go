@@ -2,7 +2,9 @@ package http
 
 import (
 	"io"
+	"mime/multipart"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -15,9 +17,57 @@ type ObjectService struct {
 	*Server
 }
 
-func (s *Server) ObjectSvc() *ObjectService {
+func (s *Server) Object() *ObjectService {
 	return &ObjectService{
 		Server: s,
+	}
+}
+
+type ObjectUploadReq struct {
+	Info  cdssdk.ObjectUploadInfo `form:"info" binding:"required"`
+	Files []*multipart.FileHeader `form:"files"`
+}
+
+func (s *ObjectService) Upload(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Object.Upload")
+
+	var req ObjectUploadReq
+	if err := ctx.ShouldBind(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	var err error
+
+	objIter := mapMultiPartFileToUploadingObject(req.Files)
+
+	taskID, err := s.svc.ObjectSvc().StartUploading(req.Info.UserID, req.Info.PackageID, objIter, req.Info.NodeAffinity)
+
+	if err != nil {
+		log.Warnf("start uploading object task: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "start uploading task failed"))
+		return
+	}
+
+	for {
+		complete, _, err := s.svc.ObjectSvc().WaitUploading(taskID, time.Second*5)
+		if complete {
+			if err != nil {
+				log.Warnf("uploading object: %s", err.Error())
+				ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "uploading object failed"))
+				return
+			}
+
+			ctx.JSON(http.StatusOK, OK(nil))
+			return
+		}
+
+		if err != nil {
+			log.Warnf("waiting task: %s", err.Error())
+			ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "wait uploading task failed"))
+			return
+		}
 	}
 }
 

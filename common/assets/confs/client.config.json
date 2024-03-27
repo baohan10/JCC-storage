@@ -25,5 +25,8 @@
         "etcdLockLeaseTimeSec": 5,
         "randomReleasingDelayMs": 3000,
         "serviceDescription": "I am a client"
+    },
+    "connectivity": {
+        "testInterval": 300
     }
 }

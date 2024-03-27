@@ -27,6 +27,10 @@ func (db *ObjectDB) GetByID(ctx SQLContext, objectID cdssdk.ObjectID) (model.Obj
 }
 
 func (db *ObjectDB) BatchGetPackageObjectIDs(ctx SQLContext, pkgID cdssdk.PackageID, pathes []string) ([]cdssdk.ObjectID, error) {
+	if len(pathes) == 0 {
+		return nil, nil
+	}
+
 	// TODO In语句
 	stmt, args, err := sqlx.In("select ObjectID from Object force index(PackagePath) where PackageID=? and Path in (?)", pkgID, pathes)
 	if err != nil {
@@ -43,10 +47,10 @@ func (db *ObjectDB) BatchGetPackageObjectIDs(ctx SQLContext, pkgID cdssdk.Packag
 	return objIDs, nil
 }
 
-func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string, redundancy cdssdk.Redundancy) (int64, error) {
-	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy) values(?,?,?,?,?)"
+func (db *ObjectDB) Create(ctx SQLContext, obj cdssdk.Object) (cdssdk.ObjectID, error) {
+	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy, CreateTime, UpdateTime) values(?,?,?,?,?,?,?)"
 
-	ret, err := ctx.Exec(sql, packageID, path, size, redundancy)
+	ret, err := ctx.Exec(sql, obj.PackageID, obj.Path, obj.Size, obj.FileHash, obj.Redundancy, obj.UpdateTime, obj.UpdateTime)
 	if err != nil {
 		return 0, fmt.Errorf("insert object failed, err: %w", err)
 	}
@@ -56,64 +60,22 @@ func (db *ObjectDB) Create(ctx SQLContext, packageID cdssdk.PackageID, path stri
 		return 0, fmt.Errorf("get id of inserted object failed, err: %w", err)
 	}
 
-	return objectID, nil
+	return cdssdk.ObjectID(objectID), nil
 }
 
-// 创建或者更新记录，返回值true代表是创建，false代表是更新
-func (db *ObjectDB) CreateOrUpdate(ctx SQLContext, packageID cdssdk.PackageID, path string, size int64, fileHash string) (cdssdk.ObjectID, bool, error) {
-	// 首次上传Object时，默认不启用冗余，即使是在更新一个已有的Object也是如此
-	defRed := cdssdk.NewNoneRedundancy()
-
-	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy) values(?,?,?,?,?) on duplicate key update Size = ?, FileHash = ?, Redundancy = ?"
-
-	ret, err := ctx.Exec(sql, packageID, path, size, fileHash, defRed, size, fileHash, defRed)
-	if err != nil {
-		return 0, false, fmt.Errorf("insert object failed, err: %w", err)
-	}
-
-	affs, err := ret.RowsAffected()
-	if err != nil {
-		return 0, false, fmt.Errorf("getting affected rows: %w", err)
-	}
-
-	// 影响行数为1时是插入，为2时是更新
-	if affs == 1 {
-		objectID, err := ret.LastInsertId()
-		if err != nil {
-			return 0, false, fmt.Errorf("get id of inserted object failed, err: %w", err)
-		}
-		return cdssdk.ObjectID(objectID), true, nil
-	}
-
-	var objID cdssdk.ObjectID
-	if err = sqlx.Get(ctx, &objID, "select ObjectID from Object where PackageID = ? and Path = ?", packageID, path); err != nil {
-		return 0, false, fmt.Errorf("getting object id: %w", err)
-	}
-
-	return objID, false, nil
-}
-
-// 批量创建或者更新记录
+// 可以用于批量创建或者更新记录
+// 用于创建时，需要额外检查PackageID+Path的唯一性
+// 用于更新时，需要额外检查现存的PackageID+Path对应的ObjectID是否与待更新的ObjectID相同。不会更新CreateTime。
 func (db *ObjectDB) BatchCreateOrUpdate(ctx SQLContext, objs []cdssdk.Object) error {
-	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy)" +
-		" values(:PackageID,:Path,:Size,:FileHash,:Redundancy)" +
-		" on duplicate key update Size = values(Size), FileHash = values(FileHash), Redundancy = values(Redundancy)"
-
-	return BatchNamedExec(ctx, sql, 5, objs, nil)
-}
-
-func (*ObjectDB) UpdateFileInfo(ctx SQLContext, objectID cdssdk.ObjectID, fileSize int64) (bool, error) {
-	ret, err := ctx.Exec("update Object set FileSize = ? where ObjectID = ?", fileSize, objectID)
-	if err != nil {
-		return false, err
+	if len(objs) == 0 {
+		return nil
 	}
 
-	cnt, err := ret.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("get affected rows failed, err: %w", err)
-	}
+	sql := "insert into Object(PackageID, Path, Size, FileHash, Redundancy, CreateTime ,UpdateTime)" +
+		" values(:PackageID,:Path,:Size,:FileHash,:Redundancy, :CreateTime, :UpdateTime) as new" +
+		" on duplicate key update Size = new.Size, FileHash = new.FileHash, Redundancy = new.Redundancy, UpdateTime = new.UpdateTime"
 
-	return cnt > 0, nil
+	return BatchNamedExec(ctx, sql, 7, objs, nil)
 }
 
 func (*ObjectDB) GetPackageObjects(ctx SQLContext, packageID cdssdk.PackageID) ([]model.Object, error) {
@@ -175,6 +137,10 @@ func (db *ObjectDB) GetPackageObjectDetails(ctx SQLContext, packageID cdssdk.Pac
 }
 
 func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []coormq.AddObjectEntry) ([]cdssdk.ObjectID, error) {
+	if len(adds) == 0 {
+		return nil, nil
+	}
+
 	objs := make([]cdssdk.Object, 0, len(adds))
 	for _, add := range adds {
 		objs = append(objs, cdssdk.Object{
@@ -183,6 +149,8 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 			Size:       add.Size,
 			FileHash:   add.FileHash,
 			Redundancy: cdssdk.NewNoneRedundancy(), // 首次上传默认使用不分块的none模式
+			CreateTime: add.UploadTime,
+			UpdateTime: add.UploadTime,
 		})
 	}
 
@@ -219,7 +187,6 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 			FileHash: add.FileHash,
 		})
 	}
-
 	err = db.ObjectBlock().BatchCreate(ctx, objBlocks)
 	if err != nil {
 		return nil, fmt.Errorf("batch create object blocks: %w", err)
@@ -234,7 +201,6 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 			Priority:   0,
 		})
 	}
-
 	err = db.Cache().BatchCreate(ctx, caches)
 	if err != nil {
 		return nil, fmt.Errorf("batch create caches: %w", err)
@@ -244,6 +210,11 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 }
 
 func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeObjectRedundancyEntry) error {
+	if len(objs) == 0 {
+		return nil
+	}
+
+	nowTime := time.Now()
 	objIDs := make([]cdssdk.ObjectID, 0, len(objs))
 	dummyObjs := make([]cdssdk.Object, 0, len(objs))
 	for _, obj := range objs {
@@ -251,14 +222,16 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 		dummyObjs = append(dummyObjs, cdssdk.Object{
 			ObjectID:   obj.ObjectID,
 			Redundancy: obj.Redundancy,
+			CreateTime: nowTime,
+			UpdateTime: nowTime,
 		})
 	}
 
 	// 目前只能使用这种方式来同时更新大量数据
 	err := BatchNamedExec(ctx,
-		"insert into Object(ObjectID, PackageID, Path, Size, FileHash, Redundancy)"+
-			" values(:ObjectID, :PackageID, :Path, :Size, :FileHash, :Redundancy) as new"+
-			" on duplicate key update Redundancy=new.Redundancy", 6, dummyObjs, nil)
+		"insert into Object(ObjectID, PackageID, Path, Size, FileHash, Redundancy, CreateTime, UpdateTime)"+
+			" values(:ObjectID, :PackageID, :Path, :Size, :FileHash, :Redundancy, :CreateTime, :UpdateTime) as new"+
+			" on duplicate key update Redundancy=new.Redundancy", 8, dummyObjs, nil)
 	if err != nil {
 		return fmt.Errorf("batch update object redundancy: %w", err)
 	}
@@ -319,6 +292,10 @@ func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeOb
 }
 
 func (*ObjectDB) BatchDelete(ctx SQLContext, ids []cdssdk.ObjectID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
 	query, args, err := sqlx.In("delete from Object where ObjectID in (?)", ids)
 	if err != nil {
 		return err

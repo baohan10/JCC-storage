@@ -51,8 +51,11 @@ func (t *CheckPackageRedundancy) TryMerge(other Event) bool {
 
 func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CheckPackageRedundancy]("Event")
+	startTime := time.Now()
 	log.Debugf("begin with %v", logger.FormatStruct(t.CheckPackageRedundancy))
-	defer log.Debugf("end")
+	defer func() {
+		log.Debugf("end, time: %v", time.Since(startTime))
+	}()
 
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
@@ -74,7 +77,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	}
 
 	// TODO UserID
-	getNodes, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(0))
+	getNodes, err := coorCli.GetUserNodes(coormq.NewGetUserNodes(1))
 	if err != nil {
 		log.Warnf("getting all nodes: %s", err.Error())
 		return

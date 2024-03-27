@@ -14,7 +14,7 @@ type CacheService struct {
 	*Server
 }
 
-func (s *Server) CacheSvc() *CacheService {
+func (s *Server) Cache() *CacheService {
 	return &CacheService{
 		Server: s,
 	}

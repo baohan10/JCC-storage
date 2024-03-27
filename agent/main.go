@@ -7,9 +7,11 @@ import (
 	"sync"
 
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/agent/internal/config"
 	"gitlink.org.cn/cloudream/storage/agent/internal/task"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
@@ -20,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
+	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 
 	grpcsvc "gitlink.org.cn/cloudream/storage/agent/internal/grpc"
 	cmdsvc "gitlink.org.cn/cloudream/storage/agent/internal/mq"
@@ -49,6 +52,41 @@ func main() {
 	stgglb.InitAgentRPCPool(&agtrpc.PoolConfig{})
 	stgglb.InitIPFSPool(&config.Cfg().IPFS)
 
+	// 启动网络连通性检测，并就地检测一次
+	conCol := connectivity.NewCollector(&config.Cfg().Connectivity, func(collector *connectivity.Collector) {
+		log := log.WithField("Connectivity", "")
+
+		coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+		if err != nil {
+			log.Warnf("acquire coordinator mq failed, err: %s", err.Error())
+			return
+		}
+		defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+		cons := collector.GetAll()
+		nodeCons := make([]cdssdk.NodeConnectivity, 0, len(cons))
+		for _, con := range cons {
+			var delay *float32
+			if con.Delay != nil {
+				v := float32(con.Delay.Microseconds()) / 1000
+				delay = &v
+			}
+
+			nodeCons = append(nodeCons, cdssdk.NodeConnectivity{
+				FromNodeID: *stgglb.Local.NodeID,
+				ToNodeID:   con.ToNodeID,
+				Delay:      delay,
+				TestTime:   con.TestTime,
+			})
+		}
+
+		_, err = coorCli.UpdateNodeConnectivities(coormq.ReqUpdateNodeConnectivities(nodeCons))
+		if err != nil {
+			log.Warnf("update node connectivities: %v", err)
+		}
+	})
+	conCol.CollectInPlace()
+
 	distlock, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
@@ -60,7 +98,7 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 
-	taskMgr := task.NewManager(distlock, &sw)
+	taskMgr := task.NewManager(distlock, &sw, &conCol)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
@@ -73,8 +111,6 @@ func main() {
 	})
 
 	go serveAgentServer(agtSvr, &wg)
-
-	// go reportStatus(&wg) //网络延迟感知
 
 	//面向客户端收发数据
 	listenAddr := config.Cfg().GRPC.MakeListenAddress()

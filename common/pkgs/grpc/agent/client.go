@@ -209,6 +209,11 @@ func (c *Client) FetchStream(planID ioswitch.PlanID, streamID ioswitch.StreamID)
 	}, nil
 }
 
+func (c *Client) Ping() error {
+	_, err := c.cli.Ping(context.Background(), &PingReq{})
+	return err
+}
+
 func (c *Client) Close() {
 	c.con.Close()
 }

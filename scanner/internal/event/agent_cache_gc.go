@@ -40,8 +40,11 @@ func (t *AgentCacheGC) TryMerge(other Event) bool {
 
 func (t *AgentCacheGC) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCacheGC]("Event")
+	startTime := time.Now()
 	log.Debugf("begin with %v", logger.FormatStruct(t.AgentCacheGC))
-	defer log.Debugf("end")
+	defer func() {
+		log.Debugf("end, time: %v", time.Since(startTime))
+	}()
 
 	// TODO unavailable的节点需不需要发送任务？
 

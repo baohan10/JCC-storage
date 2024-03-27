@@ -3,7 +3,6 @@ package http
 import (
 	"mime/multipart"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -19,7 +18,7 @@ type PackageService struct {
 	*Server
 }
 
-func (s *Server) PackageSvc() *PackageService {
+func (s *Server) Package() *PackageService {
 	return &PackageService{
 		Server: s,
 	}
@@ -53,71 +52,25 @@ func (s *PackageService) Get(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, OK(PackageGetResp{Package: *pkg}))
 }
 
-type PackageUploadReq struct {
-	Info  PackageUploadInfo       `form:"info" binding:"required"`
-	Files []*multipart.FileHeader `form:"files"`
-}
-
-type PackageUploadInfo struct {
-	UserID       *cdssdk.UserID   `json:"userID" binding:"required"`
-	BucketID     *cdssdk.BucketID `json:"bucketID" binding:"required"`
-	Name         string           `json:"name" binding:"required"`
-	NodeAffinity *cdssdk.NodeID   `json:"nodeAffinity"`
-}
-
-type PackageUploadResp struct {
-	PackageID cdssdk.PackageID `json:"packageID,string"`
-}
-
-func (s *PackageService) Upload(ctx *gin.Context) {
-	log := logger.WithField("HTTP", "Package.Upload")
-
-	var req PackageUploadReq
-	if err := ctx.ShouldBind(&req); err != nil {
+func (s *PackageService) Create(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.Create")
+	var req cdssdk.PackageCreateReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	s.uploadEC(ctx, &req)
-}
-
-func (s *PackageService) uploadEC(ctx *gin.Context, req *PackageUploadReq) {
-	log := logger.WithField("HTTP", "Package.Upload")
-
-	var err error
-
-	objIter := mapMultiPartFileToUploadingObject(req.Files)
-
-	taskID, err := s.svc.PackageSvc().StartCreatingPackage(*req.Info.UserID, *req.Info.BucketID, req.Info.Name, objIter, req.Info.NodeAffinity)
-
+	pkgID, err := s.svc.PackageSvc().Create(req.UserID, req.BucketID, req.Name)
 	if err != nil {
-		log.Warnf("start uploading ec package task: %s", err.Error())
-		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "start uploading task failed"))
+		log.Warnf("creating package: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "create package failed"))
 		return
 	}
 
-	for {
-		complete, createResult, err := s.svc.PackageSvc().WaitCreatingPackage(taskID, time.Second*5)
-		if complete {
-			if err != nil {
-				log.Warnf("uploading ec package: %s", err.Error())
-				ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "uploading ec package failed"))
-				return
-			}
-
-			ctx.JSON(http.StatusOK, OK(PackageUploadResp{
-				PackageID: createResult.PackageID,
-			}))
-			return
-		}
-
-		if err != nil {
-			log.Warnf("waiting task: %s", err.Error())
-			ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "wait uploading task failed"))
-			return
-		}
-	}
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageCreateResp{
+		PackageID: pkgID,
+	}))
 }
 
 type PackageDeleteReq struct {

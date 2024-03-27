@@ -38,3 +38,8 @@ func (c *Commandline) DispatchCommand(allArgs []string) {
 		os.Exit(1)
 	}
 }
+
+func MustAddCmd(fn any, prefixWords ...string) any {
+	commands.MustAdd(fn, prefixWords...)
+	return nil
+}

@@ -25,6 +25,7 @@ const (
 	Agent_GetIPFSFile_FullMethodName  = "/Agent/GetIPFSFile"
 	Agent_SendStream_FullMethodName   = "/Agent/SendStream"
 	Agent_FetchStream_FullMethodName  = "/Agent/FetchStream"
+	Agent_Ping_FullMethodName         = "/Agent/Ping"
 )
 
 // AgentClient is the client API for Agent service.
@@ -35,6 +36,7 @@ type AgentClient interface {
 	GetIPFSFile(ctx context.Context, in *GetIPFSFileReq, opts ...grpc.CallOption) (Agent_GetIPFSFileClient, error)
 	SendStream(ctx context.Context, opts ...grpc.CallOption) (Agent_SendStreamClient, error)
 	FetchStream(ctx context.Context, in *FetchStreamReq, opts ...grpc.CallOption) (Agent_FetchStreamClient, error)
+	Ping(ctx context.Context, in *PingReq, opts ...grpc.CallOption) (*PingResp, error)
 }
 
 type agentClient struct {
@@ -177,6 +179,15 @@ func (x *agentFetchStreamClient) Recv() (*StreamDataPacket, error) {
 	return m, nil
 }
 
+func (c *agentClient) Ping(ctx context.Context, in *PingReq, opts ...grpc.CallOption) (*PingResp, error) {
+	out := new(PingResp)
+	err := c.cc.Invoke(ctx, Agent_Ping_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServer is the server API for Agent service.
 // All implementations must embed UnimplementedAgentServer
 // for forward compatibility
@@ -185,6 +196,7 @@ type AgentServer interface {
 	GetIPFSFile(*GetIPFSFileReq, Agent_GetIPFSFileServer) error
 	SendStream(Agent_SendStreamServer) error
 	FetchStream(*FetchStreamReq, Agent_FetchStreamServer) error
+	Ping(context.Context, *PingReq) (*PingResp, error)
 	mustEmbedUnimplementedAgentServer()
 }
 
@@ -203,6 +215,9 @@ func (UnimplementedAgentServer) SendStream(Agent_SendStreamServer) error {
 }
 func (UnimplementedAgentServer) FetchStream(*FetchStreamReq, Agent_FetchStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method FetchStream not implemented")
+}
+func (UnimplementedAgentServer) Ping(context.Context, *PingReq) (*PingResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
 func (UnimplementedAgentServer) mustEmbedUnimplementedAgentServer() {}
 
@@ -311,13 +326,36 @@ func (x *agentFetchStreamServer) Send(m *StreamDataPacket) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Agent_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Agent_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).Ping(ctx, req.(*PingReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Agent_ServiceDesc is the grpc.ServiceDesc for Agent service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Agent_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "Agent",
 	HandlerType: (*AgentServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Ping",
+			Handler:    _Agent_Ping_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "SendIPFSFile",

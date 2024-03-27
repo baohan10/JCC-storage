@@ -5,6 +5,7 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
@@ -44,8 +45,11 @@ func (t *CleanPinned) TryMerge(other Event) bool {
 
 func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[CleanPinned]("Event")
+	startTime := time.Now()
 	log.Debugf("begin with %v", logger.FormatStruct(t.CleanPinned))
-	defer log.Debugf("end")
+	defer func() {
+		log.Debugf("end, time: %v", time.Since(startTime))
+	}()
 
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {

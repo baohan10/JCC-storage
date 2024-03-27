@@ -40,9 +40,11 @@ func (t *AgentCheckCache) TryMerge(other Event) bool {
 
 func (t *AgentCheckCache) Execute(execCtx ExecuteContext) {
 	log := logger.WithType[AgentCheckCache]("Event")
+	startTime := time.Now()
 	log.Debugf("begin with %v", logger.FormatStruct(t.AgentCheckCache))
-	defer log.Debugf("end")
-
+	defer func() {
+		log.Debugf("end, time: %v", time.Since(startTime))
+	}()
 	// TODO unavailable的节点需不需要发送任务？
 
 	agtCli, err := stgglb.AgentMQPool.Acquire(t.NodeID)
