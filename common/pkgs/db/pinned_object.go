@@ -34,6 +34,26 @@ func (*PinnedObjectDB) Create(ctx SQLContext, nodeID cdssdk.NodeID, objectID cds
 	return err
 }
 
+func (*PinnedObjectDB) BatchGetByObjectID(ctx SQLContext, objectIDs []cdssdk.ObjectID) ([]cdssdk.PinnedObject, error) {
+	if len(objectIDs) == 0 {
+		return nil, nil
+	}
+
+	stmt, args, err := sqlx.In("select * from PinnedObject where ObjectID in (?) order by ObjectID asc", objectIDs)
+	if err != nil {
+		return nil, err
+	}
+	stmt = ctx.Rebind(stmt)
+
+	var pinneds []cdssdk.PinnedObject
+	err = sqlx.Select(ctx, &pinneds, stmt, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return pinneds, nil
+}
+
 func (*PinnedObjectDB) TryCreate(ctx SQLContext, nodeID cdssdk.NodeID, objectID cdssdk.ObjectID, createTime time.Time) error {
 	_, err := ctx.Exec("insert ignore into PinnedObject values(?,?,?)", nodeID, objectID, createTime)
 	return err

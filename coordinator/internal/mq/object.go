@@ -54,6 +54,92 @@ func (svc *Service) GetPackageObjectDetails(msg *coormq.GetPackageObjectDetails)
 	return mq.ReplyOK(coormq.NewGetPackageObjectDetailsResp(details))
 }
 
+func (svc *Service) GetObjectDetails(msg *coormq.GetObjectDetails) (*coormq.GetObjectDetailsResp, *mq.CodeMessage) {
+	details := make([]*stgmod.ObjectDetail, len(msg.ObjectIDs))
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+		var err error
+
+		msg.ObjectIDs = sort2.SortAsc(msg.ObjectIDs)
+
+		// 根据ID依次查询Object，ObjectBlock，PinnedObject，并根据升序的特点进行合并
+		objs, err := svc.db.Object().BatchGet(tx, msg.ObjectIDs)
+		if err != nil {
+			return fmt.Errorf("batch get objects: %w", err)
+		}
+
+		objIDIdx := 0
+		objIdx := 0
+		for objIDIdx < len(msg.ObjectIDs) && objIdx < len(objs) {
+			if msg.ObjectIDs[objIDIdx] < objs[objIdx].ObjectID {
+				objIDIdx++
+				continue
+			}
+
+			// 由于是使用msg.ObjectIDs去查询Object，因此不存在msg.ObjectIDs > Object.ObjectID的情况，
+			// 下面同理
+			obj := stgmod.ObjectDetail{
+				Object: objs[objIDIdx],
+			}
+			details[objIDIdx] = &obj
+			objIdx++
+		}
+
+		// 查询合并
+		blocks, err := svc.db.ObjectBlock().BatchGetByObjectID(tx, msg.ObjectIDs)
+		if err != nil {
+			return fmt.Errorf("batch get object blocks: %w", err)
+		}
+
+		objIDIdx = 0
+		blkIdx := 0
+		for objIDIdx < len(msg.ObjectIDs) && blkIdx < len(blocks) {
+			if details[objIDIdx] == nil {
+				objIDIdx++
+				continue
+			}
+
+			if msg.ObjectIDs[objIDIdx] < blocks[blkIdx].ObjectID {
+				objIDIdx++
+				continue
+			}
+
+			details[objIDIdx].Blocks = append(details[objIDIdx].Blocks, blocks[blkIdx])
+			blkIdx++
+		}
+
+		// 查询合并
+		pinneds, err := svc.db.PinnedObject().BatchGetByObjectID(tx, msg.ObjectIDs)
+		if err != nil {
+			return fmt.Errorf("batch get pinned objects: %w", err)
+		}
+
+		objIDIdx = 0
+		pinIdx := 0
+		for objIDIdx < len(msg.ObjectIDs) && pinIdx < len(pinneds) {
+			if details[objIDIdx] == nil {
+				objIDIdx++
+				continue
+			}
+
+			if msg.ObjectIDs[objIDIdx] < pinneds[pinIdx].ObjectID {
+				objIDIdx++
+				continue
+			}
+
+			details[objIDIdx].PinnedAt = append(details[objIDIdx].PinnedAt, pinneds[pinIdx].NodeID)
+			pinIdx++
+		}
+		return nil
+	})
+
+	if err != nil {
+		logger.Warn(err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "get object details failed")
+	}
+
+	return mq.ReplyOK(coormq.RespGetObjectDetails(details))
+}
+
 func (svc *Service) UpdateObjectRedundancy(msg *coormq.UpdateObjectRedundancy) (*coormq.UpdateObjectRedundancyResp, *mq.CodeMessage) {
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		return svc.db.Object().BatchUpdateRedundancy(tx, msg.Updatings)
@@ -136,19 +222,17 @@ func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.Up
 
 func pickByObjectIDs(objs []cdssdk.UpdatingObject, objIDs []cdssdk.ObjectID) (pickedObjs []cdssdk.UpdatingObject, notFoundObjs []cdssdk.ObjectID) {
 	objIdx := 0
-	IDIdx := 0
+	idIdx := 0
 
-	for IDIdx < len(objIDs) {
-		if objs[objIdx].ObjectID == objIDs[IDIdx] {
-			pickedObjs = append(pickedObjs, objs[objIdx])
-			IDIdx++
-			objIdx++
-		} else if objs[objIdx].ObjectID < objIDs[IDIdx] {
-			objIdx++
-		} else {
-			notFoundObjs = append(notFoundObjs, objIDs[IDIdx])
-			IDIdx++
+	for idIdx < len(objIDs) && objIdx < len(objs) {
+		if objIDs[idIdx] < objs[objIdx].ObjectID {
+			notFoundObjs = append(notFoundObjs, objIDs[idIdx])
+			idIdx++
+			continue
 		}
+
+		pickedObjs = append(pickedObjs, objs[objIdx])
+		objIdx++
 	}
 
 	return

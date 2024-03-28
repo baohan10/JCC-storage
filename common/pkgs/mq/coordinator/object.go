@@ -13,6 +13,8 @@ type ObjectService interface {
 
 	GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, *mq.CodeMessage)
 
+	GetObjectDetails(msg *GetObjectDetails) (*GetObjectDetailsResp, *mq.CodeMessage)
+
 	UpdateObjectRedundancy(msg *UpdateObjectRedundancy) (*UpdateObjectRedundancyResp, *mq.CodeMessage)
 
 	UpdateObjectInfos(msg *UpdateObjectInfos) (*UpdateObjectInfosResp, *mq.CodeMessage)
@@ -72,6 +74,32 @@ func NewGetPackageObjectDetailsResp(objects []stgmod.ObjectDetail) *GetPackageOb
 }
 func (client *Client) GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, error) {
 	return mq.Request(Service.GetPackageObjectDetails, client.rabbitCli, msg)
+}
+
+// 获取多个Object以及它们的分块详细信息，返回的Objects会按照ObjectID升序。
+var _ = Register(Service.GetObjectDetails)
+
+type GetObjectDetails struct {
+	mq.MessageBodyBase
+	ObjectIDs []cdssdk.ObjectID `json:"objectIDs"`
+}
+type GetObjectDetailsResp struct {
+	mq.MessageBodyBase
+	Objects []*stgmod.ObjectDetail `json:"objects"` // 如果没有查询到某个ID对应的信息，则此数组对应位置为nil
+}
+
+func ReqGetObjectDetails(objectIDs []cdssdk.ObjectID) *GetObjectDetails {
+	return &GetObjectDetails{
+		ObjectIDs: objectIDs,
+	}
+}
+func RespGetObjectDetails(objects []*stgmod.ObjectDetail) *GetObjectDetailsResp {
+	return &GetObjectDetailsResp{
+		Objects: objects,
+	}
+}
+func (client *Client) GetObjectDetails(msg *GetObjectDetails) (*GetObjectDetailsResp, error) {
+	return mq.Request(Service.GetObjectDetails, client.rabbitCli, msg)
 }
 
 // 更新Object的冗余方式
