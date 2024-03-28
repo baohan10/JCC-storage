@@ -74,8 +74,6 @@ func (svc *BucketService) DeleteBucket(userID cdssdk.UserID, bucketID cdssdk.Buc
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	// TODO 检查用户是否有删除这个Bucket的权限。检查的时候可以只上UserBucket的Read锁
-
 	_, err = coorCli.DeleteBucket(coormq.NewDeleteBucket(userID, bucketID))
 	if err != nil {
 		return fmt.Errorf("request to coordinator failed, err: %w", err)

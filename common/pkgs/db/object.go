@@ -26,25 +26,46 @@ func (db *ObjectDB) GetByID(ctx SQLContext, objectID cdssdk.ObjectID) (model.Obj
 	return ret.ToObject(), err
 }
 
-func (db *ObjectDB) BatchGetPackageObjectIDs(ctx SQLContext, pkgID cdssdk.PackageID, pathes []string) ([]cdssdk.ObjectID, error) {
-	if len(pathes) == 0 {
+func (db *ObjectDB) BatchGet(ctx SQLContext, objectIDs []cdssdk.ObjectID) ([]model.Object, error) {
+	if len(objectIDs) == 0 {
 		return nil, nil
 	}
 
 	// TODO In语句
-	stmt, args, err := sqlx.In("select ObjectID from Object force index(PackagePath) where PackageID=? and Path in (?)", pkgID, pathes)
+	stmt, args, err := sqlx.In("select * from Object where ObjectID in (?) order by ObjectID asc", objectIDs)
 	if err != nil {
 		return nil, err
 	}
 	stmt = ctx.Rebind(stmt)
 
-	objIDs := make([]cdssdk.ObjectID, 0, len(pathes))
-	err = sqlx.Select(ctx, &objIDs, stmt, args...)
+	objs := make([]model.TempObject, 0, len(objectIDs))
+	err = sqlx.Select(ctx, &objs, stmt, args...)
 	if err != nil {
 		return nil, err
 	}
 
-	return objIDs, nil
+	return lo.Map(objs, func(o model.TempObject, idx int) cdssdk.Object { return o.ToObject() }), nil
+}
+
+func (db *ObjectDB) BatchByPackagePath(ctx SQLContext, pkgID cdssdk.PackageID, pathes []string) ([]cdssdk.Object, error) {
+	if len(pathes) == 0 {
+		return nil, nil
+	}
+
+	// TODO In语句
+	stmt, args, err := sqlx.In("select * from Object force index(PackagePath) where PackageID=? and Path in (?)", pkgID, pathes)
+	if err != nil {
+		return nil, err
+	}
+	stmt = ctx.Rebind(stmt)
+
+	objs := make([]model.TempObject, 0, len(pathes))
+	err = sqlx.Select(ctx, &objs, stmt, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return lo.Map(objs, func(o model.TempObject, idx int) cdssdk.Object { return o.ToObject() }), nil
 }
 
 func (db *ObjectDB) Create(ctx SQLContext, obj cdssdk.Object) (cdssdk.ObjectID, error) {
@@ -63,8 +84,8 @@ func (db *ObjectDB) Create(ctx SQLContext, obj cdssdk.Object) (cdssdk.ObjectID, 
 	return cdssdk.ObjectID(objectID), nil
 }
 
-// 可以用于批量创建或者更新记录
-// 用于创建时，需要额外检查PackageID+Path的唯一性
+// 可以用于批量创建或者更新记录。
+// 用于创建时，需要额外检查PackageID+Path的唯一性。
 // 用于更新时，需要额外检查现存的PackageID+Path对应的ObjectID是否与待更新的ObjectID相同。不会更新CreateTime。
 func (db *ObjectDB) BatchCreateOrUpdate(ctx SQLContext, objs []cdssdk.Object) error {
 	if len(objs) == 0 {
@@ -163,17 +184,22 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 	for _, add := range adds {
 		pathes = append(pathes, add.Path)
 	}
-	objIDs, err := db.BatchGetPackageObjectIDs(ctx, packageID, pathes)
+	// 这里可以不用检查查询结果是否与pathes的数量相同
+	addedObjs, err := db.BatchByPackagePath(ctx, packageID, pathes)
 	if err != nil {
 		return nil, fmt.Errorf("batch get object ids: %w", err)
 	}
+	addedObjIDs := make([]cdssdk.ObjectID, len(addedObjs))
+	for i := range addedObjs {
+		addedObjIDs[i] = addedObjs[i].ObjectID
+	}
 
-	err = db.ObjectBlock().BatchDeleteByObjectID(ctx, objIDs)
+	err = db.ObjectBlock().BatchDeleteByObjectID(ctx, addedObjIDs)
 	if err != nil {
 		return nil, fmt.Errorf("batch delete object blocks: %w", err)
 	}
 
-	err = db.PinnedObject().BatchDeleteByObjectID(ctx, objIDs)
+	err = db.PinnedObject().BatchDeleteByObjectID(ctx, addedObjIDs)
 	if err != nil {
 		return nil, fmt.Errorf("batch delete pinned objects: %w", err)
 	}
@@ -181,7 +207,7 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 	objBlocks := make([]stgmod.ObjectBlock, 0, len(adds))
 	for i, add := range adds {
 		objBlocks = append(objBlocks, stgmod.ObjectBlock{
-			ObjectID: objIDs[i],
+			ObjectID: addedObjIDs[i],
 			Index:    0,
 			NodeID:   add.NodeID,
 			FileHash: add.FileHash,
@@ -206,10 +232,10 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 		return nil, fmt.Errorf("batch create caches: %w", err)
 	}
 
-	return objIDs, nil
+	return addedObjIDs, nil
 }
 
-func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.ChangeObjectRedundancyEntry) error {
+func (db *ObjectDB) BatchUpdateRedundancy(ctx SQLContext, objs []coormq.UpdatingObjectRedundancy) error {
 	if len(objs) == 0 {
 		return nil
 	}

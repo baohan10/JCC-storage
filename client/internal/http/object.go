@@ -71,22 +71,17 @@ func (s *ObjectService) Upload(ctx *gin.Context) {
 	}
 }
 
-type ObjectDownloadReq struct {
-	UserID   *cdssdk.UserID   `form:"userID" binding:"required"`
-	ObjectID *cdssdk.ObjectID `form:"objectID" binding:"required"`
-}
-
 func (s *ObjectService) Download(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Object.Download")
 
-	var req ObjectDownloadReq
+	var req cdssdk.ObjectDownloadReq
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	file, err := s.svc.ObjectSvc().Download(*req.UserID, *req.ObjectID)
+	file, err := s.svc.ObjectSvc().Download(req.UserID, req.ObjectID)
 	if err != nil {
 		log.Warnf("downloading object: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "download object failed"))
@@ -124,28 +119,62 @@ func (s *ObjectService) Download(ctx *gin.Context) {
 	})
 }
 
-type GetPackageObjectsReq struct {
-	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `form:"packageID" binding:"required"`
+func (s *ObjectService) UpdateInfo(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Object.UpdateInfo")
+
+	var req cdssdk.ObjectUpdateInfoReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	err := s.svc.ObjectSvc().UpdateInfo(req.UserID, req.Updatings)
+	if err != nil {
+		log.Warnf("updating objects: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "update objects failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(nil))
 }
-type GetPackageObjectsResp = cdssdk.ObjectGetPackageObjectsResp
+
+func (s *ObjectService) Delete(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Object.Delete")
+
+	var req cdssdk.ObjectDeleteReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	err := s.svc.ObjectSvc().Delete(req.UserID, req.ObjectIDs)
+	if err != nil {
+		log.Warnf("deleting objects: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "delete objects failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(nil))
+}
 
 func (s *ObjectService) GetPackageObjects(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Object.GetPackageObjects")
 
-	var req GetPackageObjectsReq
+	var req cdssdk.ObjectGetPackageObjectsReq
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	objs, err := s.svc.ObjectSvc().GetPackageObjects(*req.UserID, *req.PackageID)
+	objs, err := s.svc.ObjectSvc().GetPackageObjects(req.UserID, req.PackageID)
 	if err != nil {
 		log.Warnf("getting package objects: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package object failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(GetPackageObjectsResp{Objects: objs}))
+	ctx.JSON(http.StatusOK, OK(cdssdk.ObjectGetPackageObjectsResp{Objects: objs}))
 }

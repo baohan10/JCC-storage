@@ -35,8 +35,38 @@ func (svc *ObjectService) WaitUploading(taskID string, waitTimeout time.Duration
 	return false, nil, nil
 }
 
+func (svc *ObjectService) UpdateInfo(userID cdssdk.UserID, updatings []cdssdk.UpdatingObject) error {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	_, err = coorCli.UpdateObjectInfos(coormq.ReqUpdateObjectInfos(userID, updatings))
+	if err != nil {
+		return fmt.Errorf("requsting to coodinator: %w", err)
+	}
+
+	return nil
+}
+
 func (svc *ObjectService) Download(userID cdssdk.UserID, objectID cdssdk.ObjectID) (io.ReadCloser, error) {
 	panic("not implement yet!")
+}
+
+func (svc *ObjectService) Delete(userID cdssdk.UserID, objectIDs []cdssdk.ObjectID) error {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	_, err = coorCli.DeleteObjects(coormq.ReqDeleteObjects(userID, objectIDs))
+	if err != nil {
+		return fmt.Errorf("requsting to coodinator: %w", err)
+	}
+
+	return nil
 }
 
 func (svc *ObjectService) GetPackageObjects(userID cdssdk.UserID, packageID cdssdk.PackageID) ([]model.Object, error) {

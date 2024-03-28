@@ -13,7 +13,11 @@ type ObjectService interface {
 
 	GetPackageObjectDetails(msg *GetPackageObjectDetails) (*GetPackageObjectDetailsResp, *mq.CodeMessage)
 
-	ChangeObjectRedundancy(msg *ChangeObjectRedundancy) (*ChangeObjectRedundancyResp, *mq.CodeMessage)
+	UpdateObjectRedundancy(msg *UpdateObjectRedundancy) (*UpdateObjectRedundancyResp, *mq.CodeMessage)
+
+	UpdateObjectInfos(msg *UpdateObjectInfos) (*UpdateObjectInfosResp, *mq.CodeMessage)
+
+	DeleteObjects(msg *DeleteObjects) (*DeleteObjectsResp, *mq.CodeMessage)
 }
 
 // 查询Package中的所有Object，返回的Objects会按照ObjectID升序
@@ -71,30 +75,82 @@ func (client *Client) GetPackageObjectDetails(msg *GetPackageObjectDetails) (*Ge
 }
 
 // 更新Object的冗余方式
-var _ = Register(Service.ChangeObjectRedundancy)
+var _ = Register(Service.UpdateObjectRedundancy)
 
-type ChangeObjectRedundancy struct {
+type UpdateObjectRedundancy struct {
 	mq.MessageBodyBase
-	Entries []ChangeObjectRedundancyEntry `json:"entries"`
+	Updatings []UpdatingObjectRedundancy `json:"updatings"`
 }
-type ChangeObjectRedundancyResp struct {
+type UpdateObjectRedundancyResp struct {
 	mq.MessageBodyBase
 }
-type ChangeObjectRedundancyEntry struct {
+type UpdatingObjectRedundancy struct {
 	ObjectID   cdssdk.ObjectID      `json:"objectID" db:"ObjectID"`
 	Redundancy cdssdk.Redundancy    `json:"redundancy" db:"Redundancy"`
 	PinnedAt   []cdssdk.NodeID      `json:"pinnedAt"`
 	Blocks     []stgmod.ObjectBlock `json:"blocks"`
 }
 
-func ReqChangeObjectRedundancy(entries []ChangeObjectRedundancyEntry) *ChangeObjectRedundancy {
-	return &ChangeObjectRedundancy{
-		Entries: entries,
+func ReqUpdateObjectRedundancy(updatings []UpdatingObjectRedundancy) *UpdateObjectRedundancy {
+	return &UpdateObjectRedundancy{
+		Updatings: updatings,
 	}
 }
-func RespChangeObjectRedundancy() *ChangeObjectRedundancyResp {
-	return &ChangeObjectRedundancyResp{}
+func RespUpdateObjectRedundancy() *UpdateObjectRedundancyResp {
+	return &UpdateObjectRedundancyResp{}
 }
-func (client *Client) ChangeObjectRedundancy(msg *ChangeObjectRedundancy) (*ChangeObjectRedundancyResp, error) {
-	return mq.Request(Service.ChangeObjectRedundancy, client.rabbitCli, msg)
+func (client *Client) UpdateObjectRedundancy(msg *UpdateObjectRedundancy) (*UpdateObjectRedundancyResp, error) {
+	return mq.Request(Service.UpdateObjectRedundancy, client.rabbitCli, msg)
+}
+
+// 更新Object元数据
+var _ = Register(Service.UpdateObjectInfos)
+
+type UpdateObjectInfos struct {
+	mq.MessageBodyBase
+	UserID    cdssdk.UserID           `json:"userID"`
+	Updatings []cdssdk.UpdatingObject `json:"updatings"`
+}
+
+type UpdateObjectInfosResp struct {
+	mq.MessageBodyBase
+}
+
+func ReqUpdateObjectInfos(userID cdssdk.UserID, updatings []cdssdk.UpdatingObject) *UpdateObjectInfos {
+	return &UpdateObjectInfos{
+		UserID:    userID,
+		Updatings: updatings,
+	}
+}
+func RespUpdateObjectInfos() *UpdateObjectInfosResp {
+	return &UpdateObjectInfosResp{}
+}
+func (client *Client) UpdateObjectInfos(msg *UpdateObjectInfos) (*UpdateObjectInfosResp, error) {
+	return mq.Request(Service.UpdateObjectInfos, client.rabbitCli, msg)
+}
+
+// 删除Object
+var _ = Register(Service.DeleteObjects)
+
+type DeleteObjects struct {
+	mq.MessageBodyBase
+	UserID    cdssdk.UserID     `json:"userID"`
+	ObjectIDs []cdssdk.ObjectID `json:"objectIDs"`
+}
+
+type DeleteObjectsResp struct {
+	mq.MessageBodyBase
+}
+
+func ReqDeleteObjects(userID cdssdk.UserID, objectIDs []cdssdk.ObjectID) *DeleteObjects {
+	return &DeleteObjects{
+		UserID:    userID,
+		ObjectIDs: objectIDs,
+	}
+}
+func RespDeleteObjects() *DeleteObjectsResp {
+	return &DeleteObjectsResp{}
+}
+func (client *Client) DeleteObjects(msg *DeleteObjects) (*DeleteObjectsResp, error) {
+	return mq.Request(Service.DeleteObjects, client.rabbitCli, msg)
 }

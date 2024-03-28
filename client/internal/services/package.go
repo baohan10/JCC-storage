@@ -34,6 +34,21 @@ func (svc *PackageService) Get(userID cdssdk.UserID, packageID cdssdk.PackageID)
 	return &getResp.Package, nil
 }
 
+func (svc *PackageService) GetBucketPackages(userID cdssdk.UserID, bucketID cdssdk.BucketID) ([]cdssdk.Package, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	getResp, err := coorCli.GetBucketPackages(coormq.NewGetBucketPackages(userID, bucketID))
+	if err != nil {
+		return nil, fmt.Errorf("requsting to coodinator: %w", err)
+	}
+
+	return getResp.Packages, nil
+}
+
 func (svc *PackageService) Create(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string) (cdssdk.PackageID, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
