@@ -16,11 +16,23 @@ import (
 )
 
 func (svc *Service) GetPackageObjects(msg *coormq.GetPackageObjects) (*coormq.GetPackageObjectsResp, *mq.CodeMessage) {
-	// TODO 检查用户是否有权限
-	objs, err := svc.db.Object().GetPackageObjects(svc.db.SQLCtx(), msg.PackageID)
+	var objs []cdssdk.Object
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+		_, err := svc.db.Package().GetUserPackage(tx, msg.UserID, msg.PackageID)
+		if err != nil {
+			return fmt.Errorf("getting package by id: %w", err)
+		}
+
+		objs, err = svc.db.Object().GetPackageObjects(svc.db.SQLCtx(), msg.PackageID)
+		if err != nil {
+			return fmt.Errorf("getting package objects: %w", err)
+		}
+
+		return nil
+	})
 	if err != nil {
-		logger.WithField("PackageID", msg.PackageID).
-			Warnf("get package objects: %s", err.Error())
+		logger.WithField("UserID", msg.UserID).WithField("PackageID", msg.PackageID).
+			Warn(err.Error())
 
 		return nil, mq.Failed(errorcode.OperationFailed, "get package objects failed")
 	}
@@ -200,8 +212,8 @@ func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.Up
 
 		newObjs := make([]cdssdk.Object, len(avaiUpdatings))
 		for i := range newObjs {
-			newObj := oldObjs[i]
-			avaiUpdatings[i].ApplyTo(&newObj)
+			newObjs[i] = oldObjs[i]
+			avaiUpdatings[i].ApplyTo(&newObjs[i])
 		}
 
 		err = svc.db.Object().BatchCreateOrUpdate(tx, newObjs)
@@ -220,19 +232,22 @@ func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.Up
 	return mq.ReplyOK(coormq.RespUpdateObjectInfos())
 }
 
-func pickByObjectIDs(objs []cdssdk.UpdatingObject, objIDs []cdssdk.ObjectID) (pickedObjs []cdssdk.UpdatingObject, notFoundObjs []cdssdk.ObjectID) {
+// 根据objIDs从objs中挑选Object。
+// len(objs) >= len(objIDs)
+func pickByObjectIDs(objs []cdssdk.UpdatingObject, objIDs []cdssdk.ObjectID) (pickedObjs []cdssdk.UpdatingObject, notFoundObjs []cdssdk.UpdatingObject) {
 	objIdx := 0
 	idIdx := 0
 
 	for idIdx < len(objIDs) && objIdx < len(objs) {
-		if objIDs[idIdx] < objs[objIdx].ObjectID {
-			notFoundObjs = append(notFoundObjs, objIDs[idIdx])
-			idIdx++
+		if objs[objIdx].ObjectID < objIDs[idIdx] {
+			notFoundObjs = append(notFoundObjs, objs[objIdx])
+			objIdx++
 			continue
 		}
 
 		pickedObjs = append(pickedObjs, objs[objIdx])
 		objIdx++
+		idIdx++
 	}
 
 	return
@@ -288,7 +303,22 @@ func (svc *Service) ensurePackageChangedObjects(tx *sqlx.Tx, objs []cdssdk.Objec
 
 func (svc *Service) DeleteObjects(msg *coormq.DeleteObjects) (*coormq.DeleteObjectsResp, *mq.CodeMessage) {
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
-		return svc.db.Object().BatchDelete(tx, msg.ObjectIDs)
+		err := svc.db.Object().BatchDelete(tx, msg.ObjectIDs)
+		if err != nil {
+			return fmt.Errorf("batch deleting objects: %w", err)
+		}
+
+		err = svc.db.ObjectBlock().BatchDeleteByObjectID(tx, msg.ObjectIDs)
+		if err != nil {
+			return fmt.Errorf("batch deleting object blocks: %w", err)
+		}
+
+		err = svc.db.PinnedObject().BatchDeleteByObjectID(tx, msg.ObjectIDs)
+		if err != nil {
+			return fmt.Errorf("batch deleting pinned objects: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		logger.Warnf("batch deleting objects: %s", err.Error())

@@ -29,7 +29,7 @@ func (s *BucketService) Create(ctx *gin.Context) {
 		return
 	}
 
-	bucketID, err := s.svc.BucketSvc().CreateBucket(req.UserID, req.BucketName)
+	bucketID, err := s.svc.BucketSvc().CreateBucket(req.UserID, req.Name)
 	if err != nil {
 		log.Warnf("creating bucket: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "create bucket failed"))

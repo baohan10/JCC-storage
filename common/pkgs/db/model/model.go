@@ -22,7 +22,7 @@ type Storage struct {
 
 type User struct {
 	UserID   cdssdk.UserID `db:"UserID" json:"userID"`
-	Password string        `db:"PassWord" json:"password"`
+	Password string        `db:"Password" json:"password"`
 }
 
 type UserBucket struct {
