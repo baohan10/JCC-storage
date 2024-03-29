@@ -19,6 +19,8 @@ type ObjectService interface {
 
 	UpdateObjectInfos(msg *UpdateObjectInfos) (*UpdateObjectInfosResp, *mq.CodeMessage)
 
+	MoveObjects(msg *MoveObjects) (*MoveObjectsResp, *mq.CodeMessage)
+
 	DeleteObjects(msg *DeleteObjects) (*DeleteObjectsResp, *mq.CodeMessage)
 }
 
@@ -142,6 +144,7 @@ type UpdateObjectInfos struct {
 
 type UpdateObjectInfosResp struct {
 	mq.MessageBodyBase
+	Successes []cdssdk.ObjectID `json:"successes"`
 }
 
 func ReqUpdateObjectInfos(userID cdssdk.UserID, updatings []cdssdk.UpdatingObject) *UpdateObjectInfos {
@@ -150,11 +153,42 @@ func ReqUpdateObjectInfos(userID cdssdk.UserID, updatings []cdssdk.UpdatingObjec
 		Updatings: updatings,
 	}
 }
-func RespUpdateObjectInfos() *UpdateObjectInfosResp {
-	return &UpdateObjectInfosResp{}
+func RespUpdateObjectInfos(successes []cdssdk.ObjectID) *UpdateObjectInfosResp {
+	return &UpdateObjectInfosResp{
+		Successes: successes,
+	}
 }
 func (client *Client) UpdateObjectInfos(msg *UpdateObjectInfos) (*UpdateObjectInfosResp, error) {
 	return mq.Request(Service.UpdateObjectInfos, client.rabbitCli, msg)
+}
+
+// 移动Object
+var _ = Register(Service.MoveObjects)
+
+type MoveObjects struct {
+	mq.MessageBodyBase
+	UserID  cdssdk.UserID         `json:"userID"`
+	Movings []cdssdk.MovingObject `json:"movings"`
+}
+
+type MoveObjectsResp struct {
+	mq.MessageBodyBase
+	Successes []cdssdk.ObjectID `json:"successes"`
+}
+
+func ReqMoveObjects(userID cdssdk.UserID, movings []cdssdk.MovingObject) *MoveObjects {
+	return &MoveObjects{
+		UserID:  userID,
+		Movings: movings,
+	}
+}
+func RespMoveObjects(successes []cdssdk.ObjectID) *MoveObjectsResp {
+	return &MoveObjectsResp{
+		Successes: successes,
+	}
+}
+func (client *Client) MoveObjects(msg *MoveObjects) (*MoveObjectsResp, error) {
+	return mq.Request(Service.MoveObjects, client.rabbitCli, msg)
 }
 
 // 删除Object

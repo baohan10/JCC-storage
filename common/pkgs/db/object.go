@@ -47,7 +47,7 @@ func (db *ObjectDB) BatchGet(ctx SQLContext, objectIDs []cdssdk.ObjectID) ([]mod
 	return lo.Map(objs, func(o model.TempObject, idx int) cdssdk.Object { return o.ToObject() }), nil
 }
 
-func (db *ObjectDB) BatchByPackagePath(ctx SQLContext, pkgID cdssdk.PackageID, pathes []string) ([]cdssdk.Object, error) {
+func (db *ObjectDB) BatchGetByPackagePath(ctx SQLContext, pkgID cdssdk.PackageID, pathes []string) ([]cdssdk.Object, error) {
 	if len(pathes) == 0 {
 		return nil, nil
 	}
@@ -87,7 +87,7 @@ func (db *ObjectDB) Create(ctx SQLContext, obj cdssdk.Object) (cdssdk.ObjectID, 
 // 可以用于批量创建或者更新记录。
 // 用于创建时，需要额外检查PackageID+Path的唯一性。
 // 用于更新时，需要额外检查现存的PackageID+Path对应的ObjectID是否与待更新的ObjectID相同。不会更新CreateTime。
-func (db *ObjectDB) BatchCreateOrUpdate(ctx SQLContext, objs []cdssdk.Object) error {
+func (db *ObjectDB) BatchUpsertByPackagePath(ctx SQLContext, objs []cdssdk.Object) error {
 	if len(objs) == 0 {
 		return nil
 	}
@@ -97,6 +97,18 @@ func (db *ObjectDB) BatchCreateOrUpdate(ctx SQLContext, objs []cdssdk.Object) er
 		" on duplicate key update Size = new.Size, FileHash = new.FileHash, Redundancy = new.Redundancy, UpdateTime = new.UpdateTime"
 
 	return BatchNamedExec(ctx, sql, 7, objs, nil)
+}
+
+func (db *ObjectDB) BatchUpert(ctx SQLContext, objs []cdssdk.Object) error {
+	if len(objs) == 0 {
+		return nil
+	}
+
+	sql := "insert into Object(ObjectID, PackageID, Path, Size, FileHash, Redundancy, CreateTime ,UpdateTime)" +
+		" values(:ObjectID, :PackageID,:Path,:Size,:FileHash,:Redundancy, :CreateTime, :UpdateTime) as new" +
+		" on duplicate key update PackageID = new.PackageID, Path = new.Path, Size = new.Size, FileHash = new.FileHash, Redundancy = new.Redundancy, UpdateTime = new.UpdateTime"
+
+	return BatchNamedExec(ctx, sql, 8, objs, nil)
 }
 
 func (*ObjectDB) GetPackageObjects(ctx SQLContext, packageID cdssdk.PackageID) ([]model.Object, error) {
@@ -175,7 +187,7 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 		})
 	}
 
-	err := db.BatchCreateOrUpdate(ctx, objs)
+	err := db.BatchUpsertByPackagePath(ctx, objs)
 	if err != nil {
 		return nil, fmt.Errorf("batch create or update objects: %w", err)
 	}
@@ -185,7 +197,7 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 		pathes = append(pathes, add.Path)
 	}
 	// 这里可以不用检查查询结果是否与pathes的数量相同
-	addedObjs, err := db.BatchByPackagePath(ctx, packageID, pathes)
+	addedObjs, err := db.BatchGetByPackagePath(ctx, packageID, pathes)
 	if err != nil {
 		return nil, fmt.Errorf("batch get object ids: %w", err)
 	}

@@ -43,6 +43,7 @@ func (s *Server) initRouters() {
 	s.engine.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
 	s.engine.GET(cdssdk.ObjectGetPackageObjectsPath, s.Object().GetPackageObjects)
 	s.engine.POST(cdssdk.ObjectUpdateInfoPath, s.Object().UpdateInfo)
+	s.engine.POST(cdssdk.ObjectMovePath, s.Object().Move)
 	s.engine.POST(cdssdk.ObjectDeletePath, s.Object().Delete)
 
 	s.engine.GET(cdssdk.PackageGetPath, s.Package().Get)

@@ -129,14 +129,34 @@ func (s *ObjectService) UpdateInfo(ctx *gin.Context) {
 		return
 	}
 
-	err := s.svc.ObjectSvc().UpdateInfo(req.UserID, req.Updatings)
+	sucs, err := s.svc.ObjectSvc().UpdateInfo(req.UserID, req.Updatings)
 	if err != nil {
 		log.Warnf("updating objects: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "update objects failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(nil))
+	ctx.JSON(http.StatusOK, OK(cdssdk.ObjectUpdateInfoResp{Successes: sucs}))
+}
+
+func (s *ObjectService) Move(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Object.Move")
+
+	var req cdssdk.ObjectMoveReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		log.Warnf("binding body: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	sucs, err := s.svc.ObjectSvc().Move(req.UserID, req.Movings)
+	if err != nil {
+		log.Warnf("moving objects: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "move objects failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(cdssdk.ObjectMoveResp{Successes: sucs}))
 }
 
 func (s *ObjectService) Delete(ctx *gin.Context) {

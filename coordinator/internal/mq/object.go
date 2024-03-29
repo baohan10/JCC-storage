@@ -165,6 +165,7 @@ func (svc *Service) UpdateObjectRedundancy(msg *coormq.UpdateObjectRedundancy) (
 }
 
 func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.UpdateObjectInfosResp, *mq.CodeMessage) {
+	var sucs []cdssdk.ObjectID
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		msg.Updatings = sort2.Sort(msg.Updatings, func(o1, o2 cdssdk.UpdatingObject) int {
 			return sort2.Cmp(o1.ObjectID, o2.ObjectID)
@@ -184,31 +185,10 @@ func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.Up
 			oldObjIDs[i] = obj.ObjectID
 		}
 
-		avaiUpdatings, notExistsObjs := pickByObjectIDs(msg.Updatings, oldObjIDs)
+		avaiUpdatings, notExistsObjs := pickByObjectIDs(msg.Updatings, oldObjIDs, func(obj cdssdk.UpdatingObject) cdssdk.ObjectID { return obj.ObjectID })
 		if len(notExistsObjs) > 0 {
 			// TODO 部分对象已经不存在
 		}
-
-		// 筛选出PackageID变化、Path变化的对象，这两种对象要检测改变后是否有冲突
-		// 否则，直接更新即可
-		//var pkgIDChangedObjs []cdssdk.Object
-		//var pathChangedObjs []cdssdk.Object
-		//var infoChangedObjs []cdssdk.Object
-		//for i := range willUpdateObjs {
-		//	if willUpdateObjs[i].PackageID != oldObjs[i].PackageID {
-		//		newObj := oldObjs[i]
-		//		willUpdateObjs[i].ApplyTo(&newObj)
-		//		pkgIDChangedObjs = append(pkgIDChangedObjs, newObj)
-		//	} else if willUpdateObjs[i].Path != oldObjs[i].Path {
-		//		newObj := oldObjs[i]
-		//		willUpdateObjs[i].ApplyTo(&newObj)
-		//		pathChangedObjs = append(pathChangedObjs, newObj)
-		//	} else {
-		//		newObj := oldObjs[i]
-		//		willUpdateObjs[i].ApplyTo(&newObj)
-		//		infoChangedObjs = append(infoChangedObjs, newObj)
-		//	}
-		//}
 
 		newObjs := make([]cdssdk.Object, len(avaiUpdatings))
 		for i := range newObjs {
@@ -216,11 +196,12 @@ func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.Up
 			avaiUpdatings[i].ApplyTo(&newObjs[i])
 		}
 
-		err = svc.db.Object().BatchCreateOrUpdate(tx, newObjs)
+		err = svc.db.Object().BatchUpsertByPackagePath(tx, newObjs)
 		if err != nil {
 			return fmt.Errorf("batch create or update: %w", err)
 		}
 
+		sucs = lo.Map(newObjs, func(obj cdssdk.Object, _ int) cdssdk.ObjectID { return obj.ObjectID })
 		return nil
 	})
 
@@ -229,23 +210,23 @@ func (svc *Service) UpdateObjectInfos(msg *coormq.UpdateObjectInfos) (*coormq.Up
 		return nil, mq.Failed(errorcode.OperationFailed, "batch update objects failed")
 	}
 
-	return mq.ReplyOK(coormq.RespUpdateObjectInfos())
+	return mq.ReplyOK(coormq.RespUpdateObjectInfos(sucs))
 }
 
 // 根据objIDs从objs中挑选Object。
 // len(objs) >= len(objIDs)
-func pickByObjectIDs(objs []cdssdk.UpdatingObject, objIDs []cdssdk.ObjectID) (pickedObjs []cdssdk.UpdatingObject, notFoundObjs []cdssdk.UpdatingObject) {
+func pickByObjectIDs[T any](objs []T, objIDs []cdssdk.ObjectID, getID func(T) cdssdk.ObjectID) (picked []T, notFound []T) {
 	objIdx := 0
 	idIdx := 0
 
 	for idIdx < len(objIDs) && objIdx < len(objs) {
-		if objs[objIdx].ObjectID < objIDs[idIdx] {
-			notFoundObjs = append(notFoundObjs, objs[objIdx])
+		if getID(objs[objIdx]) < objIDs[idIdx] {
+			notFound = append(notFound, objs[objIdx])
 			objIdx++
 			continue
 		}
 
-		pickedObjs = append(pickedObjs, objs[objIdx])
+		picked = append(picked, objs[objIdx])
 		objIdx++
 		idIdx++
 	}
@@ -253,7 +234,83 @@ func pickByObjectIDs(objs []cdssdk.UpdatingObject, objIDs []cdssdk.ObjectID) (pi
 	return
 }
 
-func (svc *Service) ensurePackageChangedObjects(tx *sqlx.Tx, objs []cdssdk.Object) ([]cdssdk.Object, error) {
+func (svc *Service) MoveObjects(msg *coormq.MoveObjects) (*coormq.MoveObjectsResp, *mq.CodeMessage) {
+	var sucs []cdssdk.ObjectID
+	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
+		msg.Movings = sort2.Sort(msg.Movings, func(o1, o2 cdssdk.MovingObject) int {
+			return sort2.Cmp(o1.ObjectID, o2.ObjectID)
+		})
+
+		objIDs := make([]cdssdk.ObjectID, len(msg.Movings))
+		for i, obj := range msg.Movings {
+			objIDs[i] = obj.ObjectID
+		}
+
+		oldObjs, err := svc.db.Object().BatchGet(tx, objIDs)
+		if err != nil {
+			return fmt.Errorf("batch getting objects: %w", err)
+		}
+		oldObjIDs := make([]cdssdk.ObjectID, len(oldObjs))
+		for i, obj := range oldObjs {
+			oldObjIDs[i] = obj.ObjectID
+		}
+
+		avaiMovings, notExistsObjs := pickByObjectIDs(msg.Movings, oldObjIDs, func(obj cdssdk.MovingObject) cdssdk.ObjectID { return obj.ObjectID })
+		if len(notExistsObjs) > 0 {
+			// TODO 部分对象已经不存在
+		}
+
+		// 筛选出PackageID变化、Path变化的对象，这两种对象要检测改变后是否有冲突
+		var pkgIDChangedObjs []cdssdk.Object
+		var pathChangedObjs []cdssdk.Object
+		for i := range avaiMovings {
+			if avaiMovings[i].PackageID != oldObjs[i].PackageID {
+				newObj := oldObjs[i]
+				avaiMovings[i].ApplyTo(&newObj)
+				pkgIDChangedObjs = append(pkgIDChangedObjs, newObj)
+			} else if avaiMovings[i].Path != oldObjs[i].Path {
+				newObj := oldObjs[i]
+				avaiMovings[i].ApplyTo(&newObj)
+				pathChangedObjs = append(pathChangedObjs, newObj)
+			}
+		}
+
+		var newObjs []cdssdk.Object
+		// 对于PackageID发生变化的对象，需要检查目标Package内是否存在同Path的对象
+		ensuredObjs, err := svc.ensurePackageChangedObjects(tx, msg.UserID, pkgIDChangedObjs)
+		if err != nil {
+			return err
+		}
+		newObjs = append(newObjs, ensuredObjs...)
+
+		// 对于只有Path发生变化的对象，则检查同Package内有没有同Path的对象
+		ensuredObjs, err = svc.ensurePathChangedObjects(tx, msg.UserID, pathChangedObjs)
+		if err != nil {
+			return err
+		}
+		newObjs = append(newObjs, ensuredObjs...)
+
+		err = svc.db.Object().BatchUpert(tx, newObjs)
+		if err != nil {
+			return fmt.Errorf("batch create or update: %w", err)
+		}
+
+		sucs = lo.Map(newObjs, func(obj cdssdk.Object, _ int) cdssdk.ObjectID { return obj.ObjectID })
+		return nil
+	})
+	if err != nil {
+		logger.Warn(err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "move objects failed")
+	}
+
+	return mq.ReplyOK(coormq.RespMoveObjects(sucs))
+}
+
+func (svc *Service) ensurePackageChangedObjects(tx *sqlx.Tx, userID cdssdk.UserID, objs []cdssdk.Object) ([]cdssdk.Object, error) {
+	if len(objs) == 0 {
+		return nil, nil
+	}
+
 	type PackageObjects struct {
 		PackageID    cdssdk.PackageID
 		ObjectByPath map[string]*cdssdk.Object
@@ -274,19 +331,29 @@ func (svc *Service) ensurePackageChangedObjects(tx *sqlx.Tx, objs []cdssdk.Objec
 			o := obj
 			pkg.ObjectByPath[obj.Path] = &o
 		} else {
-			// TODO 有冲突
+			// TODO 有两个对象移动到同一个路径，有冲突
 		}
 	}
 
 	var willUpdateObjs []cdssdk.Object
 	for _, pkg := range packages {
-		existsObjs, err := svc.db.Object().BatchByPackagePath(tx, pkg.PackageID, lo.Keys(pkg.ObjectByPath))
+		_, err := svc.db.Package().GetUserPackage(tx, userID, pkg.PackageID)
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("getting user package by id: %w", err)
+		}
+
+		existsObjs, err := svc.db.Object().BatchGetByPackagePath(tx, pkg.PackageID, lo.Keys(pkg.ObjectByPath))
 		if err != nil {
 			return nil, fmt.Errorf("batch getting objects by package path: %w", err)
 		}
 
+		// 标记冲突的对象
 		for _, obj := range existsObjs {
 			pkg.ObjectByPath[obj.Path] = nil
+			// TODO 目标Package内有冲突的对象
 		}
 
 		for _, obj := range pkg.ObjectByPath {
@@ -295,10 +362,54 @@ func (svc *Service) ensurePackageChangedObjects(tx *sqlx.Tx, objs []cdssdk.Objec
 			}
 			willUpdateObjs = append(willUpdateObjs, *obj)
 		}
-
 	}
 
 	return willUpdateObjs, nil
+}
+
+func (svc *Service) ensurePathChangedObjects(tx *sqlx.Tx, userID cdssdk.UserID, objs []cdssdk.Object) ([]cdssdk.Object, error) {
+	if len(objs) == 0 {
+		return nil, nil
+	}
+
+	objByPath := make(map[string]*cdssdk.Object)
+	for _, obj := range objs {
+		if objByPath[obj.Path] == nil {
+			o := obj
+			objByPath[obj.Path] = &o
+		} else {
+			// TODO 有两个对象移动到同一个路径，有冲突
+		}
+
+	}
+
+	_, err := svc.db.Package().GetUserPackage(tx, userID, objs[0].PackageID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting user package by id: %w", err)
+	}
+
+	existsObjs, err := svc.db.Object().BatchGetByPackagePath(tx, objs[0].PackageID, lo.Map(objs, func(obj cdssdk.Object, idx int) string { return obj.Path }))
+	if err != nil {
+		return nil, fmt.Errorf("batch getting objects by package path: %w", err)
+	}
+
+	// 不支持两个对象交换位置的情况，因为数据库不支持
+	for _, obj := range existsObjs {
+		objByPath[obj.Path] = nil
+	}
+
+	var willMoveObjs []cdssdk.Object
+	for _, obj := range objByPath {
+		if obj == nil {
+			continue
+		}
+		willMoveObjs = append(willMoveObjs, *obj)
+	}
+
+	return willMoveObjs, nil
 }
 
 func (svc *Service) DeleteObjects(msg *coormq.DeleteObjects) (*coormq.DeleteObjectsResp, *mq.CodeMessage) {
