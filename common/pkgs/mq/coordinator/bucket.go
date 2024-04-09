@@ -7,6 +7,8 @@ import (
 )
 
 type BucketService interface {
+	GetBucketByName(msg *GetBucketByName) (*GetBucketByNameResp, *mq.CodeMessage)
+
 	GetUserBuckets(msg *GetUserBuckets) (*GetUserBucketsResp, *mq.CodeMessage)
 
 	GetBucketPackages(msg *GetBucketPackages) (*GetBucketPackagesResp, *mq.CodeMessage)
@@ -14,6 +16,34 @@ type BucketService interface {
 	CreateBucket(msg *CreateBucket) (*CreateBucketResp, *mq.CodeMessage)
 
 	DeleteBucket(msg *DeleteBucket) (*DeleteBucketResp, *mq.CodeMessage)
+}
+
+// 根据桶名获取桶
+var _ = Register(Service.GetBucketByName)
+
+type GetBucketByName struct {
+	mq.MessageBodyBase
+	UserID cdssdk.UserID `json:"userID"`
+	Name   string        `json:"name"`
+}
+type GetBucketByNameResp struct {
+	mq.MessageBodyBase
+	Bucket cdssdk.Bucket `json:"bucket"`
+}
+
+func ReqGetBucketByName(userID cdssdk.UserID, name string) *GetBucketByName {
+	return &GetBucketByName{
+		UserID: userID,
+		Name:   name,
+	}
+}
+func RespGetBucketByName(bucket cdssdk.Bucket) *GetBucketByNameResp {
+	return &GetBucketByNameResp{
+		Bucket: bucket,
+	}
+}
+func (client *Client) GetBucketByName(msg *GetBucketByName) (*GetBucketByNameResp, error) {
+	return mq.Request(Service.GetBucketByName, client.rabbitCli, msg)
 }
 
 // 获取用户所有的桶
@@ -80,7 +110,7 @@ type CreateBucket struct {
 }
 type CreateBucketResp struct {
 	mq.MessageBodyBase
-	BucketID cdssdk.BucketID `json:"bucketID"`
+	Bucket cdssdk.Bucket `json:"bucket"`
 }
 
 func NewCreateBucket(userID cdssdk.UserID, bucketName string) *CreateBucket {
@@ -89,9 +119,9 @@ func NewCreateBucket(userID cdssdk.UserID, bucketName string) *CreateBucket {
 		BucketName: bucketName,
 	}
 }
-func NewCreateBucketResp(bucketID cdssdk.BucketID) *CreateBucketResp {
+func NewCreateBucketResp(bucket cdssdk.Bucket) *CreateBucketResp {
 	return &CreateBucketResp{
-		BucketID: bucketID,
+		Bucket: bucket,
 	}
 }
 func (client *Client) CreateBucket(msg *CreateBucket) (*CreateBucketResp, error) {

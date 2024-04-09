@@ -18,6 +18,18 @@ func (svc *Service) GetBucket(userID cdssdk.UserID, bucketID cdssdk.BucketID) (m
 	panic("not implement yet")
 }
 
+func (svc *Service) GetBucketByName(msg *coormq.GetBucketByName) (*coormq.GetBucketByNameResp, *mq.CodeMessage) {
+	bucket, err := svc.db.Bucket().GetUserBucketByName(svc.db.SQLCtx(), msg.UserID, msg.Name)
+	if err != nil {
+		logger.WithField("UserID", msg.UserID).
+			WithField("Name", msg.Name).
+			Warnf("getting bucket by name: %s", err.Error())
+		return nil, mq.Failed(errorcode.OperationFailed, "get bucket by name failed")
+	}
+
+	return mq.ReplyOK(coormq.RespGetBucketByName(bucket))
+}
+
 func (svc *Service) GetUserBuckets(msg *coormq.GetUserBuckets) (*coormq.GetUserBucketsResp, *mq.CodeMessage) {
 	buckets, err := svc.db.Bucket().GetUserBuckets(svc.db.SQLCtx(), msg.UserID)
 
@@ -44,18 +56,22 @@ func (svc *Service) GetBucketPackages(msg *coormq.GetBucketPackages) (*coormq.Ge
 }
 
 func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucketResp, *mq.CodeMessage) {
-	var bucketID cdssdk.BucketID
+	var bucket cdssdk.Bucket
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		_, err := svc.db.User().GetByID(tx, msg.UserID)
 		if err != nil {
 			return fmt.Errorf("getting user by id: %w", err)
 		}
 
-		bucketID, err = svc.db.Bucket().Create(tx, msg.UserID, msg.BucketName)
+		bucketID, err := svc.db.Bucket().Create(tx, msg.UserID, msg.BucketName)
 		if err != nil {
 			return fmt.Errorf("creating bucket: %w", err)
 		}
 
+		bucket, err = svc.db.Bucket().GetByID(tx, bucketID)
+		if err != nil {
+			return fmt.Errorf("getting bucket by id: %w", err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -65,7 +81,7 @@ func (svc *Service) CreateBucket(msg *coormq.CreateBucket) (*coormq.CreateBucket
 		return nil, mq.Failed(errorcode.OperationFailed, "create bucket failed")
 	}
 
-	return mq.ReplyOK(coormq.NewCreateBucketResp(bucketID))
+	return mq.ReplyOK(coormq.NewCreateBucketResp(bucket))
 }
 
 func (svc *Service) DeleteBucket(msg *coormq.DeleteBucket) (*coormq.DeleteBucketResp, *mq.CodeMessage) {

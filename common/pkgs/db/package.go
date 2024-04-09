@@ -77,6 +77,20 @@ func (db *PackageDB) GetUserPackage(ctx SQLContext, userID cdssdk.UserID, packag
 	return ret, err
 }
 
+// 在指定名称的Bucket中查找指定名称的Package
+func (*PackageDB) GetUserPackageByName(ctx SQLContext, userID cdssdk.UserID, bucketName string, packageName string) (cdssdk.Package, error) {
+	var ret model.Package
+	err := sqlx.Get(ctx, &ret,
+		"select Package.* from Package, Bucket, UserBucket where"+
+			" Package.Name = ? and"+
+			" Package.BucketID = Bucket.BucketID and"+
+			" Bucket.Name = ? and"+
+			" UserBucket.UserID = ? and"+
+			" UserBucket.BucketID = Bucket.BucketID",
+		packageName, bucketName, userID)
+	return ret, err
+}
+
 func (db *PackageDB) Create(ctx SQLContext, bucketID cdssdk.BucketID, name string) (cdssdk.PackageID, error) {
 	// 根据packagename和bucketid查询，若不存在则插入，若存在则返回错误
 	var packageID int64

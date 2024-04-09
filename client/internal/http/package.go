@@ -3,6 +3,7 @@ package http
 import (
 	"mime/multipart"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -43,16 +44,36 @@ func (s *PackageService) Get(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, OK(cdssdk.PackageGetResp{Package: *pkg}))
 }
 
+func (s *PackageService) GetByName(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.GetByName")
+
+	var req cdssdk.PackageGetByName
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding query: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	pkg, err := s.svc.PackageSvc().GetByName(req.UserID, req.BucketName, req.PackageName)
+	if err != nil {
+		log.Warnf("getting package by name: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package by name failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageGetByNameResp{Package: *pkg}))
+}
+
 func (s *PackageService) Create(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.Create")
-	var req cdssdk.PackageCreateReq
+	var req cdssdk.PackageCreate
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	pkgID, err := s.svc.PackageSvc().Create(req.UserID, req.BucketID, req.Name)
+	pkg, err := s.svc.PackageSvc().Create(req.UserID, req.BucketID, req.Name)
 	if err != nil {
 		log.Warnf("creating package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "create package failed"))
@@ -60,14 +81,14 @@ func (s *PackageService) Create(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, OK(cdssdk.PackageCreateResp{
-		PackageID: pkgID,
+		Package: pkg,
 	}))
 }
 
 func (s *PackageService) Delete(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.Delete")
 
-	var req cdssdk.PackageDeleteReq
+	var req cdssdk.PackageDelete
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
@@ -87,7 +108,7 @@ func (s *PackageService) Delete(ctx *gin.Context) {
 func (s *PackageService) ListBucketPackages(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.ListBucketPackages")
 
-	var req cdssdk.PackageListBucketPackagesReq
+	var req cdssdk.PackageListBucketPackages
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		log.Warnf("binding query: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
@@ -157,8 +178,13 @@ func mapMultiPartFileToUploadingObject(files []*multipart.FileHeader) stgiter.Up
 				return nil, err
 			}
 
+			fileName, err := url.PathUnescape(file.Filename)
+			if err != nil {
+				return nil, err
+			}
+
 			return &stgiter.IterUploadingObject{
-				Path: file.Filename,
+				Path: fileName,
 				Size: file.Size,
 				File: stream,
 			}, nil

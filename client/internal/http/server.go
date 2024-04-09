@@ -47,6 +47,7 @@ func (s *Server) initRouters() {
 	s.engine.POST(cdssdk.ObjectDeletePath, s.Object().Delete)
 
 	s.engine.GET(cdssdk.PackageGetPath, s.Package().Get)
+	s.engine.GET(cdssdk.PackageGetByNamePath, s.Package().GetByName)
 	s.engine.POST(cdssdk.PackageCreatePath, s.Package().Create)
 	s.engine.POST(cdssdk.PackageDeletePath, s.Package().Delete)
 	s.engine.GET(cdssdk.PackageListBucketPackagesPath, s.Package().ListBucketPackages)
@@ -59,6 +60,7 @@ func (s *Server) initRouters() {
 
 	s.engine.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
 
+	s.engine.GET(cdssdk.BucketGetByNamePath, s.Bucket().GetByName)
 	s.engine.POST(cdssdk.BucketCreatePath, s.Bucket().Create)
 	s.engine.POST(cdssdk.BucketDeletePath, s.Bucket().Delete)
 	s.engine.GET(cdssdk.BucketListUserBucketsPath, s.Bucket().ListUserBuckets)

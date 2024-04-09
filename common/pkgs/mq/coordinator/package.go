@@ -12,6 +12,8 @@ import (
 type PackageService interface {
 	GetPackage(msg *GetPackage) (*GetPackageResp, *mq.CodeMessage)
 
+	GetPackageByName(msg *GetPackageByName) (*GetPackageByNameResp, *mq.CodeMessage)
+
 	CreatePackage(msg *CreatePackage) (*CreatePackageResp, *mq.CodeMessage)
 
 	UpdatePackage(msg *UpdatePackage) (*UpdatePackageResp, *mq.CodeMessage)
@@ -51,6 +53,36 @@ func (client *Client) GetPackage(msg *GetPackage) (*GetPackageResp, error) {
 	return mq.Request(Service.GetPackage, client.rabbitCli, msg)
 }
 
+// 根据名称获取Package
+var _ = Register(Service.GetPackageByName)
+
+type GetPackageByName struct {
+	mq.MessageBodyBase
+	UserID      cdssdk.UserID `json:"userID"`
+	BucketName  string        `json:"bucketName"`
+	PackageName string        `json:"packageName"`
+}
+type GetPackageByNameResp struct {
+	mq.MessageBodyBase
+	Package cdssdk.Package `json:"package"`
+}
+
+func ReqGetPackageByName(userID cdssdk.UserID, bucketName string, packageName string) *GetPackageByName {
+	return &GetPackageByName{
+		UserID:      userID,
+		BucketName:  bucketName,
+		PackageName: packageName,
+	}
+}
+func NewGetPackageByNameResp(pkg cdssdk.Package) *GetPackageByNameResp {
+	return &GetPackageByNameResp{
+		Package: pkg,
+	}
+}
+func (client *Client) GetPackageByName(msg *GetPackageByName) (*GetPackageByNameResp, error) {
+	return mq.Request(Service.GetPackageByName, client.rabbitCli, msg)
+}
+
 // 创建一个Package
 var _ = Register(Service.CreatePackage)
 
@@ -62,7 +94,7 @@ type CreatePackage struct {
 }
 type CreatePackageResp struct {
 	mq.MessageBodyBase
-	PackageID cdssdk.PackageID `json:"packageID"`
+	Package cdssdk.Package `json:"package"`
 }
 
 func NewCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string) *CreatePackage {
@@ -72,9 +104,9 @@ func NewCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name strin
 		Name:     name,
 	}
 }
-func NewCreatePackageResp(packageID cdssdk.PackageID) *CreatePackageResp {
+func NewCreatePackageResp(pkg cdssdk.Package) *CreatePackageResp {
 	return &CreatePackageResp{
-		PackageID: packageID,
+		Package: pkg,
 	}
 }
 func (client *Client) CreatePackage(msg *CreatePackage) (*CreatePackageResp, error) {
@@ -92,6 +124,7 @@ type UpdatePackage struct {
 }
 type UpdatePackageResp struct {
 	mq.MessageBodyBase
+	Added []cdssdk.Object `json:"added"`
 }
 type AddObjectEntry struct {
 	Path       string        `json:"path"`
@@ -108,8 +141,10 @@ func NewUpdatePackage(packageID cdssdk.PackageID, adds []AddObjectEntry, deletes
 		Deletes:   deletes,
 	}
 }
-func NewUpdatePackageResp() *UpdatePackageResp {
-	return &UpdatePackageResp{}
+func NewUpdatePackageResp(added []cdssdk.Object) *UpdatePackageResp {
+	return &UpdatePackageResp{
+		Added: added,
+	}
 }
 func NewAddObjectEntry(path string, size int64, fileHash string, uploadTime time.Time, nodeID cdssdk.NodeID) AddObjectEntry {
 	return AddObjectEntry{

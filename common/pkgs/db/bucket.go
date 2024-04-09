@@ -18,6 +18,12 @@ func (db *DB) Bucket() *BucketDB {
 	return &BucketDB{DB: db}
 }
 
+func (db *BucketDB) GetByID(ctx SQLContext, bucketID cdssdk.BucketID) (cdssdk.Bucket, error) {
+	var ret cdssdk.Bucket
+	err := sqlx.Get(ctx, &ret, "select * from Bucket where BucketID = ?", bucketID)
+	return ret, err
+}
+
 // GetIDByName 根据BucketName查询BucketID
 func (db *BucketDB) GetIDByName(bucketName string) (int64, error) {
 	//桶结构体
@@ -54,6 +60,15 @@ func (*BucketDB) GetUserBucket(ctx SQLContext, userID cdssdk.UserID, bucketID cd
 		"select Bucket.* from UserBucket, Bucket where UserID = ? and"+
 			" UserBucket.BucketID = Bucket.BucketID and"+
 			" Bucket.BucketID = ?", userID, bucketID)
+	return ret, err
+}
+
+func (*BucketDB) GetUserBucketByName(ctx SQLContext, userID cdssdk.UserID, bucketName string) (model.Bucket, error) {
+	var ret model.Bucket
+	err := sqlx.Get(ctx, &ret,
+		"select Bucket.* from UserBucket, Bucket where UserID = ? and"+
+			" UserBucket.BucketID = Bucket.BucketID and"+
+			" Bucket.Name = ?", userID, bucketName)
 	return ret, err
 }
 

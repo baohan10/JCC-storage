@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"io"
 	"time"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -66,7 +65,7 @@ func (svc *ObjectService) Move(userID cdssdk.UserID, movings []cdssdk.MovingObje
 	return resp.Successes, nil
 }
 
-func (svc *ObjectService) Download(userID cdssdk.UserID, objectID cdssdk.ObjectID) (io.ReadCloser, error) {
+func (svc *ObjectService) Download(userID cdssdk.UserID, objectID cdssdk.ObjectID) (*iterator.IterDownloadingObject, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -92,7 +91,7 @@ func (svc *ObjectService) Download(userID cdssdk.UserID, objectID cdssdk.ObjectI
 		return nil, err
 	}
 
-	return downloading.File, nil
+	return downloading, nil
 }
 
 func (svc *ObjectService) Delete(userID cdssdk.UserID, objectIDs []cdssdk.ObjectID) error {
