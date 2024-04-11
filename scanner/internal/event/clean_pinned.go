@@ -109,7 +109,7 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 	pinPlans := make(map[cdssdk.NodeID]*[]string)
 
 	// 对于rep对象，统计出所有对象块分布最多的两个节点，用这两个节点代表所有rep对象块的分布，去进行退火算法
-	var repObjectsUpdateEntries []coormq.ChangeObjectRedundancyEntry
+	var repObjectsUpdating []coormq.UpdatingObjectRedundancy
 	repMostNodeIDs := t.summaryRepObjectBlockNodes(repObjects)
 	solu := t.startAnnealing(allNodeInfos, readerNodeIDs, annealingObject{
 		totalBlockCount: 1,
@@ -118,11 +118,11 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 		blocks:          nil,
 	})
 	for _, obj := range repObjects {
-		repObjectsUpdateEntries = append(repObjectsUpdateEntries, t.makePlansForRepObject(solu, obj, pinPlans))
+		repObjectsUpdating = append(repObjectsUpdating, t.makePlansForRepObject(solu, obj, pinPlans))
 	}
 
 	// 对于ec对象，则每个对象单独进行退火算法
-	var ecObjectsUpdateEntries []coormq.ChangeObjectRedundancyEntry
+	var ecObjectsUpdating []coormq.UpdatingObjectRedundancy
 	for _, obj := range ecObjects {
 		ecRed := obj.Object.Redundancy.(*cdssdk.ECRedundancy)
 		solu := t.startAnnealing(allNodeInfos, readerNodeIDs, annealingObject{
@@ -131,7 +131,7 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 			pinnedAt:        obj.PinnedAt,
 			blocks:          obj.Blocks,
 		})
-		ecObjectsUpdateEntries = append(ecObjectsUpdateEntries, t.makePlansForECObject(allNodeInfos, solu, obj, &planBld))
+		ecObjectsUpdating = append(ecObjectsUpdating, t.makePlansForECObject(allNodeInfos, solu, obj, &planBld))
 	}
 
 	ioSwRets, err := t.executePlans(execCtx, pinPlans, &planBld)
@@ -141,13 +141,13 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 	}
 
 	// 根据按照方案进行调整的结果，填充更新元数据的命令
-	for i := range ecObjectsUpdateEntries {
-		t.populateECObjectEntry(&ecObjectsUpdateEntries[i], ecObjects[i], ioSwRets)
+	for i := range ecObjectsUpdating {
+		t.populateECObjectEntry(&ecObjectsUpdating[i], ecObjects[i], ioSwRets)
 	}
 
-	finalEntries := append(repObjectsUpdateEntries, ecObjectsUpdateEntries...)
+	finalEntries := append(repObjectsUpdating, ecObjectsUpdating...)
 	if len(finalEntries) > 0 {
-		_, err = coorCli.ChangeObjectRedundancy(coormq.ReqChangeObjectRedundancy(finalEntries))
+		_, err = coorCli.UpdateObjectRedundancy(coormq.ReqUpdateObjectRedundancy(finalEntries))
 		if err != nil {
 			log.Warnf("changing object redundancy: %s", err.Error())
 			return
@@ -715,8 +715,8 @@ func (t *CleanPinned) alwaysAccept(curTemp float64, dScore float64, coolingRate 
 	return v > rand.Float64()
 }
 
-func (t *CleanPinned) makePlansForRepObject(solu annealingSolution, obj stgmod.ObjectDetail, pinPlans map[cdssdk.NodeID]*[]string) coormq.ChangeObjectRedundancyEntry {
-	entry := coormq.ChangeObjectRedundancyEntry{
+func (t *CleanPinned) makePlansForRepObject(solu annealingSolution, obj stgmod.ObjectDetail, pinPlans map[cdssdk.NodeID]*[]string) coormq.UpdatingObjectRedundancy {
+	entry := coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: obj.Object.Redundancy,
 	}
@@ -748,8 +748,8 @@ func (t *CleanPinned) makePlansForRepObject(solu annealingSolution, obj stgmod.O
 	return entry
 }
 
-func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssdk.Node, solu annealingSolution, obj stgmod.ObjectDetail, planBld *plans.PlanBuilder) coormq.ChangeObjectRedundancyEntry {
-	entry := coormq.ChangeObjectRedundancyEntry{
+func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssdk.Node, solu annealingSolution, obj stgmod.ObjectDetail, planBld *plans.PlanBuilder) coormq.UpdatingObjectRedundancy {
+	entry := coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: obj.Object.Redundancy,
 	}
@@ -871,7 +871,7 @@ func (t *CleanPinned) executePlans(execCtx ExecuteContext, pinPlans map[cdssdk.N
 	return ioSwRets, nil
 }
 
-func (t *CleanPinned) populateECObjectEntry(entry *coormq.ChangeObjectRedundancyEntry, obj stgmod.ObjectDetail, ioRets map[string]any) {
+func (t *CleanPinned) populateECObjectEntry(entry *coormq.UpdatingObjectRedundancy, obj stgmod.ObjectDetail, ioRets map[string]any) {
 	for i := range entry.Blocks {
 		if entry.Blocks[i].FileHash != "" {
 			continue

@@ -63,7 +63,7 @@ func (t *CreatePackage) Execute(task *task.Task[TaskContext], ctx TaskContext, c
 		return
 	}
 
-	uploadRet, err := cmd.NewUploadObjects(t.userID, createResp.PackageID, t.objIter, t.nodeAffinity).Execute(&cmd.UploadObjectsContext{
+	uploadRet, err := cmd.NewUploadObjects(t.userID, createResp.Package.PackageID, t.objIter, t.nodeAffinity).Execute(&cmd.UploadObjectsContext{
 		Distlock:     ctx.distlock,
 		Connectivity: ctx.connectivity,
 	})
@@ -76,7 +76,7 @@ func (t *CreatePackage) Execute(task *task.Task[TaskContext], ctx TaskContext, c
 		return
 	}
 
-	t.Result.PackageID = createResp.PackageID
+	t.Result.PackageID = createResp.Package.PackageID
 	t.Result.Objects = uploadRet.Objects
 
 	complete(nil, CompleteOption{

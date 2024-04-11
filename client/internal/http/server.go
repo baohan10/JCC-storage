@@ -42,12 +42,17 @@ func (s *Server) initRouters() {
 	s.engine.GET(cdssdk.ObjectDownloadPath, s.Object().Download)
 	s.engine.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
 	s.engine.GET(cdssdk.ObjectGetPackageObjectsPath, s.Object().GetPackageObjects)
+	s.engine.POST(cdssdk.ObjectUpdateInfoPath, s.Object().UpdateInfo)
+	s.engine.POST(cdssdk.ObjectMovePath, s.Object().Move)
+	s.engine.POST(cdssdk.ObjectDeletePath, s.Object().Delete)
 
 	s.engine.GET(cdssdk.PackageGetPath, s.Package().Get)
+	s.engine.GET(cdssdk.PackageGetByNamePath, s.Package().GetByName)
 	s.engine.POST(cdssdk.PackageCreatePath, s.Package().Create)
-	s.engine.POST("/package/delete", s.Package().Delete)
-	s.engine.GET("/package/getCachedNodes", s.Package().GetCachedNodes)
-	s.engine.GET("/package/getLoadedNodes", s.Package().GetLoadedNodes)
+	s.engine.POST(cdssdk.PackageDeletePath, s.Package().Delete)
+	s.engine.GET(cdssdk.PackageListBucketPackagesPath, s.Package().ListBucketPackages)
+	s.engine.GET(cdssdk.PackageGetCachedNodesPath, s.Package().GetCachedNodes)
+	s.engine.GET(cdssdk.PackageGetLoadedNodesPath, s.Package().GetLoadedNodes)
 
 	s.engine.POST("/storage/loadPackage", s.Storage().LoadPackage)
 	s.engine.POST("/storage/createPackage", s.Storage().CreatePackage)
@@ -55,6 +60,8 @@ func (s *Server) initRouters() {
 
 	s.engine.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
 
+	s.engine.GET(cdssdk.BucketGetByNamePath, s.Bucket().GetByName)
 	s.engine.POST(cdssdk.BucketCreatePath, s.Bucket().Create)
 	s.engine.POST(cdssdk.BucketDeletePath, s.Bucket().Delete)
+	s.engine.GET(cdssdk.BucketListUserBucketsPath, s.Bucket().ListUserBuckets)
 }

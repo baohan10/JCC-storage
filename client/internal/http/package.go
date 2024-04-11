@@ -3,6 +3,7 @@ package http
 import (
 	"mime/multipart"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 	"gitlink.org.cn/cloudream/common/consts/errorcode"
@@ -10,7 +11,6 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	stgiter "gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 )
 
@@ -24,44 +24,56 @@ func (s *Server) Package() *PackageService {
 	}
 }
 
-type PackageGetReq struct {
-	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `form:"packageID" binding:"required"`
-}
-type PackageGetResp struct {
-	model.Package
-}
-
 func (s *PackageService) Get(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.Get")
 
-	var req PackageGetReq
+	var req cdssdk.PackageGetReq
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	pkg, err := s.svc.PackageSvc().Get(*req.UserID, *req.PackageID)
+	pkg, err := s.svc.PackageSvc().Get(req.UserID, req.PackageID)
 	if err != nil {
 		log.Warnf("getting package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(PackageGetResp{Package: *pkg}))
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageGetResp{Package: *pkg}))
+}
+
+func (s *PackageService) GetByName(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.GetByName")
+
+	var req cdssdk.PackageGetByName
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding query: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	pkg, err := s.svc.PackageSvc().GetByName(req.UserID, req.BucketName, req.PackageName)
+	if err != nil {
+		log.Warnf("getting package by name: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package by name failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageGetByNameResp{Package: *pkg}))
 }
 
 func (s *PackageService) Create(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.Create")
-	var req cdssdk.PackageCreateReq
+	var req cdssdk.PackageCreate
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	pkgID, err := s.svc.PackageSvc().Create(req.UserID, req.BucketID, req.Name)
+	pkg, err := s.svc.PackageSvc().Create(req.UserID, req.BucketID, req.Name)
 	if err != nil {
 		log.Warnf("creating package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "create package failed"))
@@ -69,26 +81,21 @@ func (s *PackageService) Create(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, OK(cdssdk.PackageCreateResp{
-		PackageID: pkgID,
+		Package: pkg,
 	}))
-}
-
-type PackageDeleteReq struct {
-	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
 }
 
 func (s *PackageService) Delete(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.Delete")
 
-	var req PackageDeleteReq
+	var req cdssdk.PackageDelete
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	err := s.svc.PackageSvc().DeletePackage(*req.UserID, *req.PackageID)
+	err := s.svc.PackageSvc().DeletePackage(req.UserID, req.PackageID)
 	if err != nil {
 		log.Warnf("deleting package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "delete package failed"))
@@ -98,61 +105,66 @@ func (s *PackageService) Delete(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, OK(nil))
 }
 
-type GetCachedNodesReq struct {
-	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
-}
-type GetCachedNodesResp struct {
-	cdssdk.PackageCachingInfo
+func (s *PackageService) ListBucketPackages(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Package.ListBucketPackages")
+
+	var req cdssdk.PackageListBucketPackages
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding query: %s", err.Error())
+		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
+		return
+	}
+
+	pkgs, err := s.svc.PackageSvc().GetBucketPackages(req.UserID, req.BucketID)
+	if err != nil {
+		log.Warnf("getting bucket packages: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get bucket packages failed"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageListBucketPackagesResp{
+		Packages: pkgs,
+	}))
 }
 
 func (s *PackageService) GetCachedNodes(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.GetCachedNodes")
 
-	var req GetCachedNodesReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		log.Warnf("binding body: %s", err.Error())
+	var req cdssdk.PackageGetCachedNodesReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding query: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	resp, err := s.svc.PackageSvc().GetCachedNodes(*req.UserID, *req.PackageID)
+	resp, err := s.svc.PackageSvc().GetCachedNodes(req.UserID, req.PackageID)
 	if err != nil {
 		log.Warnf("get package cached nodes failed: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package cached nodes failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(GetCachedNodesResp{resp}))
-}
-
-type GetLoadedNodesReq struct {
-	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
-}
-
-type GetLoadedNodesResp struct {
-	NodeIDs []cdssdk.NodeID `json:"nodeIDs"`
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageGetCachedNodesResp{PackageCachingInfo: resp}))
 }
 
 func (s *PackageService) GetLoadedNodes(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Package.GetLoadedNodes")
 
-	var req GetLoadedNodesReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		log.Warnf("binding body: %s", err.Error())
+	var req cdssdk.PackageGetLoadedNodesReq
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		log.Warnf("binding query: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	nodeIDs, err := s.svc.PackageSvc().GetLoadedNodes(*req.UserID, *req.PackageID)
+	nodeIDs, err := s.svc.PackageSvc().GetLoadedNodes(req.UserID, req.PackageID)
 	if err != nil {
 		log.Warnf("get package loaded nodes failed: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get package loaded nodes failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(GetLoadedNodesResp{
+	ctx.JSON(http.StatusOK, OK(cdssdk.PackageGetLoadedNodesResp{
 		NodeIDs: nodeIDs,
 	}))
 }
@@ -166,8 +178,13 @@ func mapMultiPartFileToUploadingObject(files []*multipart.FileHeader) stgiter.Up
 				return nil, err
 			}
 
+			fileName, err := url.PathUnescape(file.Filename)
+			if err != nil {
+				return nil, err
+			}
+
 			return &stgiter.IterUploadingObject{
-				Path: file.Filename,
+				Path: fileName,
 				Size: file.Size,
 				File: stream,
 			}, nil

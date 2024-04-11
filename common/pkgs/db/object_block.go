@@ -24,6 +24,26 @@ func (db *ObjectBlockDB) GetByNodeID(ctx SQLContext, nodeID cdssdk.NodeID) ([]st
 	return rets, err
 }
 
+func (db *ObjectBlockDB) BatchGetByObjectID(ctx SQLContext, objectIDs []cdssdk.ObjectID) ([]stgmod.ObjectBlock, error) {
+	if len(objectIDs) == 0 {
+		return nil, nil
+	}
+
+	stmt, args, err := sqlx.In("select * from ObjectBlock where ObjectID in (?) order by ObjectID, `Index` asc", objectIDs)
+	if err != nil {
+		return nil, err
+	}
+	stmt = ctx.Rebind(stmt)
+
+	var blocks []stgmod.ObjectBlock
+	err = sqlx.Select(ctx, &blocks, stmt, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return blocks, nil
+}
+
 func (db *ObjectBlockDB) Create(ctx SQLContext, objectID cdssdk.ObjectID, index int, nodeID cdssdk.NodeID, fileHash string) error {
 	_, err := ctx.Exec("insert into ObjectBlock values(?,?,?,?)", objectID, index, nodeID, fileHash)
 	return err

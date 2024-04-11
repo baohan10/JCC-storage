@@ -22,6 +22,21 @@ func (svc *BucketService) GetBucket(userID cdssdk.UserID, bucketID cdssdk.Bucket
 	panic("not implement yet")
 }
 
+func (svc *BucketService) GetBucketByName(userID cdssdk.UserID, bucketName string) (model.Bucket, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return model.Bucket{}, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	resp, err := coorCli.GetBucketByName(coormq.ReqGetBucketByName(userID, bucketName))
+	if err != nil {
+		return model.Bucket{}, fmt.Errorf("get bucket by name failed, err: %w", err)
+	}
+
+	return resp.Bucket, nil
+}
+
 func (svc *BucketService) GetUserBuckets(userID cdssdk.UserID) ([]model.Bucket, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
@@ -52,19 +67,19 @@ func (svc *BucketService) GetBucketPackages(userID cdssdk.UserID, bucketID cdssd
 	return resp.Packages, nil
 }
 
-func (svc *BucketService) CreateBucket(userID cdssdk.UserID, bucketName string) (cdssdk.BucketID, error) {
+func (svc *BucketService) CreateBucket(userID cdssdk.UserID, bucketName string) (cdssdk.Bucket, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
-		return 0, fmt.Errorf("new coordinator client: %w", err)
+		return cdssdk.Bucket{}, fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
 	resp, err := coorCli.CreateBucket(coormq.NewCreateBucket(userID, bucketName))
 	if err != nil {
-		return 0, fmt.Errorf("creating bucket: %w", err)
+		return cdssdk.Bucket{}, fmt.Errorf("creating bucket: %w", err)
 	}
 
-	return resp.BucketID, nil
+	return resp.Bucket, nil
 }
 
 func (svc *BucketService) DeleteBucket(userID cdssdk.UserID, bucketID cdssdk.BucketID) error {
@@ -73,8 +88,6 @@ func (svc *BucketService) DeleteBucket(userID cdssdk.UserID, bucketID cdssdk.Buc
 		return fmt.Errorf("new coordinator client: %w", err)
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
-
-	// TODO 检查用户是否有删除这个Bucket的权限。检查的时候可以只上UserBucket的Read锁
 
 	_, err = coorCli.DeleteBucket(coormq.NewDeleteBucket(userID, bucketID))
 	if err != nil {

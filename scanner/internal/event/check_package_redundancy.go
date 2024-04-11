@@ -109,7 +109,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 		}
 	}
 
-	var changedObjects []coormq.ChangeObjectRedundancyEntry
+	var changedObjects []coormq.UpdatingObjectRedundancy
 
 	defRep := cdssdk.DefaultRepRedundancy
 	defEC := cdssdk.DefaultECRedundancy
@@ -136,7 +136,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	defer mutex.Unlock()
 
 	for _, obj := range getObjs.Objects {
-		var entry *coormq.ChangeObjectRedundancyEntry
+		var updating *coormq.UpdatingObjectRedundancy
 		var err error
 
 		shouldUseEC := obj.Object.Size > config.Cfg().ECFileSizeThreshold
@@ -145,32 +145,32 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 		case *cdssdk.NoneRedundancy:
 			if shouldUseEC {
 				log.WithField("ObjectID", obj.Object.ObjectID).Debugf("redundancy: none -> ec")
-				entry, err = t.noneToEC(obj, &defEC, newECNodes)
+				updating, err = t.noneToEC(obj, &defEC, newECNodes)
 			} else {
 				log.WithField("ObjectID", obj.Object.ObjectID).Debugf("redundancy: none -> rep")
-				entry, err = t.noneToRep(obj, &defRep, newRepNodes)
+				updating, err = t.noneToRep(obj, &defRep, newRepNodes)
 			}
 
 		case *cdssdk.RepRedundancy:
 			if shouldUseEC {
 				log.WithField("ObjectID", obj.Object.ObjectID).Debugf("redundancy: rep -> ec")
-				entry, err = t.repToEC(obj, &defEC, newECNodes)
+				updating, err = t.repToEC(obj, &defEC, newECNodes)
 			} else {
-				entry, err = t.repToRep(obj, &defRep, rechoosedRepNodes)
+				updating, err = t.repToRep(obj, &defRep, rechoosedRepNodes)
 			}
 
 		case *cdssdk.ECRedundancy:
 			if shouldUseEC {
 				uploadNodes := t.rechooseNodesForEC(obj, red, allNodes)
-				entry, err = t.ecToEC(obj, red, &defEC, uploadNodes)
+				updating, err = t.ecToEC(obj, red, &defEC, uploadNodes)
 			} else {
 				log.WithField("ObjectID", obj.Object.ObjectID).Debugf("redundancy: ec -> rep")
-				entry, err = t.ecToRep(obj, red, &defRep, newRepNodes)
+				updating, err = t.ecToRep(obj, red, &defRep, newRepNodes)
 			}
 		}
 
-		if entry != nil {
-			changedObjects = append(changedObjects, *entry)
+		if updating != nil {
+			changedObjects = append(changedObjects, *updating)
 		}
 
 		if err != nil {
@@ -182,7 +182,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 		return
 	}
 
-	_, err = coorCli.ChangeObjectRedundancy(coormq.ReqChangeObjectRedundancy(changedObjects))
+	_, err = coorCli.UpdateObjectRedundancy(coormq.ReqUpdateObjectRedundancy(changedObjects))
 	if err != nil {
 		log.Warnf("requesting to change object redundancy: %s", err.Error())
 		return
@@ -367,7 +367,7 @@ func (t *CheckPackageRedundancy) chooseSoManyNodes(count int, nodes []*NodeLoadI
 	return chosen
 }
 
-func (t *CheckPackageRedundancy) noneToRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
+func (t *CheckPackageRedundancy) noneToRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.UpdatingObjectRedundancy, error) {
 	if len(obj.Blocks) == 0 {
 		return nil, fmt.Errorf("object is not cached on any nodes, cannot change its redundancy to rep")
 	}
@@ -389,14 +389,14 @@ func (t *CheckPackageRedundancy) noneToRep(obj stgmod.ObjectDetail, red *cdssdk.
 		})
 	}
 
-	return &coormq.ChangeObjectRedundancyEntry{
+	return &coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: red,
 		Blocks:     blocks,
 	}, nil
 }
 
-func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.ECRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
+func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.ECRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.UpdatingObjectRedundancy, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -443,14 +443,14 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 		})
 	}
 
-	return &coormq.ChangeObjectRedundancyEntry{
+	return &coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: red,
 		Blocks:     blocks,
 	}, nil
 }
 
-func (t *CheckPackageRedundancy) repToRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
+func (t *CheckPackageRedundancy) repToRep(obj stgmod.ObjectDetail, red *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.UpdatingObjectRedundancy, error) {
 	if len(obj.Blocks) == 0 {
 		return nil, fmt.Errorf("object is not cached on any nodes, cannot change its redundancy to rep")
 	}
@@ -479,18 +479,18 @@ func (t *CheckPackageRedundancy) repToRep(obj stgmod.ObjectDetail, red *cdssdk.R
 		})
 	}
 
-	return &coormq.ChangeObjectRedundancyEntry{
+	return &coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: red,
 		Blocks:     blocks,
 	}, nil
 }
 
-func (t *CheckPackageRedundancy) repToEC(obj stgmod.ObjectDetail, red *cdssdk.ECRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
+func (t *CheckPackageRedundancy) repToEC(obj stgmod.ObjectDetail, red *cdssdk.ECRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.UpdatingObjectRedundancy, error) {
 	return t.noneToEC(obj, red, uploadNodes)
 }
 
-func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk.ECRedundancy, tarRed *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
+func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk.ECRedundancy, tarRed *cdssdk.RepRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.UpdatingObjectRedundancy, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -556,14 +556,14 @@ func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk
 		})
 	}
 
-	return &coormq.ChangeObjectRedundancyEntry{
+	return &coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: tarRed,
 		Blocks:     blocks,
 	}, nil
 }
 
-func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.ECRedundancy, tarRed *cdssdk.ECRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.ChangeObjectRedundancyEntry, error) {
+func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.ECRedundancy, tarRed *cdssdk.ECRedundancy, uploadNodes []*NodeLoadInfo) (*coormq.UpdatingObjectRedundancy, error) {
 	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
 	if err != nil {
 		return nil, fmt.Errorf("new coordinator client: %w", err)
@@ -654,7 +654,7 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 		newBlocks[idx].FileHash = v.(string)
 	}
 
-	return &coormq.ChangeObjectRedundancyEntry{
+	return &coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: tarRed,
 		Blocks:     newBlocks,

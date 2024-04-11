@@ -18,7 +18,6 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	stgmodels "gitlink.org.cn/cloudream/storage/common/models"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -27,7 +26,7 @@ import (
 type DownloadingObjectIterator = Iterator[*IterDownloadingObject]
 
 type IterDownloadingObject struct {
-	Object model.Object
+	Object cdssdk.Object
 	File   io.ReadCloser
 }
 

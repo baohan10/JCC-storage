@@ -34,10 +34,9 @@ type UploadObjectsResult struct {
 }
 
 type ObjectUploadResult struct {
-	Info  *iterator.IterUploadingObject
-	Error error
-	// TODO 这个字段没有被赋值
-	ObjectID cdssdk.ObjectID
+	Info   *iterator.IterUploadingObject
+	Error  error
+	Object cdssdk.Object
 }
 
 type UploadNodeInfo struct {
@@ -189,9 +188,24 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 		}
 	}
 
-	_, err = coorCli.UpdatePackage(coormq.NewUpdatePackage(packageID, adds, nil))
+	updateResp, err := coorCli.UpdatePackage(coormq.NewUpdatePackage(packageID, adds, nil))
 	if err != nil {
 		return nil, fmt.Errorf("updating package: %w", err)
+	}
+
+	updatedObjs := make(map[string]*cdssdk.Object)
+	for _, obj := range updateResp.Added {
+		o := obj
+		updatedObjs[obj.Path] = &o
+	}
+
+	for i := range uploadRets {
+		obj := updatedObjs[uploadRets[i].Info.Path]
+		if obj == nil {
+			uploadRets[i].Error = fmt.Errorf("object %s not found in package", uploadRets[i].Info.Path)
+			continue
+		}
+		uploadRets[i].Object = *obj
 	}
 
 	return uploadRets, nil

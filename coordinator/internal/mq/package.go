@@ -26,8 +26,22 @@ func (svc *Service) GetPackage(msg *coormq.GetPackage) (*coormq.GetPackageResp, 
 	return mq.ReplyOK(coormq.NewGetPackageResp(pkg))
 }
 
+func (svc *Service) GetPackageByName(msg *coormq.GetPackageByName) (*coormq.GetPackageByNameResp, *mq.CodeMessage) {
+	pkg, err := svc.db.Package().GetUserPackageByName(svc.db.SQLCtx(), msg.UserID, msg.BucketName, msg.PackageName)
+	if err != nil {
+		logger.WithField("UserID", msg.UserID).
+			WithField("BucketName", msg.BucketName).
+			WithField("PackageName", msg.PackageName).
+			Warnf("get package by name: %s", err.Error())
+
+		return nil, mq.Failed(errorcode.OperationFailed, "get package by name failed")
+	}
+
+	return mq.ReplyOK(coormq.NewGetPackageByNameResp(pkg))
+}
+
 func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePackageResp, *mq.CodeMessage) {
-	var pkgID cdssdk.PackageID
+	var pkg cdssdk.Package
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		var err error
 
@@ -36,9 +50,14 @@ func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePack
 			return fmt.Errorf("bucket is not avaiable to the user")
 		}
 
-		pkgID, err = svc.db.Package().Create(tx, msg.BucketID, msg.Name)
+		pkgID, err := svc.db.Package().Create(tx, msg.BucketID, msg.Name)
 		if err != nil {
 			return fmt.Errorf("creating package: %w", err)
+		}
+
+		pkg, err = svc.db.Package().GetByID(tx, pkgID)
+		if err != nil {
+			return fmt.Errorf("getting package by id: %w", err)
 		}
 
 		return nil
@@ -50,10 +69,11 @@ func (svc *Service) CreatePackage(msg *coormq.CreatePackage) (*coormq.CreatePack
 		return nil, mq.Failed(errorcode.OperationFailed, "creating package failed")
 	}
 
-	return mq.ReplyOK(coormq.NewCreatePackageResp(pkgID))
+	return mq.ReplyOK(coormq.NewCreatePackageResp(pkg))
 }
 
 func (svc *Service) UpdatePackage(msg *coormq.UpdatePackage) (*coormq.UpdatePackageResp, *mq.CodeMessage) {
+	var added []cdssdk.Object
 	err := svc.db.DoTx(sql.LevelSerializable, func(tx *sqlx.Tx) error {
 		_, err := svc.db.Package().GetByID(tx, msg.PackageID)
 		if err != nil {
@@ -69,9 +89,11 @@ func (svc *Service) UpdatePackage(msg *coormq.UpdatePackage) (*coormq.UpdatePack
 
 		// 再执行添加操作
 		if len(msg.Adds) > 0 {
-			if _, err := svc.db.Object().BatchAdd(tx, msg.PackageID, msg.Adds); err != nil {
+			ad, err := svc.db.Object().BatchAdd(tx, msg.PackageID, msg.Adds)
+			if err != nil {
 				return fmt.Errorf("adding objects: %w", err)
 			}
+			added = ad
 		}
 
 		return nil
@@ -81,7 +103,7 @@ func (svc *Service) UpdatePackage(msg *coormq.UpdatePackage) (*coormq.UpdatePack
 		return nil, mq.Failed(errorcode.OperationFailed, "update package failed")
 	}
 
-	return mq.ReplyOK(coormq.NewUpdatePackageResp())
+	return mq.ReplyOK(coormq.NewUpdatePackageResp(added))
 }
 
 func (svc *Service) DeletePackage(msg *coormq.DeletePackage) (*coormq.DeletePackageResp, *mq.CodeMessage) {
