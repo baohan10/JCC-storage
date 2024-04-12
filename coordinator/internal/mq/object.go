@@ -63,7 +63,7 @@ func (svc *Service) GetPackageObjectDetails(msg *coormq.GetPackageObjectDetails)
 		return nil, mq.Failed(errorcode.OperationFailed, "get package object block details failed")
 	}
 
-	return mq.ReplyOK(coormq.NewGetPackageObjectDetailsResp(details))
+	return mq.ReplyOK(coormq.RespPackageObjectDetails(details))
 }
 
 func (svc *Service) GetObjectDetails(msg *coormq.GetObjectDetails) (*coormq.GetObjectDetailsResp, *mq.CodeMessage) {

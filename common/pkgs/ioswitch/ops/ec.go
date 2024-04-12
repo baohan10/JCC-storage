@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -20,7 +20,7 @@ type ECReconstructAny struct {
 }
 
 func (o *ECReconstructAny) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	rs, err := ec.NewRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
+	rs, err := ec.NewStreamRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
 	if err != nil {
 		return fmt.Errorf("new ec: %w", err)
 	}
@@ -45,7 +45,7 @@ func (o *ECReconstructAny) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) 
 	wg := sync.WaitGroup{}
 	for i, id := range o.OutputIDs {
 		wg.Add(1)
-		sw.StreamReady(planID, ioswitch.NewStream(id, myio.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
+		sw.StreamReady(planID, ioswitch.NewStream(id, io2.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
 			wg.Done()
 		})))
 	}
@@ -62,7 +62,7 @@ type ECReconstruct struct {
 }
 
 func (o *ECReconstruct) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	rs, err := ec.NewRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
+	rs, err := ec.NewStreamRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
 	if err != nil {
 		return fmt.Errorf("new ec: %w", err)
 	}
@@ -87,7 +87,7 @@ func (o *ECReconstruct) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) err
 	wg := sync.WaitGroup{}
 	for i, id := range o.OutputIDs {
 		wg.Add(1)
-		sw.StreamReady(planID, ioswitch.NewStream(id, myio.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
+		sw.StreamReady(planID, ioswitch.NewStream(id, io2.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
 			wg.Done()
 		})))
 	}

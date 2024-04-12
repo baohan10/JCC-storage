@@ -13,6 +13,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 
@@ -94,11 +95,13 @@ func main() {
 
 	sw := ioswitch.NewSwitch()
 
+	dlder := downloader.NewDownloader(config.Cfg().Downloader)
+
 	//处置协调端、客户端命令（可多建几个）
 	wg := sync.WaitGroup{}
 	wg.Add(4)
 
-	taskMgr := task.NewManager(distlock, &sw, &conCol)
+	taskMgr := task.NewManager(distlock, &sw, &conCol, &dlder)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制

@@ -52,11 +52,6 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	getResp, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(t.packageID))
-	if err != nil {
-		return fmt.Errorf("getting package object details: %w", err)
-	}
-
 	ipfsCli, err := stgglb.IPFSPool.Acquire()
 	if err != nil {
 		return fmt.Errorf("new ipfs client: %w", err)
@@ -64,9 +59,7 @@ func (t *CacheMovePackage) do(ctx TaskContext) error {
 	defer ipfsCli.Close()
 
 	// TODO 可以考虑优化，比如rep类型的直接pin就可以
-	objIter := iterator.NewDownloadObjectIterator(getResp.Objects, &iterator.DownloadContext{
-		Distlock: ctx.distlock,
-	})
+	objIter := ctx.downloader.DownloadPackage(t.packageID)
 	defer objIter.Close()
 
 	for {

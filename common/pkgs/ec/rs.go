@@ -1,38 +1,44 @@
 package ec
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/baohan10/reedsolomon"
+	"github.com/klauspost/reedsolomon"
 )
 
-type rs struct {
-	r   *(reedsolomon.ReedSolomon)
-	ecN int
-	ecK int
-	ecP int
+type Rs struct {
+	encoder reedsolomon.Encoder
+	ecN     int
+	ecK     int
+	ecP     int
 }
 
-func NewRsEnc(ecK int, ecN int) *rs {
-	enc := rs{
-		ecN: ecN,
-		ecK: ecK,
-		ecP: ecN - ecK,
+func NewRs(k int, n int) (*Rs, error) {
+	enc := Rs{
+		ecN: n,
+		ecK: k,
+		ecP: n - k,
 	}
-	enc.r = reedsolomon.GetReedSolomonIns(ecK, ecN)
-	return &enc
-}
-func (r *rs) Encode(all [][]byte) {
-	r.r.Encode(all)
+	encoder, err := reedsolomon.New(k, n-k)
+	enc.encoder = encoder
+	return &enc, err
 }
 
-func (r *rs) Repair(all [][]byte) error {
-	return r.r.Reconstruct(all)
-}
-
-func checkErr(err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err.Error())
+// 任意k个块恢复出所有原始的数据块。
+// blocks的长度必须为N，且至少有K个元素不为nil
+func (r *Rs) ReconstructData(blocks [][]byte) error {
+	outIndexes := make([]int, r.ecK)
+	for i := 0; i < r.ecK; i++ {
+		outIndexes[i] = i
 	}
+
+	return r.ReconstructAny(blocks, outIndexes)
+}
+
+// 重建指定的任意块，可以是数据块或校验块。
+// 在input上原地重建，因此input的长度必须为N。
+func (r *Rs) ReconstructAny(blocks [][]byte, outBlockIdxes []int) error {
+	required := make([]bool, len(blocks))
+	for _, idx := range outBlockIdxes {
+		required[idx] = true
+	}
+	return r.encoder.ReconstructAny(blocks, required)
 }

@@ -12,7 +12,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
-	mymath "gitlink.org.cn/cloudream/common/utils/math"
+	"gitlink.org.cn/cloudream/common/utils/math2"
 	"gitlink.org.cn/cloudream/common/utils/sort2"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
@@ -58,7 +58,7 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	getObjs, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(t.PackageID))
+	getObjs, err := coorCli.GetPackageObjectDetails(coormq.ReqGetPackageObjectDetails(t.PackageID))
 	if err != nil {
 		log.Warnf("getting package objects: %s", err.Error())
 		return
@@ -674,7 +674,7 @@ func (t *CleanPinned) calcMinAccessCost(state *annealingState) float64 {
 			// 下面的if会在拿到k个块之后跳出循环，所以or多了块也没关系
 			gotBlocks.Or(tarNodeMp)
 			// 但是算读取块的消耗时，不能多算，最多算读了k个块的消耗
-			willGetBlocks := mymath.Min(gotBlocks.Weight()-curWeigth, state.object.minBlockCnt-curWeigth)
+			willGetBlocks := math2.Min(gotBlocks.Weight()-curWeigth, state.object.minBlockCnt-curWeigth)
 			thisCost += float64(willGetBlocks) * float64(tar.Distance)
 
 			if gotBlocks.Weight() >= state.object.minBlockCnt {

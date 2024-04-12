@@ -64,12 +64,12 @@ type GetPackageObjectDetailsResp struct {
 	Objects []stgmod.ObjectDetail `json:"objects"`
 }
 
-func NewGetPackageObjectDetails(packageID cdssdk.PackageID) *GetPackageObjectDetails {
+func ReqGetPackageObjectDetails(packageID cdssdk.PackageID) *GetPackageObjectDetails {
 	return &GetPackageObjectDetails{
 		PackageID: packageID,
 	}
 }
-func NewGetPackageObjectDetailsResp(objects []stgmod.ObjectDetail) *GetPackageObjectDetailsResp {
+func RespPackageObjectDetails(objects []stgmod.ObjectDetail) *GetPackageObjectDetailsResp {
 	return &GetPackageObjectDetailsResp{
 		Objects: objects,
 	}

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
@@ -76,8 +76,15 @@ func Execute(plan ComposedPlan) (*Executor, error) {
 }
 
 func (e *Executor) SendStream(info *FromExecutorStream, stream io.Reader) error {
-	// TODO 根据地域选择IP
-	agtCli, err := stgglb.AgentRPCPool.Acquire(info.toNode.ExternalIP, info.toNode.ExternalGRPCPort)
+	// TODO 考虑不使用stgglb的Local
+	nodeIP := info.toNode.ExternalIP
+	grpcPort := info.toNode.ExternalGRPCPort
+	if info.toNode.LocationID == stgglb.Local.LocationID {
+		nodeIP = info.toNode.LocalIP
+		grpcPort = info.toNode.LocalGRPCPort
+	}
+
+	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
 		return fmt.Errorf("new agent rpc client: %w", err)
 	}
@@ -87,8 +94,15 @@ func (e *Executor) SendStream(info *FromExecutorStream, stream io.Reader) error 
 }
 
 func (e *Executor) ReadStream(info *ToExecutorStream) (io.ReadCloser, error) {
-	// TODO 根据地域选择IP
-	agtCli, err := stgglb.AgentRPCPool.Acquire(info.fromNode.ExternalIP, info.fromNode.ExternalGRPCPort)
+	// TODO 考虑不使用stgglb的Local
+	nodeIP := info.fromNode.ExternalIP
+	grpcPort := info.fromNode.ExternalGRPCPort
+	if info.fromNode.LocationID == stgglb.Local.LocationID {
+		nodeIP = info.fromNode.LocalIP
+		grpcPort = info.fromNode.LocalGRPCPort
+	}
+
+	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
 	if err != nil {
 		return nil, fmt.Errorf("new agent rpc client: %w", err)
 	}
@@ -98,7 +112,7 @@ func (e *Executor) ReadStream(info *ToExecutorStream) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	return myio.AfterReadClosed(str, func(closer io.ReadCloser) {
+	return io2.AfterReadClosed(str, func(closer io.ReadCloser) {
 		stgglb.AgentRPCPool.Release(agtCli)
 	}), nil
 }

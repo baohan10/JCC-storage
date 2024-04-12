@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
@@ -34,7 +34,7 @@ func (o *ChunkedJoin) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error
 	fut := future.NewSetVoid()
 	sw.StreamReady(planID,
 		ioswitch.NewStream(o.OutputID,
-			myio.AfterReadClosedOnce(myio.ChunkedJoin(strReaders, o.ChunkSize), func(closer io.ReadCloser) {
+			io2.AfterReadClosedOnce(io2.ChunkedJoin(strReaders, o.ChunkSize), func(closer io.ReadCloser) {
 				fut.SetVoid()
 			}),
 		),

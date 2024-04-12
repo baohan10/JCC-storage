@@ -4,7 +4,7 @@ import (
 	"io"
 	"sync"
 
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
@@ -24,7 +24,7 @@ func (o *ChunkedSplit) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) erro
 	defer str[0].Stream.Close()
 
 	wg := sync.WaitGroup{}
-	outputs := myio.ChunkedSplit(str[0].Stream, o.ChunkSize, o.StreamCount, myio.ChunkedSplitOption{
+	outputs := io2.ChunkedSplit(str[0].Stream, o.ChunkSize, o.StreamCount, io2.ChunkedSplitOption{
 		PaddingZeros: o.PaddingZeros,
 	})
 
@@ -33,7 +33,7 @@ func (o *ChunkedSplit) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) erro
 
 		sw.StreamReady(planID, ioswitch.NewStream(
 			o.OutputIDs[i],
-			myio.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
+			io2.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
 				wg.Done()
 			}),
 		))
