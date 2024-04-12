@@ -1,6 +1,7 @@
 package plans
 
 import (
+	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
@@ -59,7 +60,15 @@ func (s *AgentStream) GRPCSend(node cdssdk.Node) *AgentStream {
 	return agtStr
 }
 
-func (b *AgentPlanBuilder) IPFSRead(fileHash string) *AgentStream {
+func (b *AgentPlanBuilder) IPFSRead(fileHash string, opts ...ipfs.ReadOption) *AgentStream {
+	opt := ipfs.ReadOption{
+		Offset: 0,
+		Length: -1,
+	}
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
 	agtStr := &AgentStream{
 		owner: b,
 		info:  b.owner.newStream(),
@@ -68,6 +77,7 @@ func (b *AgentPlanBuilder) IPFSRead(fileHash string) *AgentStream {
 	b.ops = append(b.ops, &ops.IPFSRead{
 		Output:   agtStr.info.ID,
 		FileHash: fileHash,
+		Option:   opt,
 	})
 
 	return agtStr

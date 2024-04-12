@@ -4,6 +4,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
@@ -11,6 +12,7 @@ type TaskContext struct {
 	distlock     *distlock.Service
 	sw           *ioswitch.Switch
 	connectivity *connectivity.Collector
+	downloader   *downloader.Downloader
 }
 
 // 需要在Task结束后主动调用，completing函数将在Manager加锁期间被调用，
@@ -25,10 +27,11 @@ type Task = task.Task[TaskContext]
 
 type CompleteOption = task.CompleteOption
 
-func NewManager(distlock *distlock.Service, sw *ioswitch.Switch, connectivity *connectivity.Collector) Manager {
+func NewManager(distlock *distlock.Service, sw *ioswitch.Switch, connectivity *connectivity.Collector, downloader *downloader.Downloader) Manager {
 	return task.NewManager(TaskContext{
 		distlock:     distlock,
 		sw:           sw,
 		connectivity: connectivity,
+		downloader:   downloader,
 	})
 }

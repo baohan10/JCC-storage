@@ -4,10 +4,10 @@ import (
 	"io"
 
 	"github.com/klauspost/reedsolomon"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 )
 
-type Rs struct {
+type StreamRs struct {
 	encoder   reedsolomon.Encoder
 	ecN       int
 	ecK       int
@@ -15,8 +15,8 @@ type Rs struct {
 	chunkSize int
 }
 
-func NewRs(k int, n int, chunkSize int) (*Rs, error) {
-	enc := Rs{
+func NewStreamRs(k int, n int, chunkSize int) (*StreamRs, error) {
+	enc := StreamRs{
 		ecN:       n,
 		ecK:       k,
 		ecP:       n - k,
@@ -28,7 +28,7 @@ func NewRs(k int, n int, chunkSize int) (*Rs, error) {
 }
 
 // 编码。仅输出校验块
-func (r *Rs) Encode(input []io.Reader) []io.ReadCloser {
+func (r *StreamRs) Encode(input []io.Reader) []io.ReadCloser {
 	outReaders := make([]io.ReadCloser, r.ecP)
 	outWriters := make([]*io.PipeWriter, r.ecP)
 	for i := 0; i < r.ecP; i++ {
@@ -60,7 +60,7 @@ func (r *Rs) Encode(input []io.Reader) []io.ReadCloser {
 
 			//输出到outWriter
 			for i := range outWriters {
-				err := myio.WriteAll(outWriters[i], chunks[i+r.ecK])
+				err := io2.WriteAll(outWriters[i], chunks[i+r.ecK])
 				if err != nil {
 					closeErr = err
 					break loop
@@ -77,7 +77,7 @@ func (r *Rs) Encode(input []io.Reader) []io.ReadCloser {
 }
 
 // 编码。输出包含所有的数据块和校验块
-func (r *Rs) EncodeAll(input []io.Reader) []io.ReadCloser {
+func (r *StreamRs) EncodeAll(input []io.Reader) []io.ReadCloser {
 	outReaders := make([]io.ReadCloser, r.ecN)
 	outWriters := make([]*io.PipeWriter, r.ecN)
 	for i := 0; i < r.ecN; i++ {
@@ -109,7 +109,7 @@ func (r *Rs) EncodeAll(input []io.Reader) []io.ReadCloser {
 
 			//输出到outWriter
 			for i := range outWriters {
-				err := myio.WriteAll(outWriters[i], chunks[i])
+				err := io2.WriteAll(outWriters[i], chunks[i])
 				if err != nil {
 					closeErr = err
 					break loop
@@ -126,7 +126,7 @@ func (r *Rs) EncodeAll(input []io.Reader) []io.ReadCloser {
 }
 
 // 降级读，任意k个块恢复出所有原始的数据块。
-func (r *Rs) ReconstructData(input []io.Reader, inBlockIdx []int) []io.ReadCloser {
+func (r *StreamRs) ReconstructData(input []io.Reader, inBlockIdx []int) []io.ReadCloser {
 	outIndexes := make([]int, r.ecK)
 	for i := 0; i < r.ecK; i++ {
 		outIndexes[i] = i
@@ -137,7 +137,7 @@ func (r *Rs) ReconstructData(input []io.Reader, inBlockIdx []int) []io.ReadClose
 
 // 修复，任意k个块恢复指定的数据块。
 // 调用者应该保证input的每一个流长度相同，且均为chunkSize的整数倍
-func (r *Rs) ReconstructSome(input []io.Reader, inBlockIdx []int, outBlockIdx []int) []io.ReadCloser {
+func (r *StreamRs) ReconstructSome(input []io.Reader, inBlockIdx []int, outBlockIdx []int) []io.ReadCloser {
 	outReaders := make([]io.ReadCloser, len(outBlockIdx))
 	outWriters := make([]*io.PipeWriter, len(outBlockIdx))
 	for i := 0; i < len(outBlockIdx); i++ {
@@ -181,7 +181,7 @@ func (r *Rs) ReconstructSome(input []io.Reader, inBlockIdx []int, outBlockIdx []
 
 			//输出到outWriter
 			for i := range outBlockIdx {
-				err := myio.WriteAll(outWriters[i], chunks[outBlockIdx[i]])
+				err := io2.WriteAll(outWriters[i], chunks[outBlockIdx[i]])
 				if err != nil {
 					closeErr = err
 					break loop
@@ -204,7 +204,7 @@ func (r *Rs) ReconstructSome(input []io.Reader, inBlockIdx []int, outBlockIdx []
 
 // 重建任意块，包括数据块和校验块。
 // 当前的实现会把不需要的块都重建出来，所以应该避免使用这个函数。
-func (r *Rs) ReconstructAny(input []io.Reader, inBlockIdxes []int, outBlockIdxes []int) []io.ReadCloser {
+func (r *StreamRs) ReconstructAny(input []io.Reader, inBlockIdxes []int, outBlockIdxes []int) []io.ReadCloser {
 	outReaders := make([]io.ReadCloser, len(outBlockIdxes))
 	outWriters := make([]*io.PipeWriter, len(outBlockIdxes))
 	for i := 0; i < len(outBlockIdxes); i++ {
@@ -250,7 +250,7 @@ func (r *Rs) ReconstructAny(input []io.Reader, inBlockIdxes []int, outBlockIdxes
 			for i := range outBlockIdxes {
 				outIndex := outBlockIdxes[i]
 
-				err := myio.WriteAll(outWriters[i], chunks[outIndex])
+				err := io2.WriteAll(outWriters[i], chunks[outIndex])
 				if err != nil {
 					closeErr = err
 					break loop

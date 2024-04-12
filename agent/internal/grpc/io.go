@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	agentserver "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -43,7 +43,7 @@ func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
 			return fmt.Errorf("recv message failed, err: %w", err)
 		}
 
-		err = myio.WriteAll(pw, msg.Data)
+		err = io2.WriteAll(pw, msg.Data)
 		if err != nil {
 			// 关闭文件写入，不需要返回的hash和error
 			pw.CloseWithError(io.ErrClosedPipe)

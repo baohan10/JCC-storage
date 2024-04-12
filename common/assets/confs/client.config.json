@@ -28,5 +28,8 @@
     },
     "connectivity": {
         "testInterval": 300
+    },
+    "downloader": {
+        "maxStripCacheCount": 100
     }
 }

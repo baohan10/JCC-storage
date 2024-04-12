@@ -8,7 +8,7 @@ import (
 	"path"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
@@ -56,7 +56,7 @@ func (o *FileRead) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	}
 
 	fut := future.NewSetVoid()
-	sw.StreamReady(planID, ioswitch.NewStream(o.OutputID, myio.AfterReadClosed(file, func(closer io.ReadCloser) {
+	sw.StreamReady(planID, ioswitch.NewStream(o.OutputID, io2.AfterReadClosed(file, func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})))
 

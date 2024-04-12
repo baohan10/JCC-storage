@@ -13,6 +13,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	myhttp "gitlink.org.cn/cloudream/common/utils/http"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
 )
 
 type ObjectService struct {
@@ -96,7 +97,17 @@ func (s *ObjectService) Download(ctx *gin.Context) {
 		return
 	}
 
-	file, err := s.svc.ObjectSvc().Download(req.UserID, req.ObjectID)
+	off := req.Offset
+	len := int64(-1)
+	if req.Length != nil {
+		len = *req.Length
+	}
+
+	file, err := s.svc.ObjectSvc().Download(req.UserID, downloader.DownloadReqeust{
+		ObjectID: req.ObjectID,
+		Offset:   off,
+		Length:   len,
+	})
 	if err != nil {
 		log.Warnf("downloading object: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "download object failed"))

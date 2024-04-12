@@ -64,7 +64,7 @@ func (t *CheckPackageRedundancy) Execute(execCtx ExecuteContext) {
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	getObjs, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(t.PackageID))
+	getObjs, err := coorCli.GetPackageObjectDetails(coormq.ReqGetPackageObjectDetails(t.PackageID))
 	if err != nil {
 		log.Warnf("getting package objects: %s", err.Error())
 		return

@@ -13,7 +13,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	myref "gitlink.org.cn/cloudream/common/utils/reflect"
 	"gitlink.org.cn/cloudream/common/utils/sort2"
 	"gitlink.org.cn/cloudream/storage/common/consts"
@@ -73,7 +73,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 	}
 	t.FullOutputPath = outputDirPath
 
-	getObjectDetails, err := coorCli.GetPackageObjectDetails(coormq.NewGetPackageObjectDetails(t.packageID))
+	getObjectDetails, err := coorCli.GetPackageObjectDetails(coormq.ReqGetPackageObjectDetails(t.packageID))
 	if err != nil {
 		return fmt.Errorf("getting package object details: %w", err)
 	}
@@ -184,7 +184,7 @@ func (t *StorageLoadPackage) downloadECObject(coorCli *coormq.Client, ipfsCli *i
 	if bsc < osc {
 		var fileStrs []io.ReadCloser
 
-		rs, err := ec.NewRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
+		rs, err := ec.NewStreamRs(ecRed.K, ecRed.N, ecRed.ChunkSize)
 		if err != nil {
 			return nil, nil, fmt.Errorf("new rs: %w", err)
 		}
@@ -204,7 +204,7 @@ func (t *StorageLoadPackage) downloadECObject(coorCli *coormq.Client, ipfsCli *i
 			fileStrs = append(fileStrs, str)
 		}
 
-		fileReaders, filesCloser := myio.ToReaders(fileStrs)
+		fileReaders, filesCloser := io2.ToReaders(fileStrs)
 
 		var indexes []int
 		var pinnedBlocks []stgmod.ObjectBlock
@@ -218,8 +218,8 @@ func (t *StorageLoadPackage) downloadECObject(coorCli *coormq.Client, ipfsCli *i
 			})
 		}
 
-		outputs, outputsCloser := myio.ToReaders(rs.ReconstructData(fileReaders, indexes))
-		return myio.AfterReadClosed(myio.Length(myio.ChunkedJoin(outputs, int(ecRed.ChunkSize)), obj.Object.Size), func(c io.ReadCloser) {
+		outputs, outputsCloser := io2.ToReaders(rs.ReconstructData(fileReaders, indexes))
+		return io2.AfterReadClosed(io2.Length(io2.ChunkedJoin(outputs, int(ecRed.ChunkSize)), obj.Object.Size), func(c io.ReadCloser) {
 			filesCloser()
 			outputsCloser()
 		}), pinnedBlocks, nil

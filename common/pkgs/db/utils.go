@@ -4,7 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/jmoiron/sqlx"
-	"gitlink.org.cn/cloudream/common/utils/math"
+	"gitlink.org.cn/cloudream/common/utils/math2"
 )
 
 const (
@@ -27,7 +27,7 @@ func BatchNamedExec[T any](ctx SQLContext, sql string, argCnt int, arr []T, call
 
 	batchSize := maxPlaceholderCount / argCnt
 	for len(arr) > 0 {
-		curBatchSize := math.Min(batchSize, len(arr))
+		curBatchSize := math2.Min(batchSize, len(arr))
 
 		ret, err := ctx.NamedExec(sql, arr[:curBatchSize])
 		if err != nil {
@@ -59,7 +59,7 @@ func BatchNamedQuery[T any](ctx SQLContext, sql string, argCnt int, arr []T, cal
 
 	batchSize := maxPlaceholderCount / argCnt
 	for len(arr) > 0 {
-		curBatchSize := math.Min(batchSize, len(arr))
+		curBatchSize := math2.Min(batchSize, len(arr))
 
 		ret, err := ctx.NamedQuery(sql, arr[:curBatchSize])
 		if err != nil {

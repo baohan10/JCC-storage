@@ -8,7 +8,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -66,7 +66,7 @@ func (o *GRPCFetch) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	}
 
 	fut := future.NewSetVoid()
-	str = myio.AfterReadClosedOnce(str, func(closer io.ReadCloser) {
+	str = io2.AfterReadClosedOnce(str, func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})
 

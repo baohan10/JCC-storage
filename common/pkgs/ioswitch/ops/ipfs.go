@@ -6,8 +6,9 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
-	myio "gitlink.org.cn/cloudream/common/utils/io"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -15,6 +16,7 @@ import (
 type IPFSRead struct {
 	Output   ioswitch.StreamID `json:"output"`
 	FileHash string            `json:"fileHash"`
+	Option   ipfs.ReadOption   `json:"option"`
 }
 
 func (o *IPFSRead) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
@@ -30,13 +32,13 @@ func (o *IPFSRead) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	}
 	defer stgglb.IPFSPool.Release(ipfsCli)
 
-	file, err := ipfsCli.OpenRead(o.FileHash)
+	file, err := ipfsCli.OpenRead(o.FileHash, o.Option)
 	if err != nil {
 		return fmt.Errorf("reading ipfs: %w", err)
 	}
 
 	fut := future.NewSetVoid()
-	file = myio.AfterReadClosedOnce(file, func(closer io.ReadCloser) {
+	file = io2.AfterReadClosedOnce(file, func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})
 

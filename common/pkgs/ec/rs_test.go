@@ -11,7 +11,7 @@ import (
 
 func Test_EncodeReconstruct(t *testing.T) {
 	Convey("编码后使用校验块重建数据", t, func() {
-		rs, err := NewRs(2, 3, 5)
+		rs, err := NewStreamRs(2, 3, 5)
 		So(err, ShouldBeNil)
 
 		outputs := rs.EncodeAll([]io.Reader{
