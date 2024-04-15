@@ -126,7 +126,10 @@ func (s *ObjectService) Download(ctx *gin.Context) {
 		return
 	}
 
-	io.Copy(fw, file.File)
+	_, err = io.Copy(fw, file.File)
+	if err != nil {
+		log.Warnf("copying file: %s", err.Error())
+	}
 }
 
 func (s *ObjectService) UpdateInfo(ctx *gin.Context) {

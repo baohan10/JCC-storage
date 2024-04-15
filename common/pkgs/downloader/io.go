@@ -53,7 +53,7 @@ func (r *IPFSReader) Seek(offset int64, whence int) (int64, error) {
 		return r.offset, nil
 	}
 
-	// 如果文件流已经打开，那么如果seek的位置和当前位置不同，那么需要重新打开文件流
+	// 如果文件流已经打开，而seek的位置和当前位置不同，则需要重新打开文件流
 	if offset != r.offset {
 		var err error
 		r.stream.Close()
