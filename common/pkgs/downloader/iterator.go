@@ -83,6 +83,10 @@ func (i *DownloadObjectIterator) init() error {
 
 	allNodeIDs := make(map[cdssdk.NodeID]bool)
 	for _, obj := range i.reqs {
+		if obj.Detail == nil {
+			continue
+		}
+
 		for _, p := range obj.Detail.PinnedAt {
 			allNodeIDs[p] = true
 		}
@@ -222,7 +226,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 			readPos := req.Raw.Offset
 			totalReadLen := req.Detail.Object.Size - req.Raw.Offset
 			if req.Raw.Length >= 0 {
-				totalReadLen = req.Raw.Length
+				totalReadLen = math2.Min(req.Raw.Length, totalReadLen)
 			}
 
 			for totalReadLen > 0 {
@@ -242,7 +246,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 						err := io2.WriteAll(pw, cache.Data[readRelativePos:readRelativePos+curReadLen])
 						if err != nil {
 							pw.CloseWithError(err)
-							break
+							return
 						}
 						totalReadLen -= curReadLen
 						readPos += curReadLen
@@ -252,12 +256,11 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 					// 如果Object的Hash和Cache的Hash不一致，说明Cache是无效的，需要重新下载
 					iter.downloader.strips.Remove(cacheKey)
 				}
-
 				for _, str := range fileStrs {
-					_, err := str.Seek(curStripPosInBytes, io.SeekStart)
+					_, err := str.Seek(curStripPos*int64(ecRed.ChunkSize), io.SeekStart)
 					if err != nil {
 						pw.CloseWithError(err)
-						break
+						return
 					}
 				}
 
@@ -277,13 +280,13 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 				})
 				if err != nil {
 					pw.CloseWithError(err)
-					break
+					return
 				}
 
 				err = rs.ReconstructData(blockArrs)
 				if err != nil {
 					pw.CloseWithError(err)
-					break
+					return
 				}
 
 				iter.downloader.strips.Add(cacheKey, ObjectECStrip{
@@ -292,6 +295,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 				})
 				// 下次循环就能从Cache中读取数据
 			}
+			pw.Close()
 		}()
 
 		return pr, nil
