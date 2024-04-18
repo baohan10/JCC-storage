@@ -20,27 +20,17 @@ func (s *Server) Storage() *StorageService {
 	}
 }
 
-type StorageLoadPackageReq struct {
-	UserID    *cdssdk.UserID    `json:"userID" binding:"required"`
-	PackageID *cdssdk.PackageID `json:"packageID" binding:"required"`
-	StorageID *cdssdk.StorageID `json:"storageID" binding:"required"`
-}
-
-type StorageLoadPackageResp struct {
-	cdssdk.StorageLoadPackageResp
-}
-
 func (s *StorageService) LoadPackage(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Storage.LoadPackage")
 
-	var req StorageLoadPackageReq
+	var req cdssdk.StorageLoadPackageReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	nodeID, taskID, err := s.svc.StorageSvc().StartStorageLoadPackage(*req.UserID, *req.PackageID, *req.StorageID)
+	nodeID, taskID, err := s.svc.StorageSvc().StartStorageLoadPackage(req.UserID, req.PackageID, req.StorageID)
 	if err != nil {
 		log.Warnf("start storage load package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage load package failed"))
@@ -56,10 +46,8 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 				return
 			}
 
-			ctx.JSON(http.StatusOK, OK(StorageLoadPackageResp{
-				StorageLoadPackageResp: cdssdk.StorageLoadPackageResp{
-					FullPath: fullPath,
-				},
+			ctx.JSON(http.StatusOK, OK(cdssdk.StorageLoadPackageResp{
+				FullPath: fullPath,
 			}))
 			return
 		}
@@ -72,23 +60,10 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 	}
 }
 
-type StorageCreatePackageReq struct {
-	UserID       *cdssdk.UserID    `json:"userID" binding:"required"`
-	StorageID    *cdssdk.StorageID `json:"storageID" binding:"required"`
-	Path         string            `json:"path" binding:"required"`
-	BucketID     *cdssdk.BucketID  `json:"bucketID" binding:"required"`
-	Name         string            `json:"name" binding:"required"`
-	NodeAffinity *cdssdk.NodeID    `json:"nodeAffinity"`
-}
-
-type StorageCreatePackageResp struct {
-	PackageID cdssdk.PackageID `json:"packageID"`
-}
-
 func (s *StorageService) CreatePackage(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Storage.CreatePackage")
 
-	var req StorageCreatePackageReq
+	var req cdssdk.StorageCreatePackageReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Warnf("binding body: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
@@ -96,7 +71,7 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 	}
 
 	nodeID, taskID, err := s.svc.StorageSvc().StartStorageCreatePackage(
-		*req.UserID, *req.BucketID, req.Name, *req.StorageID, req.Path, req.NodeAffinity)
+		req.UserID, req.BucketID, req.Name, req.StorageID, req.Path, req.NodeAffinity)
 	if err != nil {
 		log.Warnf("start storage create package: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "storage create package failed"))
@@ -112,7 +87,7 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 				return
 			}
 
-			ctx.JSON(http.StatusOK, OK(StorageCreatePackageResp{
+			ctx.JSON(http.StatusOK, OK(cdssdk.StorageCreatePackageResp{
 				PackageID: packageID,
 			}))
 			return
@@ -126,37 +101,26 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 	}
 }
 
-type StorageGetInfoReq struct {
-	UserID    *cdssdk.UserID    `form:"userID" binding:"required"`
-	StorageID *cdssdk.StorageID `form:"storageID" binding:"required"`
-}
-
-type StorageGetInfoResp struct {
-	cdssdk.StorageGetInfoResp
-}
-
 func (s *StorageService) GetInfo(ctx *gin.Context) {
 	log := logger.WithField("HTTP", "Storage.GetInfo")
 
-	var req StorageGetInfoReq
+	var req cdssdk.StorageGetInfoReq
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		log.Warnf("binding query: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
 		return
 	}
 
-	info, err := s.svc.StorageSvc().GetInfo(*req.UserID, *req.StorageID)
+	info, err := s.svc.StorageSvc().GetInfo(req.UserID, req.StorageID)
 	if err != nil {
 		log.Warnf("getting info: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get storage inf failed"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(StorageGetInfoResp{
-		StorageGetInfoResp: cdssdk.StorageGetInfoResp{
-			Name:      info.Name,
-			NodeID:    info.NodeID,
-			Directory: info.Directory,
-		},
+	ctx.JSON(http.StatusOK, OK(cdssdk.StorageGetInfoResp{
+		Name:      info.Name,
+		NodeID:    info.NodeID,
+		Directory: info.Directory,
 	}))
 }

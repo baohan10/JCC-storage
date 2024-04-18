@@ -54,9 +54,9 @@ func (s *Server) initRouters() {
 	s.engine.GET(cdssdk.PackageGetCachedNodesPath, s.Package().GetCachedNodes)
 	s.engine.GET(cdssdk.PackageGetLoadedNodesPath, s.Package().GetLoadedNodes)
 
-	s.engine.POST("/storage/loadPackage", s.Storage().LoadPackage)
-	s.engine.POST("/storage/createPackage", s.Storage().CreatePackage)
-	s.engine.GET("/storage/getInfo", s.Storage().GetInfo)
+	s.engine.POST(cdssdk.StorageLoadPackagePath, s.Storage().LoadPackage)
+	s.engine.POST(cdssdk.StorageCreatePackagePath, s.Storage().CreatePackage)
+	s.engine.GET(cdssdk.StorageGetInfoPath, s.Storage().GetInfo)
 
 	s.engine.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
 
