@@ -39,29 +39,35 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) initRouters() {
-	s.engine.GET(cdssdk.ObjectDownloadPath, s.Object().Download)
-	s.engine.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
-	s.engine.GET(cdssdk.ObjectGetPackageObjectsPath, s.Object().GetPackageObjects)
-	s.engine.POST(cdssdk.ObjectUpdateInfoPath, s.Object().UpdateInfo)
-	s.engine.POST(cdssdk.ObjectMovePath, s.Object().Move)
-	s.engine.POST(cdssdk.ObjectDeletePath, s.Object().Delete)
+	rt := s.engine.Use(auth)
 
-	s.engine.GET(cdssdk.PackageGetPath, s.Package().Get)
-	s.engine.GET(cdssdk.PackageGetByNamePath, s.Package().GetByName)
-	s.engine.POST(cdssdk.PackageCreatePath, s.Package().Create)
-	s.engine.POST(cdssdk.PackageDeletePath, s.Package().Delete)
-	s.engine.GET(cdssdk.PackageListBucketPackagesPath, s.Package().ListBucketPackages)
-	s.engine.GET(cdssdk.PackageGetCachedNodesPath, s.Package().GetCachedNodes)
-	s.engine.GET(cdssdk.PackageGetLoadedNodesPath, s.Package().GetLoadedNodes)
+	rt.GET(cdssdk.ObjectDownloadPath, s.Object().Download)
+	rt.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
+	rt.GET(cdssdk.ObjectGetPackageObjectsPath, s.Object().GetPackageObjects)
+	rt.POST(cdssdk.ObjectUpdateInfoPath, s.Object().UpdateInfo)
+	rt.POST(cdssdk.ObjectMovePath, s.Object().Move)
+	rt.POST(cdssdk.ObjectDeletePath, s.Object().Delete)
 
-	s.engine.POST(cdssdk.StorageLoadPackagePath, s.Storage().LoadPackage)
-	s.engine.POST(cdssdk.StorageCreatePackagePath, s.Storage().CreatePackage)
-	s.engine.GET(cdssdk.StorageGetInfoPath, s.Storage().GetInfo)
+	rt.GET(cdssdk.PackageGetPath, s.Package().Get)
+	rt.GET(cdssdk.PackageGetByNamePath, s.Package().GetByName)
+	rt.POST(cdssdk.PackageCreatePath, s.Package().Create)
+	rt.POST(cdssdk.PackageDeletePath, s.Package().Delete)
+	rt.GET(cdssdk.PackageListBucketPackagesPath, s.Package().ListBucketPackages)
+	rt.GET(cdssdk.PackageGetCachedNodesPath, s.Package().GetCachedNodes)
+	rt.GET(cdssdk.PackageGetLoadedNodesPath, s.Package().GetLoadedNodes)
 
-	s.engine.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
+	rt.POST(cdssdk.StorageLoadPackagePath, s.Storage().LoadPackage)
+	rt.POST(cdssdk.StorageCreatePackagePath, s.Storage().CreatePackage)
+	rt.GET(cdssdk.StorageGetInfoPath, s.Storage().GetInfo)
 
-	s.engine.GET(cdssdk.BucketGetByNamePath, s.Bucket().GetByName)
-	s.engine.POST(cdssdk.BucketCreatePath, s.Bucket().Create)
-	s.engine.POST(cdssdk.BucketDeletePath, s.Bucket().Delete)
-	s.engine.GET(cdssdk.BucketListUserBucketsPath, s.Bucket().ListUserBuckets)
+	rt.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
+
+	rt.GET(cdssdk.BucketGetByNamePath, s.Bucket().GetByName)
+	rt.POST(cdssdk.BucketCreatePath, s.Bucket().Create)
+	rt.POST(cdssdk.BucketDeletePath, s.Bucket().Delete)
+	rt.GET(cdssdk.BucketListUserBucketsPath, s.Bucket().ListUserBuckets)
+
+	rt.GET("/bucket/listDetails", s.Temp().ListDetails)
+	rt.GET("/bucket/getObjects", s.Temp().GetObjects)
+	rt.GET("/object/getDetail", s.Temp().GetObjectDetail)
 }

@@ -7,7 +7,6 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	mydb "gitlink.org.cn/cloudream/storage/common/pkgs/db"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
-	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage/coordinator/internal/config"
 	"gitlink.org.cn/cloudream/storage/coordinator/internal/mq"
 )
@@ -30,12 +29,7 @@ func main() {
 		logger.Fatalf("new db failed, err: %s", err.Error())
 	}
 
-	scanner, err := scmq.NewClient(&config.Cfg().RabbitMQ)
-	if err != nil {
-		logger.Fatalf("new scanner client failed, err: %s", err.Error())
-	}
-
-	coorSvr, err := coormq.NewServer(mq.NewService(db, scanner), &config.Cfg().RabbitMQ)
+	coorSvr, err := coormq.NewServer(mq.NewService(db), &config.Cfg().RabbitMQ)
 	if err != nil {
 		logger.Fatalf("new coordinator server failed, err: %s", err.Error())
 	}

@@ -7,6 +7,7 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	mytask "gitlink.org.cn/cloudream/storage/client/internal/task"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
@@ -108,4 +109,19 @@ func (svc *ObjectService) GetPackageObjects(userID cdssdk.UserID, packageID cdss
 	}
 
 	return getResp.Objects, nil
+}
+
+func (svc *ObjectService) GetObjectDetail(objectID cdssdk.ObjectID) (*stgmod.ObjectDetail, error) {
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("new coordinator client: %w", err)
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	getResp, err := coorCli.GetObjectDetails(coormq.ReqGetObjectDetails([]cdssdk.ObjectID{objectID}))
+	if err != nil {
+		return nil, fmt.Errorf("requsting to coodinator: %w", err)
+	}
+
+	return getResp.Objects[0], nil
 }
