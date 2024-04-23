@@ -115,6 +115,11 @@ func (s *TempService) GetObjectDetail(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get object detail failed"))
 		return
 	}
+	if details == nil {
+		log.Warnf("object not found")
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "object not found"))
+		return
+	}
 
 	loadedNodeIDs, err := s.svc.PackageSvc().GetLoadedNodes(1, details.Object.PackageID)
 	if err != nil {
