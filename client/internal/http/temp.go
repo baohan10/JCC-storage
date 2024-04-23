@@ -93,10 +93,11 @@ type TempGetObjectDetailResp struct {
 	Blocks []ObjectBlockDetail `json:"blocks"`
 }
 type ObjectBlockDetail struct {
-	Type         string `json:"type"`
-	FileHash     string `json:"fileHash"`
-	LocationType string `json:"locationType"`
-	LocationName string `json:"locationName"`
+	ObjectID     cdssdk.ObjectID `json:"objectID"`
+	Type         string          `json:"type"`
+	FileHash     string          `json:"fileHash"`
+	LocationType string          `json:"locationType"`
+	LocationName string          `json:"locationName"`
 }
 
 func (s *TempService) GetObjectDetail(ctx *gin.Context) {
@@ -226,6 +227,153 @@ func (s *TempService) getBucketObjects(bktID cdssdk.BucketID) ([]cdssdk.Object, 
 	}
 
 	return allObjs, nil
+}
+
+type TempGetDatabaseAll struct {
+}
+type TempGetDatabaseAllResp struct {
+	Buckets []BucketDetail      `json:"buckets"`
+	Objects []BucketObject      `json:"objects"`
+	Blocks  []ObjectBlockDetail `json:"blocks"`
+}
+type BucketObject struct {
+	cdssdk.Object
+	BucketID cdssdk.BucketID `json:"bucketID"`
+}
+
+func (s *TempService) GetDatabaseAll(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Temp.GetDatabaseAll")
+
+	db, err := s.svc.ObjectSvc().GetDatabaseAll()
+	if err != nil {
+		log.Warnf("getting database all: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get database all failed"))
+		return
+	}
+
+	nodes, err := s.svc.NodeSvc().GetNodes(nil)
+	if err != nil {
+		log.Warnf("getting nodes: %s", err.Error())
+		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get nodes failed"))
+		return
+	}
+	allNodes := make(map[cdssdk.NodeID]cdssdk.Node)
+	for _, n := range nodes {
+		allNodes[n.NodeID] = n
+	}
+
+	bkts := make(map[cdssdk.BucketID]*BucketDetail)
+	for _, bkt := range db.Buckets {
+		bkts[bkt.BucketID] = &BucketDetail{
+			BucketID:    bkt.BucketID,
+			Name:        bkt.Name,
+			ObjectCount: 0,
+		}
+	}
+
+	type PackageDetail struct {
+		Package cdssdk.Package
+		Loaded  []cdssdk.Node
+	}
+	pkgs := make(map[cdssdk.PackageID]*PackageDetail)
+	for _, pkg := range db.Packages {
+		p := PackageDetail{
+			Package: pkg,
+			Loaded:  make([]cdssdk.Node, 0),
+		}
+
+		loaded, err := s.svc.PackageSvc().GetLoadedNodes(1, pkg.PackageID)
+		if err != nil {
+			log.Warnf("getting loaded nodes: %s", err.Error())
+			ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get loaded nodes failed"))
+			return
+		}
+
+		for _, nodeID := range loaded {
+			p.Loaded = append(p.Loaded, allNodes[nodeID])
+		}
+
+		pkgs[pkg.PackageID] = &p
+	}
+
+	var objs []BucketObject
+	for _, obj := range db.Objects {
+		o := BucketObject{
+			Object:   obj.Object,
+			BucketID: pkgs[obj.Object.PackageID].Package.BucketID,
+		}
+		objs = append(objs, o)
+	}
+
+	var blocks []ObjectBlockDetail
+	for _, obj := range db.Objects {
+		bkts[pkgs[obj.Object.PackageID].Package.BucketID].ObjectCount++
+
+		for _, nodeID := range obj.PinnedAt {
+			blocks = append(blocks, ObjectBlockDetail{
+				ObjectID:     obj.Object.ObjectID,
+				Type:         "Rep",
+				FileHash:     obj.Object.FileHash,
+				LocationType: "Agent",
+				LocationName: allNodes[nodeID].Name,
+			})
+		}
+
+		switch obj.Object.Redundancy.(type) {
+		case *cdssdk.NoneRedundancy:
+			for _, blk := range obj.Blocks {
+				if !lo.Contains(obj.PinnedAt, blk.NodeID) {
+					blocks = append(blocks, ObjectBlockDetail{
+						ObjectID:     obj.Object.ObjectID,
+						Type:         "Rep",
+						FileHash:     blk.FileHash,
+						LocationType: "Agent",
+						LocationName: allNodes[blk.NodeID].Name,
+					})
+				}
+			}
+		case *cdssdk.RepRedundancy:
+			for _, blk := range obj.Blocks {
+				if !lo.Contains(obj.PinnedAt, blk.NodeID) {
+					blocks = append(blocks, ObjectBlockDetail{
+						ObjectID:     obj.Object.ObjectID,
+						Type:         "Rep",
+						FileHash:     blk.FileHash,
+						LocationType: "Agent",
+						LocationName: allNodes[blk.NodeID].Name,
+					})
+				}
+			}
+
+		case *cdssdk.ECRedundancy:
+			for _, blk := range obj.Blocks {
+				blocks = append(blocks, ObjectBlockDetail{
+					ObjectID:     obj.Object.ObjectID,
+					Type:         "Block",
+					FileHash:     blk.FileHash,
+					LocationType: "Agent",
+					LocationName: allNodes[blk.NodeID].Name,
+				})
+			}
+		}
+
+		for _, node := range pkgs[obj.Object.PackageID].Loaded {
+			blocks = append(blocks, ObjectBlockDetail{
+				ObjectID:     obj.Object.ObjectID,
+				Type:         "Rep",
+				FileHash:     obj.Object.FileHash,
+				LocationType: "Storage",
+				LocationName: allNodes[node.NodeID].Name,
+			})
+		}
+
+	}
+
+	ctx.JSON(http.StatusOK, OK(TempGetDatabaseAllResp{
+		Buckets: lo.Map(lo.Values(bkts), func(b *BucketDetail, _ int) BucketDetail { return *b }),
+		Objects: objs,
+		Blocks:  blocks,
+	}))
 }
 
 func auth(ctx *gin.Context) {

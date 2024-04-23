@@ -70,4 +70,5 @@ func (s *Server) initRouters() {
 	rt.GET("/bucket/listDetails", s.Temp().ListDetails)
 	rt.GET("/bucket/getObjects", s.Temp().GetObjects)
 	rt.GET("/object/getDetail", s.Temp().GetObjectDetail)
+	rt.GET("/temp/getDatabaseAll", s.Temp().GetDatabaseAll)
 }

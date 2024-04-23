@@ -22,6 +22,8 @@ type ObjectService interface {
 	MoveObjects(msg *MoveObjects) (*MoveObjectsResp, *mq.CodeMessage)
 
 	DeleteObjects(msg *DeleteObjects) (*DeleteObjectsResp, *mq.CodeMessage)
+
+	GetDatabaseAll(msg *GetDatabaseAll) (*GetDatabaseAllResp, *mq.CodeMessage)
 }
 
 // 查询Package中的所有Object，返回的Objects会按照ObjectID升序
