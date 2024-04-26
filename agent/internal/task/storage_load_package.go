@@ -14,7 +14,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/io2"
-	myref "gitlink.org.cn/cloudream/common/utils/reflect"
+	"gitlink.org.cn/cloudream/common/utils/reflect2"
 	"gitlink.org.cn/cloudream/common/utils/sort2"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
@@ -134,7 +134,7 @@ func (t *StorageLoadPackage) downloadOne(coorCli *coormq.Client, ipfsCli *ipfs.P
 		t.pinnedBlocks = append(t.pinnedBlocks, pinnedBlocks...)
 
 	default:
-		return fmt.Errorf("unknow redundancy type: %v", myref.TypeOfValue(obj.Object.Redundancy))
+		return fmt.Errorf("unknow redundancy type: %v", reflect2.TypeOfValue(obj.Object.Redundancy))
 	}
 	defer file.Close()
 
