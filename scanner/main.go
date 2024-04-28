@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
@@ -36,18 +35,15 @@ func main() {
 
 	stgglb.InitMQPool(&config.Cfg().RabbitMQ)
 
-	wg := sync.WaitGroup{}
-	wg.Add(3)
-
 	distlockSvc, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {
 		logger.Warnf("new distlock service failed, err: %s", err.Error())
 		os.Exit(1)
 	}
-	go serveDistLock(distlockSvc, &wg)
+	go serveDistLock(distlockSvc)
 
 	eventExecutor := event.NewExecutor(db, distlockSvc)
-	go serveEventExecutor(&eventExecutor, &wg)
+	go serveEventExecutor(&eventExecutor)
 
 	agtSvr, err := scmq.NewServer(mq.NewService(&eventExecutor), &config.Cfg().RabbitMQ)
 	if err != nil {
@@ -56,8 +52,7 @@ func main() {
 	agtSvr.OnError(func(err error) {
 		logger.Warnf("agent server err: %s", err.Error())
 	})
-
-	go serveScannerServer(agtSvr, &wg)
+	go serveScannerServer(agtSvr)
 
 	tickExecutor := tickevent.NewExecutor(tickevent.ExecuteArgs{
 		EventExecutor: &eventExecutor,
@@ -65,10 +60,11 @@ func main() {
 	})
 	startTickEvent(&tickExecutor)
 
-	wg.Wait()
+	forever := make(chan struct{})
+	<-forever
 }
 
-func serveEventExecutor(executor *event.Executor, wg *sync.WaitGroup) {
+func serveEventExecutor(executor *event.Executor) {
 	logger.Info("start serving event executor")
 
 	err := executor.Execute()
@@ -79,10 +75,11 @@ func serveEventExecutor(executor *event.Executor, wg *sync.WaitGroup) {
 
 	logger.Info("event executor stopped")
 
-	wg.Done()
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }
 
-func serveScannerServer(server *scmq.Server, wg *sync.WaitGroup) {
+func serveScannerServer(server *scmq.Server) {
 	logger.Info("start serving scanner server")
 
 	err := server.Serve()
@@ -93,10 +90,11 @@ func serveScannerServer(server *scmq.Server, wg *sync.WaitGroup) {
 
 	logger.Info("scanner server stopped")
 
-	wg.Done()
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }
 
-func serveDistLock(svc *distlock.Service, wg *sync.WaitGroup) {
+func serveDistLock(svc *distlock.Service) {
 	logger.Info("start serving distlock")
 
 	err := svc.Serve()
@@ -107,7 +105,8 @@ func serveDistLock(svc *distlock.Service, wg *sync.WaitGroup) {
 
 	logger.Info("distlock stopped")
 
-	wg.Done()
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }
 
 func startTickEvent(tickExecutor *tickevent.Executor) {

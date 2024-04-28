@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -97,10 +96,6 @@ func main() {
 
 	dlder := downloader.NewDownloader(config.Cfg().Downloader)
 
-	//处置协调端、客户端命令（可多建几个）
-	wg := sync.WaitGroup{}
-	wg.Add(4)
-
 	taskMgr := task.NewManager(distlock, &sw, &conCol, &dlder)
 
 	// 启动命令服务器
@@ -112,8 +107,7 @@ func main() {
 	agtSvr.OnError(func(err error) {
 		log.Warnf("agent server err: %s", err.Error())
 	})
-
-	go serveAgentServer(agtSvr, &wg)
+	go serveAgentServer(agtSvr)
 
 	//面向客户端收发数据
 	listenAddr := config.Cfg().GRPC.MakeListenAddress()
@@ -121,17 +115,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen on %s failed, err: %s", listenAddr, err.Error())
 	}
-
 	s := grpc.NewServer()
 	agtrpc.RegisterAgentServer(s, grpcsvc.NewService(&sw))
-	go serveGRPC(s, lis, &wg)
+	go serveGRPC(s, lis)
 
 	go serveDistLock(distlock)
 
-	wg.Wait()
+	foever := make(chan struct{})
+	<-foever
 }
 
-func serveAgentServer(server *agtmq.Server, wg *sync.WaitGroup) {
+func serveAgentServer(server *agtmq.Server) {
 	log.Info("start serving command server")
 
 	err := server.Serve()
@@ -142,10 +136,11 @@ func serveAgentServer(server *agtmq.Server, wg *sync.WaitGroup) {
 
 	log.Info("command server stopped")
 
-	wg.Done()
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }
 
-func serveGRPC(s *grpc.Server, lis net.Listener, wg *sync.WaitGroup) {
+func serveGRPC(s *grpc.Server, lis net.Listener) {
 	log.Info("start serving grpc")
 
 	err := s.Serve(lis)
@@ -156,7 +151,8 @@ func serveGRPC(s *grpc.Server, lis net.Listener, wg *sync.WaitGroup) {
 
 	log.Info("grpc stopped")
 
-	wg.Done()
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }
 
 func serveDistLock(svc *distlock.Service) {
@@ -169,4 +165,7 @@ func serveDistLock(svc *distlock.Service) {
 	}
 
 	log.Info("distlock stopped")
+
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }

@@ -54,4 +54,7 @@ func serveCoorServer(server *coormq.Server) {
 	}
 
 	logger.Info("command server stopped")
+
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }

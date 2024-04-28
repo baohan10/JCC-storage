@@ -79,4 +79,7 @@ func serveDistLock(svc *distlock.Service) {
 	}
 
 	logger.Info("distlock stopped")
+
+	// TODO 仅简单结束了程序
+	os.Exit(1)
 }
