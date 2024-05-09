@@ -39,7 +39,7 @@ func (s *Server) Serve() error {
 }
 
 func (s *Server) initRouters() {
-	rt := s.engine.Use(auth)
+	rt := s.engine.Use()
 
 	rt.GET(cdssdk.ObjectDownloadPath, s.Object().Download)
 	rt.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
@@ -66,9 +66,4 @@ func (s *Server) initRouters() {
 	rt.POST(cdssdk.BucketCreatePath, s.Bucket().Create)
 	rt.POST(cdssdk.BucketDeletePath, s.Bucket().Delete)
 	rt.GET(cdssdk.BucketListUserBucketsPath, s.Bucket().ListUserBuckets)
-
-	rt.GET("/bucket/listDetails", s.Temp().ListDetails)
-	rt.GET("/bucket/getObjects", s.Temp().GetObjects)
-	rt.GET("/object/getDetail", s.Temp().GetObjectDetail)
-	rt.GET("/temp/getDatabaseAll", s.Temp().GetDatabaseAll)
 }
