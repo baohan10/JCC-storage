@@ -3,13 +3,13 @@
     "local": {
         "nodeID": 1,
         "localIP": "127.0.0.1",
-        "externalIP": "127.0.0.1"
+        "externalIP": "127.0.0.1",
+        "locationID": 1
     },
     "grpc": {
         "ip": "127.0.0.1",
         "port": 5010
     },
-    "tempFileLifetime": 3600,
     "logger": {
         "output": "file",
         "outputFileName": "agent",
