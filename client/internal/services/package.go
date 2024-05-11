@@ -42,7 +42,8 @@ func (svc *PackageService) GetByName(userID cdssdk.UserID, bucketName string, pa
 
 	getResp, err := coorCli.GetPackageByName(coormq.ReqGetPackageByName(userID, bucketName, packageName))
 	if err != nil {
-		return nil, fmt.Errorf("requsting to coodinator: %w", err)
+		// TODO 要附加日志信息，但不能直接%w，因为外部需要判断错误吗
+		return nil, err
 	}
 
 	return &getResp.Package, nil

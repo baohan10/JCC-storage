@@ -180,7 +180,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 	}
 	defer stgglb.CoordinatorMQPool.Release(coorCli)
 
-	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(msg.UserID, msg.StorageID))
+	getStgResp, err := coorCli.GetStorage(coormq.ReqGetStorage(msg.UserID, msg.StorageID))
 	if err != nil {
 		logger.WithField("StorageID", msg.StorageID).
 			Warnf("getting storage info: %s", err.Error())
@@ -188,7 +188,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 		return nil, mq.Failed(errorcode.OperationFailed, "get storage info failed")
 	}
 
-	fullPath := filepath.Clean(filepath.Join(getStgResp.Directory, msg.Path))
+	fullPath := filepath.Clean(filepath.Join(getStgResp.Storage.Directory, msg.Path))
 
 	var uploadFilePathes []string
 	err = filepath.WalkDir(fullPath, func(fname string, fi os.DirEntry, err error) error {

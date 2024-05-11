@@ -111,7 +111,7 @@ func (s *StorageService) GetInfo(ctx *gin.Context) {
 		return
 	}
 
-	info, err := s.svc.StorageSvc().GetInfo(req.UserID, req.StorageID)
+	info, err := s.svc.StorageSvc().Get(req.UserID, req.StorageID)
 	if err != nil {
 		log.Warnf("getting info: %s", err.Error())
 		ctx.JSON(http.StatusOK, Failed(errorcode.OperationFailed, "get storage inf failed"))

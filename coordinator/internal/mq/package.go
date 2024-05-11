@@ -34,6 +34,10 @@ func (svc *Service) GetPackageByName(msg *coormq.GetPackageByName) (*coormq.GetP
 			WithField("PackageName", msg.PackageName).
 			Warnf("get package by name: %s", err.Error())
 
+		if err == sql.ErrNoRows {
+			return nil, mq.Failed(errorcode.DataNotFound, "package not found")
+		}
+
 		return nil, mq.Failed(errorcode.OperationFailed, "get package by name failed")
 	}
 

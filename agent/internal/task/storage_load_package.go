@@ -62,12 +62,12 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 	}
 	defer stgglb.IPFSPool.Release(ipfsCli)
 
-	getStgResp, err := coorCli.GetStorageInfo(coormq.NewGetStorageInfo(t.userID, t.storageID))
+	getStgResp, err := coorCli.GetStorage(coormq.ReqGetStorage(t.userID, t.storageID))
 	if err != nil {
 		return fmt.Errorf("request to coordinator: %w", err)
 	}
 
-	outputDirPath := utils.MakeStorageLoadPackagePath(getStgResp.Directory, t.userID, t.packageID)
+	outputDirPath := utils.MakeStorageLoadPackagePath(getStgResp.Storage.Directory, t.userID, t.packageID)
 	if err = os.MkdirAll(outputDirPath, 0755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
@@ -84,7 +84,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 		// 保护在storage目录中下载的文件
 		Storage().Buzy(t.storageID).
 		// 保护下载文件时同时保存到IPFS的文件
-		IPFS().Buzy(getStgResp.NodeID).
+		IPFS().Buzy(getStgResp.Storage.NodeID).
 		MutexLock(ctx.distlock)
 	if err != nil {
 		return fmt.Errorf("acquire locks failed, err: %w", err)

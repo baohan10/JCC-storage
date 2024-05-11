@@ -13,14 +13,29 @@ import (
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
-func (svc *Service) GetStorageInfo(msg *coormq.GetStorageInfo) (*coormq.GetStorageInfoResp, *mq.CodeMessage) {
+func (svc *Service) GetStorage(msg *coormq.GetStorage) (*coormq.GetStorageResp, *mq.CodeMessage) {
 	stg, err := svc.db.Storage().GetUserStorage(svc.db.SQLCtx(), msg.UserID, msg.StorageID)
 	if err != nil {
 		logger.Warnf("getting user storage: %s", err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "get user storage failed")
 	}
 
-	return mq.ReplyOK(coormq.NewGetStorageInfoResp(stg.StorageID, stg.Name, stg.NodeID, stg.Directory, stg.State))
+	return mq.ReplyOK(coormq.RespGetStorage(stg))
+}
+
+func (svc *Service) GetStorageByName(msg *coormq.GetStorageByName) (*coormq.GetStorageByNameResp, *mq.CodeMessage) {
+	stg, err := svc.db.Storage().GetUserStorageByName(svc.db.SQLCtx(), msg.UserID, msg.Name)
+	if err != nil {
+		logger.Warnf("getting user storage by name: %s", err.Error())
+
+		if err == sql.ErrNoRows {
+			return nil, mq.Failed(errorcode.DataNotFound, "storage not found")
+		}
+
+		return nil, mq.Failed(errorcode.OperationFailed, "get user storage failed")
+	}
+
+	return mq.ReplyOK(coormq.RespGetStorageByNameResp(stg))
 }
 
 func (svc *Service) StoragePackageLoaded(msg *coormq.StoragePackageLoaded) (*coormq.StoragePackageLoadedResp, *mq.CodeMessage) {

@@ -59,6 +59,16 @@ func (db *StorageDB) GetUserStorage(ctx SQLContext, userID cdssdk.UserID, storag
 	return stg, err
 }
 
+func (db *StorageDB) GetUserStorageByName(ctx SQLContext, userID cdssdk.UserID, name string) (model.Storage, error) {
+	var stg model.Storage
+	err := sqlx.Get(ctx, &stg,
+		"select Storage.* from UserStorage, Storage where UserID = ? and UserStorage.StorageID = Storage.StorageID and Storage.Name = ?",
+		userID,
+		name)
+
+	return stg, err
+}
+
 func (db *StorageDB) ChangeState(ctx SQLContext, storageID cdssdk.StorageID, state string) error {
 	_, err := ctx.Exec("update Storage set State = ? where StorageID = ?", state, storageID)
 	return err
