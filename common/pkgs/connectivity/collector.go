@@ -39,6 +39,19 @@ func NewCollector(cfg *Config, onCollected func(collector *Collector)) Collector
 	return rpt
 }
 
+func NewCollectorWithInitData(cfg *Config, onCollected func(collector *Collector), initData map[cdssdk.NodeID]Connectivity) Collector {
+	rpt := Collector{
+		cfg:            cfg,
+		collectNow:     make(chan any),
+		close:          make(chan any),
+		connectivities: initData,
+		lock:           &sync.RWMutex{},
+		onCollected:    onCollected,
+	}
+	go rpt.serve()
+	return rpt
+}
+
 func (r *Collector) Get(nodeID cdssdk.NodeID) *Connectivity {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
