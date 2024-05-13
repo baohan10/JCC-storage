@@ -36,7 +36,7 @@ func BucketCreateBucket(ctx CommandContext, bucketName string) error {
 		return err
 	}
 
-	fmt.Printf("Create bucket %s success, id: %d", bucketName, bucketID)
+	fmt.Printf("Create bucket %v success, id: %v", bucketName, bucketID)
 	return nil
 }
 
