@@ -8,19 +8,19 @@
         "level": "debug"
     },
     "db": {
-        "address": "127.0.0.1:3306",
+        "address": "106.75.6.194:3306",
         "account": "root",
-        "password": "123456",
+        "password": "cloudream123456",
         "databaseName": "cloudream"
     },
     "rabbitMQ": {
-        "address": "127.0.0.1:5672",
+        "address": "106.75.6.194:5672",
         "account": "cloudream",
-        "password": "123456",
+        "password": "cloudream123456",
         "vhost": "/"
     },
     "distlock": {
-        "etcdAddress": "127.0.0.1:2379",
+        "etcdAddress": "106.75.6.194:2379",
         "etcdUsername": "",
         "etcdPassword": "",
         "etcdLockLeaseTimeSec": 5,
