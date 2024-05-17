@@ -234,7 +234,7 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 		nodeIP = uploadNode.Node.LocalIP
 		grpcPort = uploadNode.Node.LocalGRPCPort
 
-		logger.Infof("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
+		logger.Debugf("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
 	}
 
 	fileHash, err := uploadToNode(file, nodeIP, grpcPort)
