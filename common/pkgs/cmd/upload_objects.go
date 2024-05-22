@@ -214,7 +214,7 @@ func uploadAndUpdatePackage(packageID cdssdk.PackageID, objectIter iterator.Uplo
 func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	// 本地有IPFS，则直接从本地IPFS上传
 	if stgglb.IPFSPool != nil {
-		logger.Infof("try to use local IPFS to upload file")
+		logger.Debug("try to use local IPFS to upload file")
 
 		// 只有本地IPFS不是存储系统中的一个节点，才需要Pin文件
 		fileHash, err := uploadToLocalIPFS(file, uploadNode.Node.NodeID, stgglb.Local.NodeID == nil)
@@ -234,7 +234,7 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 		nodeIP = uploadNode.Node.LocalIP
 		grpcPort = uploadNode.Node.LocalGRPCPort
 
-		logger.Infof("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
+		logger.Debugf("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
 	}
 
 	fileHash, err := uploadToNode(file, nodeIP, grpcPort)

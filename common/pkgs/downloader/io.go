@@ -91,7 +91,7 @@ func (r *IPFSReader) Close() error {
 
 func (r *IPFSReader) openStream() (io.ReadCloser, error) {
 	if stgglb.IPFSPool != nil {
-		logger.Infof("try to use local IPFS to download file")
+		logger.Debug("try to use local IPFS to download file")
 
 		reader, err := r.fromLocalIPFS()
 		if err == nil {
