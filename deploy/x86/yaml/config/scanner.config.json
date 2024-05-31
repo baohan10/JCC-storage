@@ -1,0 +1,30 @@
+{
+    "ecFileSizeThreshold": 104857600,
+    "nodeUnavailableSeconds": 300,
+    "logger": {
+        "output": "file",
+        "outputFileName": "scanner",
+        "outputDirectory": "log",
+        "level": "debug"
+    },
+    "db": {
+        "address": "127.0.0.1:3306",
+        "account": "root",
+        "password": "123456",
+        "databaseName": "cloudream"
+    },
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "cloudream",
+        "password": "123456",
+        "vhost": "/"
+    },
+    "distlock": {
+        "etcdAddress": "127.0.0.1:2379",
+        "etcdUsername": "",
+        "etcdPassword": "",
+        "etcdLockLeaseTimeSec": 5,
+        "randomReleasingDelayMs": 3000,
+        "serviceDescription": "I am a scanner"
+    }
+}

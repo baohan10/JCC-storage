@@ -1,0 +1,35 @@
+{
+    "local": {
+        "localIP": "127.0.0.1",
+        "externalIP": "127.0.0.1",
+        "locationID": 1
+    },
+    "agentGRPC": {
+        "port": 5010
+    },
+    "logger": {
+        "output": "stdout",
+        "level": "debug"
+    },
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "cloudream",
+        "password": "123456",
+        "vhost": "/"
+    },
+    "ipfs": null,
+    "distlock": {
+        "etcdAddress": "127.0.0.1:2379",
+        "etcdUsername": "",
+        "etcdPassword": "",
+        "etcdLockLeaseTimeSec": 5,
+        "randomReleasingDelayMs": 3000,
+        "serviceDescription": "I am a client"
+    },
+    "connectivity": {
+        "testInterval": 300
+    },
+    "downloader": {
+        "maxStripCacheCount": 100
+    }
+}
