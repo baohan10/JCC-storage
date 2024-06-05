@@ -2,14 +2,13 @@ package downloader
 
 import (
 	"fmt"
-	"io"
-
 	lru "github.com/hashicorp/golang-lru/v2"
 	"gitlink.org.cn/cloudream/common/pkgs/iterator"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
+	"io"
 )
 
 const (
@@ -70,6 +69,14 @@ func (d *Downloader) DownloadObjects(reqs []DownloadReqeust) DownloadIterator {
 	if err != nil {
 		return iterator.FuseError[*Downloading](fmt.Errorf("request to coordinator: %w", err))
 	}
+
+	// 测试使用：将文件pin到ipfs
+	go func() {
+		err := PinFileToIPFS(*objDetails)
+		if err != nil {
+			print(err)
+		}
+	}()
 
 	req2s := make([]downloadReqeust2, len(reqs))
 	for i, req := range reqs {
