@@ -74,7 +74,7 @@ func (t *AgentStorageGC) Execute(execCtx ExecuteContext) {
 	}
 	defer stgglb.AgentMQPool.Release(agtCli)
 
-	_, err = agtCli.StorageGC(agtmq.ReqStorageGC(t.StorageID, getStg.Directory, stgPkgs), mq.RequestOption{Timeout: time.Minute})
+	_, err = agtCli.StorageGC(agtmq.ReqStorageGC(t.StorageID, stgPkgs), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("StorageID", t.StorageID).Warnf("storage gc: %s", err.Error())
 		return

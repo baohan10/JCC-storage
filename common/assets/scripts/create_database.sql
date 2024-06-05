@@ -44,6 +44,7 @@ create table Storage (
   Name varchar(100) not null comment '存储服务名称',
   NodeID int not null comment '存储服务所在节点的ID',
   Directory varchar(4096) not null comment '存储服务所在节点的目录',
+  Remote varchar(4096) not null,
   State varchar(100) comment '状态'
 ) comment = "存储服务表";
 

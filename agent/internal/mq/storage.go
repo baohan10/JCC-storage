@@ -46,7 +46,7 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 
 		loadTsk := tsk.Body().(*mytask.StorageLoadPackage)
 
-		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullOutputPath))
+		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.PackagePath, loadTsk.LocalBase, loadTsk.RemoteBase))
 
 	} else {
 		if tsk.WaitTimeout(time.Duration(msg.WaitTimeoutMs) * time.Millisecond) {
@@ -58,15 +58,33 @@ func (svc *Service) WaitStorageLoadPackage(msg *agtmq.WaitStorageLoadPackage) (*
 
 			loadTsk := tsk.Body().(*mytask.StorageLoadPackage)
 
-			return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.FullOutputPath))
+			return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(true, errMsg, loadTsk.PackagePath, loadTsk.LocalBase, loadTsk.RemoteBase))
 		}
 
-		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(false, "", ""))
+		return mq.ReplyOK(agtmq.NewWaitStorageLoadPackageResp(false, "", "", "", ""))
 	}
 }
 
 func (svc *Service) StorageCheck(msg *agtmq.StorageCheck) (*agtmq.StorageCheckResp, *mq.CodeMessage) {
-	infos, err := os.ReadDir(msg.Directory)
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return mq.ReplyOK(agtmq.NewStorageCheckResp(
+			err.Error(),
+			nil,
+		))
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	// TODO UserID。应该设计两种接口，一种需要UserID，一种不需要。
+	getStg, err := coorCli.GetStorage(coormq.ReqGetStorage(cdssdk.UserID(1), msg.StorageID))
+	if err != nil {
+		return mq.ReplyOK(agtmq.NewStorageCheckResp(
+			err.Error(),
+			nil,
+		))
+	}
+
+	entries, err := os.ReadDir(utils.MakeStorageLoadDirectory(getStg.Storage.LocalBase))
 	if err != nil {
 		logger.Warnf("list storage directory failed, err: %s", err.Error())
 		return mq.ReplyOK(agtmq.NewStorageCheckResp(
@@ -77,7 +95,7 @@ func (svc *Service) StorageCheck(msg *agtmq.StorageCheck) (*agtmq.StorageCheckRe
 
 	var stgPkgs []model.StoragePackage
 
-	userDirs := lo.Filter(infos, func(info fs.DirEntry, index int) bool { return info.IsDir() })
+	userDirs := lo.Filter(entries, func(info fs.DirEntry, index int) bool { return info.IsDir() })
 	for _, dir := range userDirs {
 		userIDInt, err := strconv.ParseInt(dir.Name(), 10, 64)
 		if err != nil {
@@ -85,7 +103,7 @@ func (svc *Service) StorageCheck(msg *agtmq.StorageCheck) (*agtmq.StorageCheckRe
 			continue
 		}
 
-		pkgDir := utils.MakeStorageLoadDirectory(msg.Directory, dir.Name())
+		pkgDir := filepath.Join(utils.MakeStorageLoadDirectory(getStg.Storage.LocalBase), dir.Name())
 		pkgDirs, err := os.ReadDir(pkgDir)
 		if err != nil {
 			logger.Warnf("reading package dir %s: %s", pkgDir, err.Error())
@@ -111,7 +129,19 @@ func (svc *Service) StorageCheck(msg *agtmq.StorageCheck) (*agtmq.StorageCheckRe
 }
 
 func (svc *Service) StorageGC(msg *agtmq.StorageGC) (*agtmq.StorageGCResp, *mq.CodeMessage) {
-	infos, err := os.ReadDir(msg.Directory)
+	coorCli, err := stgglb.CoordinatorMQPool.Acquire()
+	if err != nil {
+		return nil, mq.Failed(errorcode.OperationFailed, err.Error())
+	}
+	defer stgglb.CoordinatorMQPool.Release(coorCli)
+
+	// TODO UserID。应该设计两种接口，一种需要UserID，一种不需要。
+	getStg, err := coorCli.GetStorage(coormq.ReqGetStorage(cdssdk.UserID(1), msg.StorageID))
+	if err != nil {
+		return nil, mq.Failed(errorcode.OperationFailed, err.Error())
+	}
+
+	entries, err := os.ReadDir(utils.MakeStorageLoadDirectory(getStg.Storage.LocalBase))
 	if err != nil {
 		logger.Warnf("list storage directory failed, err: %s", err.Error())
 		return nil, mq.Failed(errorcode.OperationFailed, "list directory files failed")
@@ -132,12 +162,12 @@ func (svc *Service) StorageGC(msg *agtmq.StorageGC) (*agtmq.StorageGCResp, *mq.C
 		pkgs[pkgIDStr] = true
 	}
 
-	userDirs := lo.Filter(infos, func(info fs.DirEntry, index int) bool { return info.IsDir() })
+	userDirs := lo.Filter(entries, func(info fs.DirEntry, index int) bool { return info.IsDir() })
 	for _, dir := range userDirs {
 		pkgMap, ok := userPkgs[dir.Name()]
 		// 第一级目录名是UserID，先删除UserID在StoragePackage表里没出现过的文件夹
 		if !ok {
-			rmPath := filepath.Join(msg.Directory, dir.Name())
+			rmPath := filepath.Join(utils.MakeStorageLoadDirectory(getStg.Storage.LocalBase), dir.Name())
 			err := os.RemoveAll(rmPath)
 			if err != nil {
 				logger.Warnf("removing user dir %s: %s", rmPath, err.Error())
@@ -147,7 +177,7 @@ func (svc *Service) StorageGC(msg *agtmq.StorageGC) (*agtmq.StorageGCResp, *mq.C
 			continue
 		}
 
-		pkgDir := utils.MakeStorageLoadDirectory(msg.Directory, dir.Name())
+		pkgDir := filepath.Join(utils.MakeStorageLoadDirectory(getStg.Storage.LocalBase), dir.Name())
 		// 遍历每个UserID目录的packages目录里的内容
 		pkgs, err := os.ReadDir(pkgDir)
 		if err != nil {
@@ -188,7 +218,7 @@ func (svc *Service) StartStorageCreatePackage(msg *agtmq.StartStorageCreatePacka
 		return nil, mq.Failed(errorcode.OperationFailed, "get storage info failed")
 	}
 
-	fullPath := filepath.Clean(filepath.Join(getStgResp.Storage.Directory, msg.Path))
+	fullPath := filepath.Clean(filepath.Join(getStgResp.Storage.LocalBase, msg.Path))
 
 	var uploadFilePathes []string
 	err = filepath.WalkDir(fullPath, func(fname string, fi os.DirEntry, err error) error {

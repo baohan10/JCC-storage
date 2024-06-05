@@ -72,7 +72,7 @@ func (t *AgentCheckStorage) Execute(execCtx ExecuteContext) {
 	}
 	defer stgglb.AgentMQPool.Release(agtCli)
 
-	checkResp, err := agtCli.StorageCheck(agtmq.NewStorageCheck(stg.StorageID, stg.Directory), mq.RequestOption{Timeout: time.Minute})
+	checkResp, err := agtCli.StorageCheck(agtmq.NewStorageCheck(stg.StorageID), mq.RequestOption{Timeout: time.Minute})
 	if err != nil {
 		log.WithField("NodeID", stg.NodeID).Warnf("checking storage: %s", err.Error())
 		return

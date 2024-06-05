@@ -61,9 +61,11 @@ type WaitStorageLoadPackage struct {
 }
 type WaitStorageLoadPackageResp struct {
 	mq.MessageBodyBase
-	IsComplete bool   `json:"isComplete"`
-	Error      string `json:"error"`
-	FullPath   string `json:"fullPath"`
+	IsComplete  bool   `json:"isComplete"`
+	Error       string `json:"error"`
+	PackagePath string `json:"packagePath"` // 加载后的Package的路径，相对于数据库中配置的Directory
+	LocalBase   string `json:"localBase"`   // 存储服务本地的目录，LocalBase + PackagePath = Package在代理节点上的完整路径
+	RemoteBase  string `json:"remoteBase"`  // 存储服务远程的目录，RemoteBase + PackagePath = Package在存储服务中的完整路径
 }
 
 func NewWaitStorageLoadPackage(taskID string, waitTimeoutMs int64) *WaitStorageLoadPackage {
@@ -72,11 +74,13 @@ func NewWaitStorageLoadPackage(taskID string, waitTimeoutMs int64) *WaitStorageL
 		WaitTimeoutMs: waitTimeoutMs,
 	}
 }
-func NewWaitStorageLoadPackageResp(isComplete bool, err string, fullPath string) *WaitStorageLoadPackageResp {
+func NewWaitStorageLoadPackageResp(isComplete bool, err string, packagePath string, localBase string, remoteBase string) *WaitStorageLoadPackageResp {
 	return &WaitStorageLoadPackageResp{
-		IsComplete: isComplete,
-		Error:      err,
-		FullPath:   fullPath,
+		IsComplete:  isComplete,
+		Error:       err,
+		PackagePath: packagePath,
+		LocalBase:   localBase,
+		RemoteBase:  remoteBase,
 	}
 }
 func (client *Client) WaitStorageLoadPackage(msg *WaitStorageLoadPackage, opts ...mq.RequestOption) (*WaitStorageLoadPackageResp, error) {
@@ -89,7 +93,6 @@ var _ = Register(Service.StorageCheck)
 type StorageCheck struct {
 	mq.MessageBodyBase
 	StorageID cdssdk.StorageID `json:"storageID"`
-	Directory string           `json:"directory"`
 }
 type StorageCheckResp struct {
 	mq.MessageBodyBase
@@ -97,10 +100,9 @@ type StorageCheckResp struct {
 	Packages       []model.StoragePackage `json:"packages"`
 }
 
-func NewStorageCheck(storageID cdssdk.StorageID, directory string) *StorageCheck {
+func NewStorageCheck(storageID cdssdk.StorageID) *StorageCheck {
 	return &StorageCheck{
 		StorageID: storageID,
-		Directory: directory,
 	}
 }
 func NewStorageCheckResp(dirState string, packages []model.StoragePackage) *StorageCheckResp {
@@ -119,17 +121,15 @@ var _ = Register(Service.StorageGC)
 type StorageGC struct {
 	mq.MessageBodyBase
 	StorageID cdssdk.StorageID       `json:"storageID"`
-	Directory string                 `json:"directory"`
 	Packages  []model.StoragePackage `json:"packages"`
 }
 type StorageGCResp struct {
 	mq.MessageBodyBase
 }
 
-func ReqStorageGC(storageID cdssdk.StorageID, directory string, packages []model.StoragePackage) *StorageGC {
+func ReqStorageGC(storageID cdssdk.StorageID, packages []model.StoragePackage) *StorageGC {
 	return &StorageGC{
 		StorageID: storageID,
-		Directory: directory,
 		Packages:  packages,
 	}
 }

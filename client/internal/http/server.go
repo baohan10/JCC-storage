@@ -58,7 +58,7 @@ func (s *Server) initRouters() {
 
 	rt.POST(cdssdk.StorageLoadPackagePath, s.Storage().LoadPackage)
 	rt.POST(cdssdk.StorageCreatePackagePath, s.Storage().CreatePackage)
-	rt.GET(cdssdk.StorageGetInfoPath, s.Storage().GetInfo)
+	rt.GET(cdssdk.StorageGetPath, s.Storage().Get)
 
 	rt.POST(cdssdk.CacheMovePackagePath, s.Cache().MovePackage)
 
