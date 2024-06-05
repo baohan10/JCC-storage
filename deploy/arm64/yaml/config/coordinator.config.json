@@ -1,0 +1,20 @@
+{
+    "logger": {
+        "output": "file",
+        "outputFileName": "coordinator",
+        "outputDirectory": "log",
+        "level": "debug"
+    },
+    "db": {
+        "address": "127.0.0.1:3306",
+        "account": "root",
+        "password": "123456",
+        "databaseName": "cloudream"
+    },
+    "rabbitMQ": {
+        "address": "127.0.0.1:5672",
+        "account": "cloudream",
+        "password": "123456",
+        "vhost": "/"
+    }
+}

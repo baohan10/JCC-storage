@@ -26,7 +26,9 @@ import (
 )
 
 type StorageLoadPackage struct {
-	FullOutputPath string
+	PackagePath string
+	LocalBase   string
+	RemoteBase  string
 
 	userID       cdssdk.UserID
 	packageID    cdssdk.PackageID
@@ -67,11 +69,12 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 		return fmt.Errorf("request to coordinator: %w", err)
 	}
 
-	outputDirPath := utils.MakeStorageLoadPackagePath(getStgResp.Storage.Directory, t.userID, t.packageID)
-	if err = os.MkdirAll(outputDirPath, 0755); err != nil {
+	t.PackagePath = utils.MakeLoadedPackagePath(t.userID, t.packageID)
+	fullLocalPath := filepath.Join(getStgResp.Storage.LocalBase, t.PackagePath)
+
+	if err = os.MkdirAll(fullLocalPath, 0755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
-	t.FullOutputPath = outputDirPath
 
 	getObjectDetails, err := coorCli.GetPackageObjectDetails(coormq.ReqGetPackageObjectDetails(t.packageID))
 	if err != nil {
@@ -92,7 +95,7 @@ func (t *StorageLoadPackage) do(task *task.Task[TaskContext], ctx TaskContext) e
 	defer mutex.Unlock()
 
 	for _, obj := range getObjectDetails.Objects {
-		err := t.downloadOne(coorCli, ipfsCli, outputDirPath, obj)
+		err := t.downloadOne(coorCli, ipfsCli, fullLocalPath, obj)
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	ul "net/url"
 	"path"
 	"time"
 
@@ -120,16 +121,42 @@ func (s *ObjectService) Download(ctx *gin.Context) {
 	ctx.Writer.Header().Set("Content-Type", fmt.Sprintf("%s;boundary=%s", myhttp.ContentTypeMultiPart, mw.Boundary()))
 	ctx.Writer.WriteHeader(http.StatusOK)
 
-	fw, err := mw.CreateFormFile("file", path.Base(file.Object.Path))
-	if err != nil {
-		log.Warnf("creating form file: %s", err.Error())
-		return
+	if req.PartSize == 0 {
+		err = sendFileOnePart(mw, "file", path.Base(file.Object.Path), file.File)
+	} else {
+		err = sendFileMultiPart(mw, "file", path.Base(file.Object.Path), file.File, req.PartSize)
 	}
-
-	_, err = io.Copy(fw, file.File)
 	if err != nil {
 		log.Warnf("copying file: %s", err.Error())
 	}
+}
+
+func sendFileMultiPart(muWriter *multipart.Writer, fieldName, fileName string, file io.ReadCloser, partSize int64) error {
+	for {
+		w, err := muWriter.CreateFormFile(fieldName, ul.PathEscape(fileName))
+		if err != nil {
+			return fmt.Errorf("create form file failed, err: %w", err)
+		}
+
+		n, err := io.Copy(w, io.LimitReader(file, partSize))
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+	}
+	return nil
+}
+
+func sendFileOnePart(muWriter *multipart.Writer, fieldName, fileName string, file io.ReadCloser) error {
+	w, err := muWriter.CreateFormFile(fieldName, ul.PathEscape(fileName))
+	if err != nil {
+		return fmt.Errorf("create form file failed, err: %w", err)
+	}
+
+	_, err = io.Copy(w, file)
+	return err
 }
 
 func (s *ObjectService) UpdateInfo(ctx *gin.Context) {

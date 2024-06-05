@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,7 +39,7 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 	}
 
 	for {
-		complete, fullPath, err := s.svc.StorageSvc().WaitStorageLoadPackage(nodeID, taskID, time.Second*10)
+		complete, ret, err := s.svc.StorageSvc().WaitStorageLoadPackage(nodeID, taskID, time.Second*10)
 		if complete {
 			if err != nil {
 				log.Warnf("loading complete with: %s", err.Error())
@@ -47,7 +48,10 @@ func (s *StorageService) LoadPackage(ctx *gin.Context) {
 			}
 
 			ctx.JSON(http.StatusOK, OK(cdssdk.StorageLoadPackageResp{
-				FullPath: fullPath,
+				FullPath:    filepath.Join(ret.RemoteBase, ret.PackagePath),
+				PackagePath: ret.PackagePath,
+				LocalBase:   ret.LocalBase,
+				RemoteBase:  ret.RemoteBase,
 			}))
 			return
 		}
@@ -101,10 +105,10 @@ func (s *StorageService) CreatePackage(ctx *gin.Context) {
 	}
 }
 
-func (s *StorageService) GetInfo(ctx *gin.Context) {
-	log := logger.WithField("HTTP", "Storage.GetInfo")
+func (s *StorageService) Get(ctx *gin.Context) {
+	log := logger.WithField("HTTP", "Storage.Get")
 
-	var req cdssdk.StorageGetInfoReq
+	var req cdssdk.StorageGet
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		log.Warnf("binding query: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, Failed(errorcode.BadArgument, "missing argument or invalid argument"))
@@ -118,9 +122,7 @@ func (s *StorageService) GetInfo(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, OK(cdssdk.StorageGetInfoResp{
-		Name:      info.Name,
-		NodeID:    info.NodeID,
-		Directory: info.Directory,
+	ctx.JSON(http.StatusOK, OK(cdssdk.StorageGetResp{
+		Storage: *info,
 	}))
 }

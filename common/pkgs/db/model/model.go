@@ -11,14 +11,7 @@ import (
 )
 
 // TODO 可以考虑逐步迁移到cdssdk中。迁移思路：数据对象应该包含的字段都迁移到cdssdk中，内部使用的一些特殊字段则留在这里
-
-type Storage struct {
-	StorageID cdssdk.StorageID `db:"StorageID" json:"storageID"`
-	Name      string           `db:"Name" json:"name"`
-	NodeID    cdssdk.NodeID    `db:"NodeID" json:"nodeID"`
-	Directory string           `db:"Directory" json:"directory"`
-	State     string           `db:"State" json:"state"`
-}
+type Storage = cdssdk.Storage
 
 type User struct {
 	UserID   cdssdk.UserID `db:"UserID" json:"userID"`

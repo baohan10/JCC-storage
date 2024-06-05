@@ -1,0 +1,66 @@
+---
+# Multiarch build file credits go to Lars Kellogg-Stedman at blog.oddbit.com. If You ever see this - thanks!
+name: "build images"
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Prepare
+        id: prep
+        run: |
+          DOCKER_IMAGE=dvcrn/${GITHUB_REPOSITORY#*/}
+          VERSION=$(cat VERSION)
+
+          TAGS="${DOCKER_IMAGE}:${VERSION},${DOCKER_IMAGE}:latest"
+
+          echo ${TAGS}
+          echo ${VERSION}
+          echo ${DOCKER_IMAGE}
+
+          echo "tags=${TAGS}" >> $GITHUB_ENV
+          echo "docker_image=${DOCKER_IMAGE}" >> $GITHUB_ENV
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          username: dvcrn
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.tags }}
+
+      # - name: Build DM
+      #   uses: docker/build-push-action@v2
+      #   with:
+      #     builder: ${{ steps.buildx.outputs.name }}
+      #     context: .
+      #     file: ./Dockerfile.dm
+      #     platforms: linux/amd64,linux/arm64
+      #     push: true
+      #     tags: ${{ env.tags }}

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: scanner
+  name: scanner
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: scanner
+  template:
+    metadata:
+      labels:
+        app: scanner
+    spec:
+      containers:
+      - name: scannerservice
+        image: {{IMAGE_REGISTRY_ADDRESS}}/scannerservice-arm64:latest
+        #command: ["tail","-f","/etc/hosts"]
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: scannerconfig
+          mountPath: /opt/confs
+      volumes:
+      - name: scannerconfig
+        configMap:
+          name: scanner-config
+      nodeSelector:
+        nodetype: {{NODE_NAME}}
+      restartPolicy: Always
+

@@ -76,29 +76,39 @@ func (svc *StorageService) StartStorageLoadPackage(userID cdssdk.UserID, package
 	return stgResp.Storage.NodeID, startResp.TaskID, nil
 }
 
-func (svc *StorageService) WaitStorageLoadPackage(nodeID cdssdk.NodeID, taskID string, waitTimeout time.Duration) (bool, string, error) {
+type StorageLoadPackageResult struct {
+	PackagePath string
+	LocalBase   string
+	RemoteBase  string
+}
+
+func (svc *StorageService) WaitStorageLoadPackage(nodeID cdssdk.NodeID, taskID string, waitTimeout time.Duration) (bool, *StorageLoadPackageResult, error) {
 	agentCli, err := stgglb.AgentMQPool.Acquire(nodeID)
 	if err != nil {
 		// TODO 失败是否要当做任务已经结束？
-		return true, "", fmt.Errorf("new agent client: %w", err)
+		return true, nil, fmt.Errorf("new agent client: %w", err)
 	}
 	defer stgglb.AgentMQPool.Release(agentCli)
 
 	waitResp, err := agentCli.WaitStorageLoadPackage(agtmq.NewWaitStorageLoadPackage(taskID, waitTimeout.Milliseconds()))
 	if err != nil {
 		// TODO 请求失败是否要当做任务已经结束？
-		return true, "", fmt.Errorf("wait storage load package: %w", err)
+		return true, nil, fmt.Errorf("wait storage load package: %w", err)
 	}
 
 	if !waitResp.IsComplete {
-		return false, "", nil
+		return false, nil, nil
 	}
 
 	if waitResp.Error != "" {
-		return true, "", fmt.Errorf("%s", waitResp.Error)
+		return true, nil, fmt.Errorf("%s", waitResp.Error)
 	}
 
-	return true, waitResp.FullPath, nil
+	return true, &StorageLoadPackageResult{
+		PackagePath: waitResp.PackagePath,
+		LocalBase:   waitResp.LocalBase,
+		RemoteBase:  waitResp.RemoteBase,
+	}, nil
 }
 
 func (svc *StorageService) DeleteStoragePackage(userID int64, packageID int64, storageID int64) error {

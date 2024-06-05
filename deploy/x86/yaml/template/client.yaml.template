@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: client
+  name: client
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+      - name: clientservice
+        image: {{IMAGE_REGISTRY_ADDRESS}}/clientservice-x86:latest
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: clientconfig
+          mountPath: /opt/confs
+      volumes:
+      - name: clientconfig
+        configMap:
+          name: client-config
+      nodeSelector:
+        nodetype: {{NODE_NAME}}
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: client
+  name: client
+  namespace: default
+spec:
+  ports:
+  - port: 7890
+    protocol: TCP
+    targetPort: 7890
+    nodePort: {{NODE_PORT}}
+  selector:
+    app: client
+  type: NodePort
+

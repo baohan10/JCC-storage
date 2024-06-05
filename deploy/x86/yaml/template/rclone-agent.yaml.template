@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rclone-{{NODE_NAME}}
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: rclone
+  resources:
+    requests:
+      storage: 10Gi
+  selector:
+    matchLabels:
+      name: rclone-{{NODE_NAME}}
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: agent-{{NODE_NAME}}
+  name: agent-{{NODE_NAME}}
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: agent-{{NODE_NAME}}
+  template:
+    metadata:
+      labels:
+        app: agent-{{NODE_NAME}}
+    spec:
+      containers:
+      - name: agentservice
+        image: {{IMAGE_REGISTRY_ADDRESS}}/agentservice-x86:latest
+        imagePullPolicy: Always
+        #command: ["tail","-f","/etc/hosts"]
+        ports:
+        - containerPort: 5010
+          protocol: TCP
+        volumeMounts:
+        - name: agentconfig
+          mountPath: /opt/confs
+        - name: rclone-pvc
+          mountPath: /opt/storage
+      volumes:
+      - name: agentconfig
+        configMap:
+          name: agent-{{NODE_NAME}}-config
+      - name: rclone-pvc
+        persistentVolumeClaim:
+          claimName: rclone-{{NODE_NAME}}
+      dnsPolicy: Default
+      nodeSelector: 
+        nodetype: {{NODE_NAME}}
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: agent-{{NODE_NAME}}
+  name: agent-{{NODE_NAME}}
+  namespace: default
+spec:
+  ports:
+  - port: 5010
+    protocol: TCP
+    targetPort: 5010
+    nodePort: {{NODE_PORT}}
+  selector:
+    app: agent-{{NODE_NAME}}
+  type: NodePort
+
