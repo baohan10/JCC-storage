@@ -41,6 +41,8 @@ func (s *Server) Serve() error {
 func (s *Server) initRouters() {
 	rt := s.engine.Use()
 
+	initTemp(rt, s)
+
 	rt.GET(cdssdk.ObjectDownloadPath, s.Object().Download)
 	rt.POST(cdssdk.ObjectUploadPath, s.Object().Upload)
 	rt.GET(cdssdk.ObjectGetPackageObjectsPath, s.Object().GetPackageObjects)

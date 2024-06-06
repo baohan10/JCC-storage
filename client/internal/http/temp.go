@@ -376,6 +376,13 @@ func (s *TempService) GetDatabaseAll(ctx *gin.Context) {
 	}))
 }
 
+func initTemp(rt gin.IRoutes, s *Server) {
+	rt.GET("/bucket/listDetails", s.Temp().ListDetails)
+	rt.GET("/bucket/getObjects", s.Temp().GetObjects)
+	rt.GET("/object/getDetail", s.Temp().GetObjectDetail)
+	rt.GET("/temp/getDatabaseAll", s.Temp().GetDatabaseAll)
+}
+
 func auth(ctx *gin.Context) {
 	token := ctx.Request.Header.Get("X-CDS-Auth")
 	if token != "cloudream@123" {
