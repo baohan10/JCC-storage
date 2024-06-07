@@ -24,7 +24,7 @@ type CreatePackage struct {
 	name         string
 	objIter      iterator.UploadingObjectIterator
 	nodeAffinity *cdssdk.NodeID
-	Result       *CreatePackageResult
+	Result       CreatePackageResult
 }
 
 func NewCreatePackage(userID cdssdk.UserID, bucketID cdssdk.BucketID, name string, objIter iterator.UploadingObjectIterator, nodeAffinity *cdssdk.NodeID) *CreatePackage {
