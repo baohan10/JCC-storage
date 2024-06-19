@@ -94,7 +94,7 @@ func main() {
 
 	sw := ioswitch.NewSwitch()
 
-	dlder := downloader.NewDownloader(config.Cfg().Downloader)
+	dlder := downloader.NewDownloader(config.Cfg().Downloader, &conCol)
 
 	taskMgr := task.NewManager(distlock, &sw, &conCol, &dlder)
 

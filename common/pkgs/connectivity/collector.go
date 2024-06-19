@@ -215,8 +215,7 @@ func (r *Collector) ping(node cdssdk.Node) Connectivity {
 			}
 		}
 
-		// 此时间差为一个来回的时间，因此单程延迟需要除以2
-		delay := time.Since(start) / 2
+		delay := time.Since(start)
 		avgDelay += delay
 
 		// 每次ping之间间隔1秒

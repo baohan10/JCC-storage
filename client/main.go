@@ -85,7 +85,7 @@ func main() {
 
 	taskMgr := task.NewManager(distlockSvc, &conCol)
 
-	dlder := downloader.NewDownloader(config.Cfg().Downloader)
+	dlder := downloader.NewDownloader(config.Cfg().Downloader, &conCol)
 
 	svc, err := services.NewService(distlockSvc, &taskMgr, &dlder)
 	if err != nil {

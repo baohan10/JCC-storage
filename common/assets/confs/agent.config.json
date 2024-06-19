@@ -37,6 +37,7 @@
         "testInterval": 300
     },
     "downloader": {
-        "maxStripCacheCount": 100
+        "maxStripCacheCount": 100,
+        "highLatencyNode": 35
     }
 }

@@ -5,11 +5,13 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"time"
 
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
 	"gitlink.org.cn/cloudream/common/utils/io2"
@@ -24,8 +26,6 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
-
-var errNoDirectReadBlock = fmt.Errorf("no direct read block")
 
 type DownloadNodeInfo struct {
 	Node         cdssdk.Node
@@ -175,6 +175,7 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(obj downloadReqeust2
 	bsc, blocks := iter.getMinReadingBlockSolution(allNodes, 1)
 	osc, node := iter.getMinReadingObjectSolution(allNodes, 1)
 	if bsc < osc {
+		logger.Debugf("downloading object from node %v(%v)", blocks[0].Node.Name, blocks[0].Node.NodeID)
 
 		return NewIPFSReaderWithRange(blocks[0].Node, blocks[0].Block.FileHash, ipfs.ReadOption{
 			Offset: obj.Raw.Offset,
@@ -187,6 +188,7 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(obj downloadReqeust2
 		return nil, fmt.Errorf("no node has this object")
 	}
 
+	logger.Debugf("downloading object from node %v(%v)", node.Name, node.NodeID)
 	return NewIPFSReaderWithRange(*node, obj.Detail.Object.FileHash, ipfs.ReadOption{
 		Offset: obj.Raw.Offset,
 		Length: obj.Raw.Length,
@@ -203,6 +205,15 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 	osc, node := iter.getMinReadingObjectSolution(allNodes, ecRed.K)
 
 	if bsc < osc {
+		var logStrs []any = []any{"downloading ec object from blocks: "}
+		for i, b := range blocks {
+			if i > 0 {
+				logStrs = append(logStrs, ", ")
+			}
+			logStrs = append(logStrs, fmt.Sprintf("%v: %v(%v)", b.Block.Index, b.Node.Name, b.Node.NodeID))
+		}
+		logger.Debug(logStrs...)
+
 		var fileStrs []*IPFSReader
 		for _, b := range blocks {
 			str := NewIPFSReader(b.Node, b.Block.FileHash)
@@ -312,6 +323,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 		return nil, fmt.Errorf("no enough blocks to reconstruct the file, want %d, get only %d", ecRed.K, len(blocks))
 	}
 
+	logger.Debugf("downloading ec object from node %v(%v)", node.Name, node.NodeID)
 	return NewIPFSReaderWithRange(*node, req.Detail.Object.FileHash, ipfs.ReadOption{
 		Offset: req.Raw.Offset,
 		Length: req.Raw.Length,
@@ -417,6 +429,11 @@ func (iter *DownloadObjectIterator) getNodeDistance(node cdssdk.Node) float64 {
 
 	if node.LocationID == stgglb.Local.LocationID {
 		return consts.NodeDistanceSameLocation
+	}
+
+	c := iter.downloader.conn.Get(node.NodeID)
+	if c == nil || c.Delay == nil || *c.Delay > time.Duration(float64(time.Millisecond)*iter.downloader.cfg.HighLatencyNodeMs) {
+		return consts.NodeDistanceHighLatencyNode
 	}
 
 	return consts.NodeDistanceOther
