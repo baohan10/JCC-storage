@@ -266,9 +266,15 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 
 				dataBuf := make([]byte, int64(ecRed.K*ecRed.ChunkSize))
 				blockArrs := make([][]byte, ecRed.N)
+				for i := 0; i < ecRed.K; i++ {
+					// 放入的slice长度为0，但容量为ChunkSize，EC库发现长度为0的块后才会认为是待恢复块
+					blockArrs[i] = dataBuf[i*ecRed.ChunkSize : i*ecRed.ChunkSize]
+				}
 				for _, b := range blocks {
+					// 用于恢复的块则要将其长度变回ChunkSize，用于后续读取块数据
 					if b.Block.Index < ecRed.K {
-						blockArrs[b.Block.Index] = dataBuf[b.Block.Index*ecRed.ChunkSize : (b.Block.Index+1)*ecRed.ChunkSize]
+						// 此处扩容不会导致slice指向一个新内存
+						blockArrs[b.Block.Index] = blockArrs[b.Block.Index][0:ecRed.ChunkSize]
 					} else {
 						blockArrs[b.Block.Index] = make([]byte, ecRed.ChunkSize)
 					}
