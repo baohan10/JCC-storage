@@ -275,7 +275,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 						go iter.downloadECStrip(curStripPos, &req.Detail.Object, ecRed, rs, fileStrs, blocks, downloadStripCb)
 					}
 
-					logger.Debugf("waitting for ec strip %v of object %v", curStripPos, req.Detail.Object.ObjectID)
+					logger.Debugf("cache missed, waitting for ec strip %v of object %v to be downloaded", curStripPos, req.Detail.Object.ObjectID)
 					stripData, err = downloadStripCb.WaitValue(context.Background())
 					if err != nil {
 						pw.CloseWithError(err)
