@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -10,6 +11,7 @@ import (
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
+	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -240,6 +242,8 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 				totalReadLen = math2.Min(req.Raw.Length, totalReadLen)
 			}
 
+			var downloadStripCb *future.SetValueFuture[[]byte]
+
 			for totalReadLen > 0 {
 				curStripPos := readPos / int64(ecRed.K) / int64(ecRed.ChunkSize)
 				curStripPosInBytes := curStripPos * int64(ecRed.K) * int64(ecRed.ChunkSize)
@@ -251,66 +255,57 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 					StripPosition: curStripPos,
 				}
 
+				logger.Debugf("begin read ec strip %v of object %v", curStripPos, req.Detail.Object.ObjectID)
+
+				var stripData []byte
+
 				cache, ok := iter.downloader.strips.Get(cacheKey)
 				if ok {
-					if cache.ObjectFileHash == req.Detail.Object.FileHash {
-						err := io2.WriteAll(pw, cache.Data[readRelativePos:readRelativePos+curReadLen])
-						if err != nil {
-							pw.CloseWithError(err)
-							return
-						}
-						totalReadLen -= curReadLen
-						readPos += curReadLen
-						continue
+					if cache.ObjectFileHash != req.Detail.Object.FileHash {
+						// 如果Object的Hash和Cache的Hash不一致，说明Cache是无效的，需要重新下载
+						iter.downloader.strips.Remove(cacheKey)
+						ok = false
+					} else {
+						stripData = cache.Data
+					}
+				}
+
+				if !ok {
+					// 缓存中没有条带，也没有启动预加载，可能是因为在极短的时间内缓存过期了，需要重新下载
+					if downloadStripCb == nil {
+						downloadStripCb = future.NewSetValue[[]byte]()
+						go iter.downloadECStrip(curStripPos, &req.Detail.Object, ecRed, rs, fileStrs, blocks, downloadStripCb)
 					}
 
-					// 如果Object的Hash和Cache的Hash不一致，说明Cache是无效的，需要重新下载
-					iter.downloader.strips.Remove(cacheKey)
-				}
-				for _, str := range fileStrs {
-					_, err := str.Seek(curStripPos*int64(ecRed.ChunkSize), io.SeekStart)
+					stripData, err = downloadStripCb.WaitValue(context.Background())
 					if err != nil {
 						pw.CloseWithError(err)
 						return
 					}
 				}
 
-				dataBuf := make([]byte, int64(ecRed.K*ecRed.ChunkSize))
-				blockArrs := make([][]byte, ecRed.N)
-				for i := 0; i < ecRed.K; i++ {
-					// 放入的slice长度为0，但容量为ChunkSize，EC库发现长度为0的块后才会认为是待恢复块
-					blockArrs[i] = dataBuf[i*ecRed.ChunkSize : i*ecRed.ChunkSize]
+				// 不管有没有WaitValue都要清零
+				downloadStripCb = nil
+
+				// 看一眼缓存中是否有下一个条带，如果没有，则启动下载。
+				// 注：现在缓存中有不代表读取的时候还有
+				nextStripCacheKey := ECStripKey{
+					ObjectID:      req.Detail.Object.ObjectID,
+					StripPosition: curStripPos + 1,
 				}
-				for _, b := range blocks {
-					// 用于恢复的块则要将其长度变回ChunkSize，用于后续读取块数据
-					if b.Block.Index < ecRed.K {
-						// 此处扩容不会导致slice指向一个新内存
-						blockArrs[b.Block.Index] = blockArrs[b.Block.Index][0:ecRed.ChunkSize]
-					} else {
-						blockArrs[b.Block.Index] = make([]byte, ecRed.ChunkSize)
-					}
+				_, ok = iter.downloader.strips.Peek(nextStripCacheKey)
+				if !ok {
+					downloadStripCb = future.NewSetValue[[]byte]()
+					go iter.downloadECStrip(curStripPos+1, &req.Detail.Object, ecRed, rs, fileStrs, blocks, downloadStripCb)
 				}
 
-				err := sync2.ParallelDo(blocks, func(b downloadBlock, idx int) error {
-					_, err := io.ReadFull(fileStrs[idx], blockArrs[b.Block.Index])
-					return err
-				})
+				err := io2.WriteAll(pw, stripData[readRelativePos:readRelativePos+curReadLen])
 				if err != nil {
 					pw.CloseWithError(err)
 					return
 				}
-
-				err = rs.ReconstructData(blockArrs)
-				if err != nil {
-					pw.CloseWithError(err)
-					return
-				}
-
-				iter.downloader.strips.Add(cacheKey, ObjectECStrip{
-					Data:           dataBuf,
-					ObjectFileHash: req.Detail.Object.FileHash,
-				})
-				// 下次循环就能从Cache中读取数据
+				totalReadLen -= curReadLen
+				readPos += curReadLen
 			}
 			pw.Close()
 		}()
@@ -328,6 +323,60 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 		Offset: req.Raw.Offset,
 		Length: req.Raw.Length,
 	}), nil
+}
+
+func (i *DownloadObjectIterator) downloadECStrip(stripPos int64, obj *cdssdk.Object, ecRed *cdssdk.ECRedundancy, rs *ec.Rs, blockStrs []*IPFSReader, blocks []downloadBlock, cb *future.SetValueFuture[[]byte]) {
+	logger.Debugf("download ec strip %v of object %v", stripPos, obj.ObjectID)
+
+	for _, str := range blockStrs {
+		_, err := str.Seek(stripPos*int64(ecRed.ChunkSize), io.SeekStart)
+		if err != nil {
+			cb.SetError(err)
+			return
+		}
+	}
+
+	dataBuf := make([]byte, int64(ecRed.K*ecRed.ChunkSize))
+	blockArrs := make([][]byte, ecRed.N)
+	for i := 0; i < ecRed.K; i++ {
+		// 放入的slice长度为0，但容量为ChunkSize，EC库发现长度为0的块后才会认为是待恢复块
+		blockArrs[i] = dataBuf[i*ecRed.ChunkSize : i*ecRed.ChunkSize]
+	}
+	for _, b := range blocks {
+		// 用于恢复的块则要将其长度变回ChunkSize，用于后续读取块数据
+		if b.Block.Index < ecRed.K {
+			// 此处扩容不会导致slice指向一个新内存
+			blockArrs[b.Block.Index] = blockArrs[b.Block.Index][0:ecRed.ChunkSize]
+		} else {
+			blockArrs[b.Block.Index] = make([]byte, ecRed.ChunkSize)
+		}
+	}
+
+	err := sync2.ParallelDo(blocks, func(b downloadBlock, idx int) error {
+		_, err := io.ReadFull(blockStrs[idx], blockArrs[b.Block.Index])
+		return err
+	})
+	if err != nil {
+		cb.SetError(err)
+		return
+	}
+
+	err = rs.ReconstructData(blockArrs)
+	if err != nil {
+		cb.SetError(err)
+		return
+	}
+
+	cacheKey := ECStripKey{
+		ObjectID:      obj.ObjectID,
+		StripPosition: stripPos,
+	}
+
+	i.downloader.strips.Add(cacheKey, ObjectECStrip{
+		Data:           dataBuf,
+		ObjectFileHash: obj.FileHash,
+	})
+	cb.SetValue(dataBuf)
 }
 
 func (iter *DownloadObjectIterator) sortDownloadNodes(req downloadReqeust2) ([]*DownloadNodeInfo, error) {
