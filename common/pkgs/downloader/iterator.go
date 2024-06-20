@@ -255,8 +255,6 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 					StripPosition: curStripPos,
 				}
 
-				logger.Debugf("begin read ec strip %v of object %v", curStripPos, req.Detail.Object.ObjectID)
-
 				var stripData []byte
 
 				cache, ok := iter.downloader.strips.Get(cacheKey)
@@ -277,6 +275,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 						go iter.downloadECStrip(curStripPos, &req.Detail.Object, ecRed, rs, fileStrs, blocks, downloadStripCb)
 					}
 
+					logger.Debugf("waitting for ec strip %v of object %v", curStripPos, req.Detail.Object.ObjectID)
 					stripData, err = downloadStripCb.WaitValue(context.Background())
 					if err != nil {
 						pw.CloseWithError(err)
@@ -326,8 +325,6 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 }
 
 func (i *DownloadObjectIterator) downloadECStrip(stripPos int64, obj *cdssdk.Object, ecRed *cdssdk.ECRedundancy, rs *ec.Rs, blockStrs []*IPFSReader, blocks []downloadBlock, cb *future.SetValueFuture[[]byte]) {
-	logger.Debugf("download ec strip %v of object %v", stripPos, obj.ObjectID)
-
 	for _, str := range blockStrs {
 		_, err := str.Seek(stripPos*int64(ecRed.ChunkSize), io.SeekStart)
 		if err != nil {
