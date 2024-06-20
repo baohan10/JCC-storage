@@ -212,7 +212,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 			if i > 0 {
 				logStrs = append(logStrs, ", ")
 			}
-			logStrs = append(logStrs, fmt.Sprintf("%v: %v(%v)", b.Block.Index, b.Node.Name, b.Node.NodeID))
+			logStrs = append(logStrs, fmt.Sprintf("%v@%v(%v)", b.Block.Index, b.Node.Name, b.Node.NodeID))
 		}
 		logger.Debug(logStrs...)
 
