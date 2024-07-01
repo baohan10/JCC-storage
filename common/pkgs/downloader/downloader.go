@@ -129,8 +129,8 @@ type ObjectECStrip struct {
 }
 
 type ECStripKey struct {
-	ObjectID      cdssdk.ObjectID
-	StripPosition int64
+	ObjectID   cdssdk.ObjectID
+	StripIndex int64
 }
 
 type StripCache = lru.Cache[ECStripKey, ObjectECStrip]
