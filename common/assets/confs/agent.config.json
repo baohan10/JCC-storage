@@ -38,6 +38,7 @@
     },
     "downloader": {
         "maxStripCacheCount": 100,
-        "highLatencyNode": 35
+        "highLatencyNode": 35,
+        "ecStripPrefetchCount": 1
     }
 }

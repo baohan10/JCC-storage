@@ -1,7 +1,6 @@
 package downloader
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"math"
@@ -11,7 +10,6 @@ import (
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
-	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -19,12 +17,10 @@ import (
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
 	"gitlink.org.cn/cloudream/common/utils/sort2"
-	"gitlink.org.cn/cloudream/common/utils/sync2"
 	"gitlink.org.cn/cloudream/storage/common/consts"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -216,93 +212,39 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 		}
 		logger.Debug(logStrs...)
 
-		var fileStrs []*IPFSReader
-		for _, b := range blocks {
-			str := NewIPFSReader(b.Node, b.Block.FileHash)
-
-			fileStrs = append(fileStrs, str)
-		}
-
-		rs, err := ec.NewRs(ecRed.K, ecRed.N)
-		if err != nil {
-			return nil, fmt.Errorf("new rs: %w", err)
-		}
-
 		pr, pw := io.Pipe()
 		go func() {
-			defer func() {
-				for _, str := range fileStrs {
-					str.Close()
-				}
-			}()
-
 			readPos := req.Raw.Offset
 			totalReadLen := req.Detail.Object.Size - req.Raw.Offset
 			if req.Raw.Length >= 0 {
 				totalReadLen = math2.Min(req.Raw.Length, totalReadLen)
 			}
 
-			var downloadStripCb *future.SetValueFuture[[]byte]
+			firstStripPos := readPos / int64(ecRed.K) / int64(ecRed.ChunkSize)
+			stripIter := NewStripIterator(req.Detail.Object, blocks, ecRed, firstStripPos, iter.downloader.strips, iter.downloader.cfg.ECStripPrefetchCount)
+			defer stripIter.Close()
 
 			for totalReadLen > 0 {
-				curStripPos := readPos / int64(ecRed.K) / int64(ecRed.ChunkSize)
-				curStripPosInBytes := curStripPos * int64(ecRed.K) * int64(ecRed.ChunkSize)
-				nextStripPosInBytes := (curStripPos + 1) * int64(ecRed.K) * int64(ecRed.ChunkSize)
-				curReadLen := math2.Min(totalReadLen, nextStripPosInBytes-readPos)
-				readRelativePos := readPos - curStripPosInBytes
-				cacheKey := ECStripKey{
-					ObjectID:      req.Detail.Object.ObjectID,
-					StripPosition: curStripPos,
+				strip, err := stripIter.MoveNext()
+				if err == iterator.ErrNoMoreItem {
+					pw.CloseWithError(io.ErrUnexpectedEOF)
+					return
 				}
-
-				var stripData []byte
-
-				cache, ok := iter.downloader.strips.Get(cacheKey)
-				if ok {
-					if cache.ObjectFileHash != req.Detail.Object.FileHash {
-						// 如果Object的Hash和Cache的Hash不一致，说明Cache是无效的，需要重新下载
-						iter.downloader.strips.Remove(cacheKey)
-						ok = false
-					} else {
-						stripData = cache.Data
-					}
-				}
-
-				if !ok {
-					// 缓存中没有条带，也没有启动预加载，可能是因为在极短的时间内缓存过期了，需要重新下载
-					if downloadStripCb == nil {
-						downloadStripCb = future.NewSetValue[[]byte]()
-						go iter.downloadECStrip(curStripPos, &req.Detail.Object, ecRed, rs, fileStrs, blocks, downloadStripCb)
-					}
-
-					logger.Debugf("cache missed, waitting for ec strip %v of object %v to be downloaded", curStripPos, req.Detail.Object.ObjectID)
-					stripData, err = downloadStripCb.WaitValue(context.Background())
-					if err != nil {
-						pw.CloseWithError(err)
-						return
-					}
-				}
-
-				// 不管有没有WaitValue都要清零
-				downloadStripCb = nil
-
-				// 看一眼缓存中是否有下一个条带，如果没有，则启动下载。
-				// 注：现在缓存中有不代表读取的时候还有
-				nextStripCacheKey := ECStripKey{
-					ObjectID:      req.Detail.Object.ObjectID,
-					StripPosition: curStripPos + 1,
-				}
-				_, ok = iter.downloader.strips.Peek(nextStripCacheKey)
-				if !ok {
-					downloadStripCb = future.NewSetValue[[]byte]()
-					go iter.downloadECStrip(curStripPos+1, &req.Detail.Object, ecRed, rs, fileStrs, blocks, downloadStripCb)
-				}
-
-				err := io2.WriteAll(pw, stripData[readRelativePos:readRelativePos+curReadLen])
 				if err != nil {
 					pw.CloseWithError(err)
 					return
 				}
+
+				nextStripPos := strip.Position + int64(ecRed.ChunkSize)
+				readRelativePos := readPos - strip.Position
+				curReadLen := math2.Min(totalReadLen, nextStripPos-readPos)
+
+				err = io2.WriteAll(pw, strip.Data[readRelativePos:readRelativePos+curReadLen])
+				if err != nil {
+					pw.CloseWithError(err)
+					return
+				}
+
 				totalReadLen -= curReadLen
 				readPos += curReadLen
 			}
@@ -322,58 +264,6 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 		Offset: req.Raw.Offset,
 		Length: req.Raw.Length,
 	}), nil
-}
-
-func (i *DownloadObjectIterator) downloadECStrip(stripPos int64, obj *cdssdk.Object, ecRed *cdssdk.ECRedundancy, rs *ec.Rs, blockStrs []*IPFSReader, blocks []downloadBlock, cb *future.SetValueFuture[[]byte]) {
-	for _, str := range blockStrs {
-		_, err := str.Seek(stripPos*int64(ecRed.ChunkSize), io.SeekStart)
-		if err != nil {
-			cb.SetError(err)
-			return
-		}
-	}
-
-	dataBuf := make([]byte, int64(ecRed.K*ecRed.ChunkSize))
-	blockArrs := make([][]byte, ecRed.N)
-	for i := 0; i < ecRed.K; i++ {
-		// 放入的slice长度为0，但容量为ChunkSize，EC库发现长度为0的块后才会认为是待恢复块
-		blockArrs[i] = dataBuf[i*ecRed.ChunkSize : i*ecRed.ChunkSize]
-	}
-	for _, b := range blocks {
-		// 用于恢复的块则要将其长度变回ChunkSize，用于后续读取块数据
-		if b.Block.Index < ecRed.K {
-			// 此处扩容不会导致slice指向一个新内存
-			blockArrs[b.Block.Index] = blockArrs[b.Block.Index][0:ecRed.ChunkSize]
-		} else {
-			blockArrs[b.Block.Index] = make([]byte, ecRed.ChunkSize)
-		}
-	}
-
-	err := sync2.ParallelDo(blocks, func(b downloadBlock, idx int) error {
-		_, err := io.ReadFull(blockStrs[idx], blockArrs[b.Block.Index])
-		return err
-	})
-	if err != nil {
-		cb.SetError(err)
-		return
-	}
-
-	err = rs.ReconstructData(blockArrs)
-	if err != nil {
-		cb.SetError(err)
-		return
-	}
-
-	cacheKey := ECStripKey{
-		ObjectID:      obj.ObjectID,
-		StripPosition: stripPos,
-	}
-
-	i.downloader.strips.Add(cacheKey, ObjectECStrip{
-		Data:           dataBuf,
-		ObjectFileHash: obj.FileHash,
-	})
-	cb.SetValue(dataBuf)
 }
 
 func (iter *DownloadObjectIterator) sortDownloadNodes(req downloadReqeust2) ([]*DownloadNodeInfo, error) {
@@ -422,11 +312,6 @@ func (iter *DownloadObjectIterator) sortDownloadNodes(req downloadReqeust2) ([]*
 	return sort2.Sort(lo.Values(downloadNodeMap), func(left, right *DownloadNodeInfo) int {
 		return sort2.Cmp(left.Distance, right.Distance)
 	}), nil
-}
-
-type downloadBlock struct {
-	Node  cdssdk.Node
-	Block stgmod.ObjectBlock
 }
 
 func (iter *DownloadObjectIterator) getMinReadingBlockSolution(sortedNodes []*DownloadNodeInfo, k int) (float64, []downloadBlock) {
