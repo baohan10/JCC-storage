@@ -2,11 +2,13 @@ package db
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/samber/lo"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/common/utils/sort2"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db/model"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -201,6 +203,11 @@ func (db *ObjectDB) BatchAdd(ctx SQLContext, packageID cdssdk.PackageID, adds []
 	if err != nil {
 		return nil, fmt.Errorf("batch get object ids: %w", err)
 	}
+
+	// 所有需要按索引来一一对应的数据都需要进行排序
+	adds = sort2.Sort(adds, func(l, r coormq.AddObjectEntry) int { return strings.Compare(l.Path, r.Path) })
+	addedObjs = sort2.Sort(addedObjs, func(l, r cdssdk.Object) int { return strings.Compare(l.Path, r.Path) })
+
 	addedObjIDs := make([]cdssdk.ObjectID, len(addedObjs))
 	for i := range addedObjs {
 		addedObjIDs[i] = addedObjs[i].ObjectID
