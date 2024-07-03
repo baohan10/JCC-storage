@@ -76,14 +76,6 @@ func (d *Downloader) DownloadObjects(reqs []DownloadReqeust) DownloadIterator {
 		return iterator.FuseError[*Downloading](fmt.Errorf("request to coordinator: %w", err))
 	}
 
-	// 测试使用：将文件pin到ipfs
-	go func() {
-		err := PinFileToIPFS(*objDetails)
-		if err != nil {
-			print(err)
-		}
-	}()
-
 	req2s := make([]downloadReqeust2, len(reqs))
 	for i, req := range reqs {
 		req2s[i] = downloadReqeust2{
