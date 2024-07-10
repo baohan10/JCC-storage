@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -109,22 +110,14 @@ func (r *IPFSReader) fromNode() (io.ReadCloser, error) {
 	fileStr := planBld.AtAgent(r.node).IPFSRead(r.fileHash, ipfs.ReadOption{
 		Offset: r.offset,
 		Length: -1,
-	}).ToExecutor()
+	}).ToExecutor().WillRead()
 
-	plan, err := planBld.Build()
-	if err != nil {
-		return nil, fmt.Errorf("building plan: %w", err)
-	}
-
-	waiter, err := plans.Execute(*plan)
-	if err != nil {
-		return nil, fmt.Errorf("execute plan: %w", err)
-	}
+	exec := planBld.Execute()
 	go func() {
-		waiter.Wait()
+		exec.Wait(context.Background())
 	}()
 
-	return waiter.ReadStream(fileStr)
+	return exec.BeginRead(fileStr)
 }
 
 func (r *IPFSReader) fromLocalIPFS() (io.ReadCloser, error) {

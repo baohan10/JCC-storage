@@ -1,49 +1,19 @@
 package plans
 
 import (
-	"fmt"
+	"context"
+	"sync"
 
-	"github.com/google/uuid"
+	"gitlink.org.cn/cloudream/common/pkgs/future"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
-type StreamInfo struct {
-	ID ioswitch.StreamID
-}
-
 type PlanBuilder struct {
-	streams    []*StreamInfo
-	agentPlans map[cdssdk.NodeID]*AgentPlanBuilder
-}
-
-func (b *PlanBuilder) Build() (*ComposedPlan, error) {
-	planID := uuid.NewString()
-
-	var agentPlans []AgentPlan
-	for _, b := range b.agentPlans {
-		plan, err := b.Build(ioswitch.PlanID(planID))
-		if err != nil {
-			return nil, err
-		}
-
-		agentPlans = append(agentPlans, plan)
-	}
-
-	return &ComposedPlan{
-		ID:         ioswitch.PlanID(planID),
-		AgentPlans: agentPlans,
-	}, nil
-}
-
-func (b *PlanBuilder) newStream() *StreamInfo {
-	str := &StreamInfo{
-		ID: ioswitch.StreamID(fmt.Sprintf("%d", len(b.streams)+1)),
-	}
-
-	b.streams = append(b.streams, str)
-
-	return str
+	vars         []ioswitch.Var
+	agentPlans   map[cdssdk.NodeID]*AgentPlanBuilder
+	executorPlan ExecutorPlanBuilder
+	storeMap     *sync.Map
 }
 
 func NewPlanBuilder() PlanBuilder {
@@ -52,18 +22,15 @@ func NewPlanBuilder() PlanBuilder {
 	}
 }
 
-func (b *PlanBuilder) FromExecutor() *FromExecutorStream {
-	return &FromExecutorStream{
-		owner: b,
-		info:  b.newStream(),
-	}
+func (b *PlanBuilder) AtExecutor() *ExecutorPlanBuilder {
+	return &b.executorPlan
 }
 
 func (b *PlanBuilder) AtAgent(node cdssdk.Node) *AgentPlanBuilder {
 	agtPlan, ok := b.agentPlans[node.NodeID]
 	if !ok {
 		agtPlan = &AgentPlanBuilder{
-			owner: b,
+			blder: b,
 			node:  node,
 		}
 		b.agentPlans[node.NodeID] = agtPlan
@@ -72,33 +39,51 @@ func (b *PlanBuilder) AtAgent(node cdssdk.Node) *AgentPlanBuilder {
 	return agtPlan
 }
 
-type FromExecutorStream struct {
-	owner  *PlanBuilder
-	info   *StreamInfo
-	toNode *cdssdk.Node
-}
+func (b *PlanBuilder) Execute() *Executor {
+	ctx, cancel := context.WithCancel(context.Background())
+	planID := genRandomPlanID()
 
-func (s *FromExecutorStream) ToNode(node cdssdk.Node) *AgentStream {
-	s.toNode = &node
-	return &AgentStream{
-		owner: s.owner.AtAgent(node),
-		info:  s.info,
+	execPlan := ioswitch.Plan{
+		ID:  planID,
+		Ops: b.executorPlan.ops,
 	}
+
+	exec := Executor{
+		planID:     planID,
+		plan:       b,
+		callback:   future.NewSetVoid(),
+		ctx:        ctx,
+		cancel:     cancel,
+		executorSw: ioswitch.NewSwitch(execPlan),
+	}
+	go exec.execute()
+
+	return &exec
 }
 
-type ToExecutorStream struct {
-	info     *StreamInfo
-	fromNode *cdssdk.Node
+func (b *PlanBuilder) newStreamVar() *ioswitch.StreamVar {
+	v := &ioswitch.StreamVar{
+		ID: ioswitch.VarID(len(b.vars)),
+	}
+	b.vars = append(b.vars, v)
+
+	return v
 }
 
-type MultiStream struct {
-	Streams []*AgentStream
+func (b *PlanBuilder) newIntVar() *ioswitch.IntVar {
+	v := &ioswitch.IntVar{
+		ID: ioswitch.VarID(len(b.vars)),
+	}
+	b.vars = append(b.vars, v)
+
+	return v
 }
 
-func (m *MultiStream) Count() int {
-	return len(m.Streams)
-}
+func (b *PlanBuilder) newStringVar() *ioswitch.StringVar {
+	v := &ioswitch.StringVar{
+		ID: ioswitch.VarID(len(b.vars)),
+	}
+	b.vars = append(b.vars, v)
 
-func (m *MultiStream) Stream(index int) *AgentStream {
-	return m.Streams[index]
+	return v
 }

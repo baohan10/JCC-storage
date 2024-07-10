@@ -7,12 +7,12 @@ import (
 
 type Service struct {
 	taskManager *task.Manager
-	sw          *ioswitch.Switch
+	swMgr       *ioswitch.Manager
 }
 
-func NewService(taskMgr *task.Manager, sw *ioswitch.Switch) *Service {
+func NewService(taskMgr *task.Manager, swMgr *ioswitch.Manager) *Service {
 	return &Service{
 		taskManager: taskMgr,
-		sw:          sw,
+		swMgr:       swMgr,
 	}
 }

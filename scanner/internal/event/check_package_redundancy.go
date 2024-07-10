@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
@@ -414,21 +415,12 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 
 	planBlder := plans.NewPlanBuilder()
 	inputStrs := planBlder.AtAgent(getNodes.Nodes[0]).IPFSRead(obj.Object.FileHash).ChunkedSplit(red.ChunkSize, red.K, true)
-	outputStrs := planBlder.AtAgent(getNodes.Nodes[0]).ECReconstructAny(*red, lo.Range(red.K), lo.Range(red.N), inputStrs.Streams...)
+	outputStrs := planBlder.AtAgent(getNodes.Nodes[0]).ECReconstructAny(*red, lo.Range(red.K), lo.Range(red.N), inputStrs)
 	for i := 0; i < red.N; i++ {
-		outputStrs.Stream(i).GRPCSend(uploadNodes[i].Node).IPFSWrite(fmt.Sprintf("%d", i))
-	}
-	plan, err := planBlder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("building io plan: %w", err)
+		outputStrs[i].To(uploadNodes[i].Node).IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d", i))
 	}
 
-	exec, err := plans.Execute(*plan)
-	if err != nil {
-		return nil, fmt.Errorf("executing io plan: %w", err)
-	}
-
-	ioRet, err := exec.Wait()
+	ioRet, err := planBlder.Execute().Wait(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("executing io plan: %w", err)
 	}
@@ -439,7 +431,7 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 			ObjectID: obj.Object.ObjectID,
 			Index:    i,
 			NodeID:   uploadNodes[i].Node.NodeID,
-			FileHash: ioRet.ResultValues[fmt.Sprintf("%d", i)].(string),
+			FileHash: ioRet[fmt.Sprintf("%d", i)].(string),
 		})
 	}
 
@@ -522,26 +514,16 @@ func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk
 	for i := range uploadNodes {
 		tarNode := planBlder.AtAgent(uploadNodes[i].Node)
 
-		var inputs []*plans.AgentStream
+		var inputs []*plans.AgentStreamVar
 		for _, block := range chosenBlocks {
 			inputs = append(inputs, tarNode.IPFSRead(block.FileHash))
 		}
 
-		outputs := tarNode.ECReconstruct(*srcRed, chosenBlockIndexes, inputs...)
-		tarNode.ChunkedJoin(srcRed.ChunkSize, outputs.Streams...).Length(obj.Object.Size).IPFSWrite(fmt.Sprintf("%d", i))
+		outputs := tarNode.ECReconstruct(*srcRed, chosenBlockIndexes, inputs)
+		tarNode.ChunkedJoin(srcRed.ChunkSize, outputs).Length(obj.Object.Size).IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d", i))
 	}
 
-	plan, err := planBlder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("building io plan: %w", err)
-	}
-
-	exec, err := plans.Execute(*plan)
-	if err != nil {
-		return nil, fmt.Errorf("executing io plan: %w", err)
-	}
-
-	ioRet, err := exec.Wait()
+	ioRet, err := planBlder.Execute().Wait(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("executing io plan: %w", err)
 	}
@@ -552,7 +534,7 @@ func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk
 			ObjectID: obj.Object.ObjectID,
 			Index:    0,
 			NodeID:   uploadNodes[i].Node.NodeID,
-			FileHash: ioRet.ResultValues[fmt.Sprintf("%d", i)].(string),
+			FileHash: ioRet[fmt.Sprintf("%d", i)].(string),
 		})
 	}
 
@@ -615,28 +597,18 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 		// 否则就要重建出这个节点需要的块
 		tarNode := planBlder.AtAgent(node.Node)
 
-		var inputs []*plans.AgentStream
+		var inputs []*plans.AgentStreamVar
 		for _, block := range chosenBlocks {
 			inputs = append(inputs, tarNode.IPFSRead(block.FileHash))
 		}
 
 		// 输出只需要自己要保存的那一块
-		tarNode.ECReconstructAny(*srcRed, chosenBlockIndexes, []int{i}, inputs...).Stream(0).IPFSWrite(fmt.Sprintf("%d", i))
+		tarNode.ECReconstructAny(*srcRed, chosenBlockIndexes, []int{i}, inputs)[0].IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d", i))
 		newBlocks = append(newBlocks, newBlock)
 	}
 
-	plan, err := planBlder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("building io plan: %w", err)
-	}
-
-	exec, err := plans.Execute(*plan)
-	if err != nil {
-		return nil, fmt.Errorf("executing io plan: %w", err)
-	}
-
 	// 如果没有任何Plan，Wait会直接返回成功
-	ret, err := exec.Wait()
+	ret, err := planBlder.Execute().Wait(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("executing io plan: %w", err)
 	}
@@ -645,7 +617,7 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 		return nil, nil
 	}
 
-	for k, v := range ret.ResultValues {
+	for k, v := range ret {
 		idx, err := strconv.ParseInt(k, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("parsing result key %s as index: %w", k, err)

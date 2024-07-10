@@ -92,7 +92,7 @@ func main() {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
 
-	sw := ioswitch.NewSwitch()
+	sw := ioswitch.NewManager()
 
 	dlder := downloader.NewDownloader(config.Cfg().Downloader, &conCol)
 

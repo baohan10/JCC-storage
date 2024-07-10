@@ -10,38 +10,34 @@ import (
 )
 
 type Join struct {
-	InputIDs []ioswitch.StreamID `json:"inputIDs"`
-	OutputID ioswitch.StreamID   `json:"outputID"`
-	Length   int64               `json:"length"`
+	Inputs []*ioswitch.StreamVar `json:"inputs"`
+	Output *ioswitch.StreamVar   `json:"output"`
+	Length int64                 `json:"length"`
 }
 
-func (o *Join) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	strs, err := sw.WaitStreams(planID, o.InputIDs...)
+func (o *Join) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+	err := ioswitch.BindArrayVars(sw, ctx, o.Inputs)
 	if err != nil {
 		return err
 	}
 
 	var strReaders []io.Reader
-	for _, s := range strs {
+	for _, s := range o.Inputs {
 		strReaders = append(strReaders, s.Stream)
 	}
 	defer func() {
-		for _, str := range strs {
+		for _, str := range o.Inputs {
 			str.Stream.Close()
 		}
 	}()
 
 	fut := future.NewSetVoid()
-	sw.StreamReady(planID,
-		ioswitch.NewStream(o.OutputID,
-			io2.AfterReadClosedOnce(io2.Length(io2.Join(strReaders), o.Length), func(closer io.ReadCloser) {
-				fut.SetVoid()
-			}),
-		),
-	)
+	o.Output.Stream = io2.AfterReadClosedOnce(io2.Length(io2.Join(strReaders), o.Length), func(closer io.ReadCloser) {
+		fut.SetVoid()
+	})
+	sw.PutVars(o.Output)
 
-	fut.Wait(context.TODO())
-	return nil
+	return fut.Wait(ctx)
 }
 
 func init() {

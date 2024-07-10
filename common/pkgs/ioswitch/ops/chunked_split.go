@@ -1,47 +1,43 @@
 package ops
 
 import (
+	"context"
 	"io"
-	"sync"
 
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"golang.org/x/sync/semaphore"
 )
 
 type ChunkedSplit struct {
-	InputID      ioswitch.StreamID   `json:"inputID"`
-	OutputIDs    []ioswitch.StreamID `json:"outputIDs"`
-	ChunkSize    int                 `json:"chunkSize"`
-	StreamCount  int                 `json:"streamCount"`
-	PaddingZeros bool                `json:"paddingZeros"`
+	Input        *ioswitch.StreamVar   `json:"input"`
+	Outputs      []*ioswitch.StreamVar `json:"outputs"`
+	ChunkSize    int                   `json:"chunkSize"`
+	PaddingZeros bool                  `json:"paddingZeros"`
 }
 
-func (o *ChunkedSplit) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	str, err := sw.WaitStreams(planID, o.InputID)
+func (o *ChunkedSplit) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+	err := sw.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
-	defer str[0].Stream.Close()
+	defer o.Input.Stream.Close()
 
-	wg := sync.WaitGroup{}
-	outputs := io2.ChunkedSplit(str[0].Stream, o.ChunkSize, o.StreamCount, io2.ChunkedSplitOption{
+	outputs := io2.ChunkedSplit(o.Input.Stream, o.ChunkSize, len(o.Outputs), io2.ChunkedSplitOption{
 		PaddingZeros: o.PaddingZeros,
 	})
 
+	sem := semaphore.NewWeighted(int64(len(outputs)))
 	for i := range outputs {
-		wg.Add(1)
+		sem.Acquire(ctx, 1)
 
-		sw.StreamReady(planID, ioswitch.NewStream(
-			o.OutputIDs[i],
-			io2.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
-				wg.Done()
-			}),
-		))
+		o.Outputs[i].Stream = io2.AfterReadClosedOnce(outputs[i], func(closer io.ReadCloser) {
+			sem.Release(1)
+		})
 	}
+	ioswitch.PutArrayVars(sw, o.Outputs)
 
-	wg.Wait()
-
-	return nil
+	return sem.Acquire(ctx, int64(len(outputs)))
 }
 
 func init() {
