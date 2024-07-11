@@ -9,7 +9,6 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/serder"
-	agentserver "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -21,9 +20,12 @@ func (s *Service) ExecuteIOPlan(ctx context.Context, req *agtrpc.ExecuteIOPlanRe
 	}
 
 	logger.WithField("PlanID", plan.ID).Infof("begin execute io plan")
+	defer logger.WithField("PlanID", plan.ID).Infof("plan finished")
 
 	sw := ioswitch.NewSwitch(plan)
+
 	s.swMgr.Add(sw)
+	defer s.swMgr.Remove(sw)
 
 	err = sw.Run(ctx)
 	if err != nil {
@@ -33,12 +35,12 @@ func (s *Service) ExecuteIOPlan(ctx context.Context, req *agtrpc.ExecuteIOPlanRe
 	return &agtrpc.ExecuteIOPlanResp{}, nil
 }
 
-func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
+func (s *Service) SendStream(server agtrpc.Agent_SendStreamServer) error {
 	msg, err := server.Recv()
 	if err != nil {
 		return fmt.Errorf("recving stream id packet: %w", err)
 	}
-	if msg.Type != agentserver.StreamDataPacketType_SendArgs {
+	if msg.Type != agtrpc.StreamDataPacketType_SendArgs {
 		return fmt.Errorf("first packet must be a SendArgs packet")
 	}
 
@@ -58,8 +60,9 @@ func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
 
 	pr, pw := io.Pipe()
 
+	varID := ioswitch.VarID(msg.VarID)
 	sw.PutVars(&ioswitch.StreamVar{
-		ID:     ioswitch.VarID(msg.VarID),
+		ID:     varID,
 		Stream: pr,
 	})
 
@@ -74,6 +77,7 @@ func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
 			// 关闭文件写入
 			pw.CloseWithError(io.ErrClosedPipe)
 			logger.WithField("ReceiveSize", recvSize).
+				WithField("VarID", varID).
 				Warnf("recv message failed, err: %s", err.Error())
 			return fmt.Errorf("recv message failed, err: %w", err)
 		}
@@ -88,7 +92,7 @@ func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
 
 		recvSize += int64(len(msg.Data))
 
-		if msg.Type == agentserver.StreamDataPacketType_EOF {
+		if msg.Type == agtrpc.StreamDataPacketType_EOF {
 			// 客户端明确说明文件传输已经结束，那么结束写入，获得文件Hash
 			err := pw.Close()
 			if err != nil {
@@ -97,7 +101,7 @@ func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
 			}
 
 			// 并将结果返回到客户端
-			err = server.SendAndClose(&agentserver.SendStreamResp{})
+			err = server.SendAndClose(&agtrpc.SendStreamResp{})
 			if err != nil {
 				logger.Warnf("send response failed, err: %s", err.Error())
 				return fmt.Errorf("send response failed, err: %w", err)
@@ -108,7 +112,7 @@ func (s *Service) SendStream(server agentserver.Agent_SendStreamServer) error {
 	}
 }
 
-func (s *Service) GetStream(req *agentserver.GetStreamReq, server agentserver.Agent_GetStreamServer) error {
+func (s *Service) GetStream(req *agtrpc.GetStreamReq, server agtrpc.Agent_GetStreamServer) error {
 	logger.
 		WithField("PlanID", req.PlanID).
 		WithField("VarID", req.VarID).
@@ -141,8 +145,8 @@ func (s *Service) GetStream(req *agentserver.GetStreamReq, server agentserver.Ag
 
 		if readCnt > 0 {
 			readAllCnt += readCnt
-			err = server.Send(&agentserver.StreamDataPacket{
-				Type: agentserver.StreamDataPacketType_Data,
+			err = server.Send(&agtrpc.StreamDataPacket{
+				Type: agtrpc.StreamDataPacketType_Data,
 				Data: buf[:readCnt],
 			})
 			if err != nil {
@@ -161,8 +165,8 @@ func (s *Service) GetStream(req *agentserver.GetStreamReq, server agentserver.Ag
 				WithField("VarID", req.VarID).
 				Debugf("send data size %d", readAllCnt)
 			// 发送EOF消息
-			server.Send(&agentserver.StreamDataPacket{
-				Type: agentserver.StreamDataPacketType_EOF,
+			server.Send(&agtrpc.StreamDataPacket{
+				Type: agtrpc.StreamDataPacketType_EOF,
 			})
 			return nil
 		}
@@ -197,10 +201,10 @@ func (s *Service) SendVar(ctx context.Context, req *agtrpc.SendVarReq) (*agtrpc.
 }
 
 func (s *Service) GetVar(ctx context.Context, req *agtrpc.GetVarReq) (*agtrpc.GetVarResp, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	ctx2, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	sw := s.swMgr.FindByIDContexted(ctx, ioswitch.PlanID(req.PlanID))
+	sw := s.swMgr.FindByIDContexted(ctx2, ioswitch.PlanID(req.PlanID))
 	if sw == nil {
 		return nil, fmt.Errorf("plan not found")
 	}
@@ -215,7 +219,7 @@ func (s *Service) GetVar(ctx context.Context, req *agtrpc.GetVarReq) (*agtrpc.Ge
 		return nil, fmt.Errorf("binding vars: %w", err)
 	}
 
-	vd, err := serder.ObjectToJSON(v)
+	vd, err := serder.ObjectToJSONEx(v)
 	if err != nil {
 		return nil, fmt.Errorf("serializing var: %w", err)
 	}

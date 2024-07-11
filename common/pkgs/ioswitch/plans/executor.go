@@ -87,6 +87,8 @@ func (e *Executor) execute() {
 	}
 
 	wg.Wait()
+
+	e.callback.SetVoid()
 }
 
 func (e *Executor) stopWith(err error) {

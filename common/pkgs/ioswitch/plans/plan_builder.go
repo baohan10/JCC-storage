@@ -16,10 +16,14 @@ type PlanBuilder struct {
 	storeMap     *sync.Map
 }
 
-func NewPlanBuilder() PlanBuilder {
-	return PlanBuilder{
+func NewPlanBuilder() *PlanBuilder {
+	bld := &PlanBuilder{
 		agentPlans: make(map[cdssdk.NodeID]*AgentPlanBuilder),
+		storeMap:   &sync.Map{},
 	}
+	bld.executorPlan.blder = bld
+
+	return bld
 }
 
 func (b *PlanBuilder) AtExecutor() *ExecutorPlanBuilder {

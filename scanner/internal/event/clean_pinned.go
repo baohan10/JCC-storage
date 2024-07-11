@@ -133,10 +133,10 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 			pinnedAt:        obj.PinnedAt,
 			blocks:          obj.Blocks,
 		})
-		ecObjectsUpdating = append(ecObjectsUpdating, t.makePlansForECObject(allNodeInfos, solu, obj, &planBld, plnningNodeIDs))
+		ecObjectsUpdating = append(ecObjectsUpdating, t.makePlansForECObject(allNodeInfos, solu, obj, planBld, plnningNodeIDs))
 	}
 
-	ioSwRets, err := t.executePlans(execCtx, pinPlans, &planBld, plnningNodeIDs)
+	ioSwRets, err := t.executePlans(execCtx, pinPlans, planBld, plnningNodeIDs)
 	if err != nil {
 		log.Warn(err.Error())
 		return

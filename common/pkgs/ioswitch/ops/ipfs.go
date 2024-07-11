@@ -22,7 +22,6 @@ type IPFSRead struct {
 func (o *IPFSRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	logger.
 		WithField("FileHash", o.FileHash).
-		WithField("Output", o.Output).
 		Debugf("ipfs read op")
 	defer logger.Debugf("ipfs read op finished")
 
@@ -54,8 +53,8 @@ type IPFSWrite struct {
 
 func (o *IPFSWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	logger.
-		WithField("ResultKey", o.FileHash).
-		WithField("Input", o.Input).
+		WithField("Input", o.Input.ID).
+		WithField("FileHashVar", o.FileHash.ID).
 		Debugf("ipfs write op")
 
 	ipfsCli, err := stgglb.IPFSPool.Acquire()

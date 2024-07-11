@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
@@ -30,6 +31,8 @@ func (o *SendStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
 
+	logger.Debugf("sending stream %v to node %v", o.Stream.ID, o.Node)
+
 	err = agtCli.SendStream(ctx, sw.Plan().ID, o.Stream.ID, o.Stream.Stream)
 	if err != nil {
 		return fmt.Errorf("sending stream: %w", err)
@@ -49,6 +52,8 @@ func (o *GetStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		return fmt.Errorf("new agent rpc client: %w", err)
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
+
+	logger.Debugf("getting stream %v from node %v", o.Stream.ID, o.Node)
 
 	str, err := agtCli.GetStream(sw.Plan().ID, o.Stream.ID)
 	if err != nil {
@@ -81,6 +86,8 @@ func (o *SendVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
 
+	logger.Debugf("sending var %v to node %v", o.Var.GetID(), o.Node)
+
 	err = agtCli.SendVar(ctx, sw.Plan().ID, o.Var)
 	if err != nil {
 		return fmt.Errorf("sending var: %w", err)
@@ -100,6 +107,8 @@ func (o *GetVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		return fmt.Errorf("new agent rpc client: %w", err)
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
+
+	logger.Debugf("getting var %v from node %v", o.Var.GetID(), o.Node)
 
 	v2, err := agtCli.GetVar(ctx, sw.Plan().ID, o.Var)
 	if err != nil {

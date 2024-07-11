@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
 )
@@ -30,14 +31,15 @@ func (s *Manager) Add(sw *Switch) {
 	defer s.lock.Unlock()
 
 	s.switchs[sw.Plan().ID] = sw
-	for i := range s.findings {
-		if s.findings[i].PlanID != sw.Plan().ID {
-			continue
+
+	s.findings = lo.Reject(s.findings, func(f *finding, idx int) bool {
+		if f.PlanID != sw.Plan().ID {
+			return false
 		}
 
-		s.findings[i].Callback.SetValue(sw)
-		s.findings = lo2.RemoveAt(s.findings, i)
-	}
+		f.Callback.SetValue(sw)
+		return true
+	})
 }
 
 func (s *Manager) Remove(sw *Switch) {

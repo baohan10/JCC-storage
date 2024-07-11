@@ -102,23 +102,23 @@ func (s *Switch) PutVars(vs ...Var) {
 
 loop:
 	for _, v := range vs {
-		for _, b := range s.bindings {
-			for i, w := range b.Waittings {
+		for ib, b := range s.bindings {
+			for iw, w := range b.Waittings {
 				if w.GetID() != v.GetID() {
 					continue
 				}
 
-				if err := AssignVar(w, v); err != nil {
+				if err := AssignVar(v, w); err != nil {
 					b.Callback.SetError(fmt.Errorf("assign var %v to %v: %w", v.GetID(), w.GetID(), err))
 					// 绑定类型不对，说明生成的执行计划有问题，怎么处理都可以，因为最终会执行失败
 					continue loop
 				}
 
 				b.Bindeds = append(b.Bindeds, w)
-				b.Waittings = lo2.RemoveAt(b.Waittings, i)
+				b.Waittings = lo2.RemoveAt(b.Waittings, iw)
 				if len(b.Waittings) == 0 {
 					b.Callback.SetVoid()
-					s.bindings = lo2.RemoveAt(s.bindings, i)
+					s.bindings = lo2.RemoveAt(s.bindings, ib)
 				}
 
 				// 绑定成功，继续最外层循环

@@ -11,6 +11,8 @@ func AssignVar(from Var, to Var) error {
 	}
 
 	switch from := from.(type) {
+	case *StreamVar:
+		to.(*StreamVar).Stream = from.Stream
 	case *IntVar:
 		to.(*IntVar).Value = from.Value
 	case *StringVar:
