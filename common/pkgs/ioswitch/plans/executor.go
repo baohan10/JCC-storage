@@ -36,6 +36,10 @@ func (e *Executor) BeginRead(target ExecutorReadStream) (io.ReadCloser, error) {
 	return target.stream.Stream, nil
 }
 
+func (e *Executor) Signal(signal ExecutorSignalVar) {
+	e.executorSw.PutVars(signal.v)
+}
+
 func (e *Executor) Wait(ctx context.Context) (map[string]any, error) {
 	err := e.callback.Wait(ctx)
 	if err != nil {
@@ -105,12 +109,6 @@ type ExecutorStreamVar struct {
 	blder *PlanBuilder
 	v     *ioswitch.StreamVar
 }
-
-type ExecutorStringVar struct {
-	blder *PlanBuilder
-	v     *ioswitch.StringVar
-}
-
 type ExecutorWriteStream struct {
 	stream *ioswitch.StreamVar
 }
@@ -118,6 +116,11 @@ type ExecutorWriteStream struct {
 func (b *ExecutorPlanBuilder) WillWrite() (ExecutorWriteStream, *ExecutorStreamVar) {
 	stream := b.blder.newStreamVar()
 	return ExecutorWriteStream{stream}, &ExecutorStreamVar{blder: b.blder, v: stream}
+}
+
+func (b *ExecutorPlanBuilder) WillSignal() *ExecutorSignalVar {
+	s := b.blder.newSignalVar()
+	return &ExecutorSignalVar{blder: b.blder, v: s}
 }
 
 type ExecutorReadStream struct {
@@ -128,6 +131,19 @@ func (v *ExecutorStreamVar) WillRead() ExecutorReadStream {
 	return ExecutorReadStream{v.v}
 }
 
+func (s *ExecutorStreamVar) To(node cdssdk.Node) *AgentStreamVar {
+	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendStream{Stream: s.v, Node: node})
+	return &AgentStreamVar{
+		owner: s.blder.AtAgent(node),
+		v:     s.v,
+	}
+}
+
+type ExecutorStringVar struct {
+	blder *PlanBuilder
+	v     *ioswitch.StringVar
+}
+
 func (s *ExecutorStringVar) Store(key string) {
 	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.Store{
 		Var:   s.v,
@@ -136,9 +152,14 @@ func (s *ExecutorStringVar) Store(key string) {
 	})
 }
 
-func (s *ExecutorStreamVar) To(node cdssdk.Node) *AgentStreamVar {
-	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendStream{Stream: s.v, Node: node})
-	return &AgentStreamVar{
+type ExecutorSignalVar struct {
+	blder *PlanBuilder
+	v     *ioswitch.SignalVar
+}
+
+func (s *ExecutorSignalVar) To(node cdssdk.Node) *AgentSignalVar {
+	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendVar{Var: s.v, Node: node})
+	return &AgentSignalVar{
 		owner: s.blder.AtAgent(node),
 		v:     s.v,
 	}

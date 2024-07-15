@@ -17,6 +17,7 @@ func AssignVar(from Var, to Var) error {
 		to.(*IntVar).Value = from.Value
 	case *StringVar:
 		to.(*StringVar).Value = from.Value
+	case *SignalVar:
 	}
 
 	return nil

@@ -54,6 +54,14 @@ func (v *StringVar) GetID() VarID {
 	return v.ID
 }
 
+type SignalVar struct {
+	ID VarID `json:"id"`
+}
+
+func (v *SignalVar) GetID() VarID {
+	return v.ID
+}
+
 type Op interface {
 	Execute(ctx context.Context, sw *Switch) error
 }

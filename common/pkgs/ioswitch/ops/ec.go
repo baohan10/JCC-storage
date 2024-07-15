@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 
+	"gitlink.org.cn/cloudream/common/pkgs/future"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/io2"
+	"gitlink.org.cn/cloudream/common/utils/sync2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"golang.org/x/sync/semaphore"
@@ -99,7 +101,95 @@ func (o *ECReconstruct) Execute(ctx context.Context, sw *ioswitch.Switch) error 
 	return sem.Acquire(ctx, int64(len(o.Outputs)))
 }
 
+type ECMultiply struct {
+	Inputs    []*ioswitch.StreamVar `json:"inputs"`
+	Coef      [][]byte              `json:"coef"`
+	Outputs   []*ioswitch.StreamVar `json:"outputs"`
+	ChunkSize int64                 `json:"chunkSize"`
+}
+
+func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+	err := ioswitch.BindArrayVars(sw, ctx, o.Inputs)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		for _, s := range o.Inputs {
+			s.Stream.Close()
+		}
+	}()
+
+	outputVars := make([]*ioswitch.StreamVar, len(o.Outputs))
+	outputWrs := make([]*io.PipeWriter, len(o.Outputs))
+
+	for i := range o.Outputs {
+		rd, wr := io.Pipe()
+		outputVars[i] = &ioswitch.StreamVar{
+			Stream: rd,
+		}
+		outputWrs[i] = wr
+	}
+
+	fut := future.NewSetVoid()
+	go func() {
+		mul := ec.GaloisMultiplier().BuildGalois()
+
+		inputChunks := make([][]byte, len(o.Inputs))
+		for i := range o.Inputs {
+			inputChunks[i] = make([]byte, o.ChunkSize)
+		}
+		outputChunks := make([][]byte, len(o.Outputs))
+		for i := range o.Outputs {
+			outputChunks[i] = make([]byte, o.ChunkSize)
+		}
+
+		for {
+			err := sync2.ParallelDo(o.Inputs, func(s *ioswitch.StreamVar, i int) error {
+				_, err := io.ReadFull(s.Stream, inputChunks[i])
+				return err
+			})
+			if err == io.EOF {
+				fut.SetVoid()
+				return
+			}
+			if err != nil {
+				fut.SetError(err)
+				return
+			}
+
+			err = mul.Multiply(o.Coef, inputChunks, outputChunks)
+			if err != nil {
+				fut.SetError(err)
+				return
+			}
+
+			for i := range o.Outputs {
+				err := io2.WriteAll(outputWrs[i], outputChunks[i])
+				if err != nil {
+					fut.SetError(err)
+					return
+				}
+			}
+		}
+	}()
+
+	ioswitch.PutArrayVars(sw, outputVars)
+	err = fut.Wait(ctx)
+	if err != nil {
+		for _, wr := range outputWrs {
+			wr.CloseWithError(err)
+		}
+		return err
+	}
+
+	for _, wr := range outputWrs {
+		wr.Close()
+	}
+	return nil
+}
+
 func init() {
 	OpUnion.AddT((*ECReconstructAny)(nil))
 	OpUnion.AddT((*ECReconstruct)(nil))
+	OpUnion.AddT((*ECMultiply)(nil))
 }

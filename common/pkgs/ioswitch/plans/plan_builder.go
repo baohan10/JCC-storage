@@ -91,3 +91,11 @@ func (b *PlanBuilder) newStringVar() *ioswitch.StringVar {
 
 	return v
 }
+func (b *PlanBuilder) newSignalVar() *ioswitch.SignalVar {
+	v := &ioswitch.SignalVar{
+		ID: ioswitch.VarID(len(b.vars)),
+	}
+	b.vars = append(b.vars, v)
+
+	return v
+}
