@@ -13,16 +13,16 @@ import (
 )
 
 type FileWrite struct {
-	InputID  ioswitch.StreamID `json:"inputID"`
-	FilePath string            `json:"filePath"`
+	Input    *ioswitch.StreamVar `json:"input"`
+	FilePath string              `json:"filePath"`
 }
 
-func (o *FileWrite) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	str, err := sw.WaitStreams(planID, o.InputID)
+func (o *FileWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+	err := sw.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
-	defer str[0].Stream.Close()
+	defer o.Input.Stream.Close()
 
 	dir := path.Dir(o.FilePath)
 	err = os.MkdirAll(dir, 0777)
@@ -36,7 +36,7 @@ func (o *FileWrite) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	}
 	defer file.Close()
 
-	_, err = io.Copy(file, str[0].Stream)
+	_, err = io.Copy(file, o.Input.Stream)
 	if err != nil {
 		return fmt.Errorf("copying data to file: %w", err)
 	}
@@ -45,22 +45,22 @@ func (o *FileWrite) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 }
 
 type FileRead struct {
-	OutputID ioswitch.StreamID `json:"outputID"`
-	FilePath string            `json:"filePath"`
+	Output   *ioswitch.StreamVar `json:"output"`
+	FilePath string              `json:"filePath"`
 }
 
-func (o *FileRead) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
+func (o *FileRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	file, err := os.Open(o.FilePath)
 	if err != nil {
 		return fmt.Errorf("opening file: %w", err)
 	}
 
 	fut := future.NewSetVoid()
-	sw.StreamReady(planID, ioswitch.NewStream(o.OutputID, io2.AfterReadClosed(file, func(closer io.ReadCloser) {
+	o.Output.Stream = io2.AfterReadClosed(file, func(closer io.ReadCloser) {
 		fut.SetVoid()
-	})))
-
-	fut.Wait(context.TODO())
+	})
+	sw.PutVars(o.Output)
+	fut.Wait(ctx)
 
 	return nil
 }

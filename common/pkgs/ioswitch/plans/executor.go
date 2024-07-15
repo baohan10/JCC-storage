@@ -2,190 +2,165 @@ package plans
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
-	"gitlink.org.cn/cloudream/common/utils/io2"
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
-	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
 )
 
-type ExecutorResult struct {
-	ResultValues map[string]any
-}
-
 type Executor struct {
-	plan        ComposedPlan
-	callback    *future.SetValueFuture[ExecutorResult]
-	mqClis      []*agtmq.Client
-	planTaskIDs []string
+	planID     ioswitch.PlanID
+	plan       *PlanBuilder
+	callback   *future.SetVoidFuture
+	ctx        context.Context
+	cancel     context.CancelFunc
+	executorSw *ioswitch.Switch
 }
 
-func Execute(plan ComposedPlan) (*Executor, error) {
-	executor := Executor{
-		plan:     plan,
-		callback: future.NewSetValue[ExecutorResult](),
-	}
-
-	var err error
-	for _, a := range plan.AgentPlans {
-		var cli *agtmq.Client
-		cli, err = stgglb.AgentMQPool.Acquire(a.Node.NodeID)
-		if err != nil {
-			executor.Close()
-			return nil, fmt.Errorf("new mq client for %d: %w", a.Node.NodeID, err)
-		}
-
-		executor.mqClis = append(executor.mqClis, cli)
-	}
-
-	for i, a := range plan.AgentPlans {
-		cli := executor.mqClis[i]
-
-		_, err := cli.SetupIOPlan(agtmq.NewSetupIOPlan(a.Plan))
-		if err != nil {
-			for i -= 1; i >= 0; i-- {
-				executor.mqClis[i].CancelIOPlan(agtmq.NewCancelIOPlan(plan.ID))
-			}
-			executor.Close()
-			return nil, fmt.Errorf("setup plan at %d: %w", a.Node.NodeID, err)
-		}
-	}
-
-	for i, a := range plan.AgentPlans {
-		cli := executor.mqClis[i]
-
-		resp, err := cli.StartIOPlan(agtmq.NewStartIOPlan(a.Plan.ID))
-		if err != nil {
-			executor.cancelAll()
-			executor.Close()
-			return nil, fmt.Errorf("setup plan at %d: %w", a.Node.NodeID, err)
-		}
-
-		executor.planTaskIDs = append(executor.planTaskIDs, resp.TaskID)
-	}
-
-	go executor.pollResult()
-
-	return &executor, nil
+func (e *Executor) BeginWrite(str io.ReadCloser, target ExecutorWriteStream) {
+	target.stream.Stream = str
+	e.executorSw.PutVars(target.stream)
 }
 
-func (e *Executor) SendStream(info *FromExecutorStream, stream io.Reader) error {
-	// TODO 考虑不使用stgglb的Local
-	nodeIP := info.toNode.ExternalIP
-	grpcPort := info.toNode.ExternalGRPCPort
-	if info.toNode.LocationID == stgglb.Local.LocationID {
-		nodeIP = info.toNode.LocalIP
-		grpcPort = info.toNode.LocalGRPCPort
-	}
-
-	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
+func (e *Executor) BeginRead(target ExecutorReadStream) (io.ReadCloser, error) {
+	err := e.executorSw.BindVars(e.ctx, target.stream)
 	if err != nil {
-		return fmt.Errorf("new agent rpc client: %w", err)
+		return nil, fmt.Errorf("bind vars: %w", err)
 	}
-	defer stgglb.AgentRPCPool.Release(agtCli)
 
-	return agtCli.SendStream(e.plan.ID, info.info.ID, stream)
+	return target.stream.Stream, nil
 }
 
-func (e *Executor) ReadStream(info *ToExecutorStream) (io.ReadCloser, error) {
-	// TODO 考虑不使用stgglb的Local
-	nodeIP := info.fromNode.ExternalIP
-	grpcPort := info.fromNode.ExternalGRPCPort
-	if info.fromNode.LocationID == stgglb.Local.LocationID {
-		nodeIP = info.fromNode.LocalIP
-		grpcPort = info.fromNode.LocalGRPCPort
-	}
+func (e *Executor) Signal(signal ExecutorSignalVar) {
+	e.executorSw.PutVars(signal.v)
+}
 
-	agtCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
-	if err != nil {
-		return nil, fmt.Errorf("new agent rpc client: %w", err)
-	}
-
-	str, err := agtCli.FetchStream(e.plan.ID, info.info.ID)
+func (e *Executor) Wait(ctx context.Context) (map[string]any, error) {
+	err := e.callback.Wait(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return io2.AfterReadClosed(str, func(closer io.ReadCloser) {
-		stgglb.AgentRPCPool.Release(agtCli)
-	}), nil
+	ret := make(map[string]any)
+	e.plan.storeMap.Range(func(k, v any) bool {
+		ret[k.(string)] = v
+		return true
+	})
+
+	return ret, nil
 }
 
-func (e *Executor) Wait() (ExecutorResult, error) {
-	return e.callback.WaitValue(context.TODO())
-}
-
-func (e *Executor) cancelAll() {
-	for _, cli := range e.mqClis {
-		cli.CancelIOPlan(agtmq.NewCancelIOPlan(e.plan.ID))
-	}
-}
-
-func (e *Executor) Close() {
-	for _, c := range e.mqClis {
-		stgglb.AgentMQPool.Release(c)
-	}
-}
-
-func (e *Executor) pollResult() {
+func (e *Executor) execute() {
 	wg := sync.WaitGroup{}
-	var anyErr error
-	var done atomic.Bool
-	rets := make([]*ioswitch.PlanResult, len(e.plan.AgentPlans))
 
-	for i, id := range e.planTaskIDs {
-		idx := i
-		taskID := id
-
+	for _, p := range e.plan.agentPlans {
 		wg.Add(1)
-		go func() {
+
+		go func(p *AgentPlanBuilder) {
 			defer wg.Done()
 
-			for {
-				resp, err := e.mqClis[idx].WaitIOPlan(agtmq.NewWaitIOPlan(taskID, 5000))
-				if err != nil {
-					anyErr = err
-					break
-				}
-
-				if resp.IsComplete {
-					if resp.Error != "" {
-						anyErr = errors.New(resp.Error)
-						done.Store(true)
-					} else {
-						rets[idx] = &resp.Result
-					}
-					break
-				}
-
-				if done.Load() {
-					break
-				}
+			plan := ioswitch.Plan{
+				ID:  e.planID,
+				Ops: p.ops,
 			}
-		}()
+
+			cli, err := stgglb.AgentRPCPool.Acquire(stgglb.SelectGRPCAddress(&p.node))
+			if err != nil {
+				e.stopWith(fmt.Errorf("new agent rpc client of node %v: %w", p.node.NodeID, err))
+				return
+			}
+			defer stgglb.AgentRPCPool.Release(cli)
+
+			err = cli.ExecuteIOPlan(e.ctx, plan)
+			if err != nil {
+				e.stopWith(fmt.Errorf("execute plan at %v: %w", p.node.NodeID, err))
+				return
+			}
+		}(p)
+	}
+
+	err := e.executorSw.Run(e.ctx)
+	if err != nil {
+		e.stopWith(fmt.Errorf("run executor switch: %w", err))
+		return
 	}
 
 	wg.Wait()
 
-	if anyErr != nil {
-		e.callback.SetError(anyErr)
-		return
-	}
+	e.callback.SetVoid()
+}
 
-	reducedRet := ExecutorResult{
-		ResultValues: make(map[string]any),
-	}
-	for _, ret := range rets {
-		for k, v := range ret.Values {
-			reducedRet.ResultValues[k] = v
-		}
-	}
+func (e *Executor) stopWith(err error) {
+	e.callback.SetError(err)
+	e.cancel()
+}
 
-	e.callback.SetValue(reducedRet)
+type ExecutorPlanBuilder struct {
+	blder *PlanBuilder
+	ops   []ioswitch.Op
+}
+
+type ExecutorStreamVar struct {
+	blder *PlanBuilder
+	v     *ioswitch.StreamVar
+}
+type ExecutorWriteStream struct {
+	stream *ioswitch.StreamVar
+}
+
+func (b *ExecutorPlanBuilder) WillWrite() (ExecutorWriteStream, *ExecutorStreamVar) {
+	stream := b.blder.newStreamVar()
+	return ExecutorWriteStream{stream}, &ExecutorStreamVar{blder: b.blder, v: stream}
+}
+
+func (b *ExecutorPlanBuilder) WillSignal() *ExecutorSignalVar {
+	s := b.blder.newSignalVar()
+	return &ExecutorSignalVar{blder: b.blder, v: s}
+}
+
+type ExecutorReadStream struct {
+	stream *ioswitch.StreamVar
+}
+
+func (v *ExecutorStreamVar) WillRead() ExecutorReadStream {
+	return ExecutorReadStream{v.v}
+}
+
+func (s *ExecutorStreamVar) To(node cdssdk.Node) *AgentStreamVar {
+	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendStream{Stream: s.v, Node: node})
+	return &AgentStreamVar{
+		owner: s.blder.AtAgent(node),
+		v:     s.v,
+	}
+}
+
+type ExecutorStringVar struct {
+	blder *PlanBuilder
+	v     *ioswitch.StringVar
+}
+
+func (s *ExecutorStringVar) Store(key string) {
+	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.Store{
+		Var:   s.v,
+		Key:   key,
+		Store: s.blder.storeMap,
+	})
+}
+
+type ExecutorSignalVar struct {
+	blder *PlanBuilder
+	v     *ioswitch.SignalVar
+}
+
+func (s *ExecutorSignalVar) To(node cdssdk.Node) *AgentSignalVar {
+	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendVar{Var: s.v, Node: node})
+	return &AgentSignalVar{
+		owner: s.blder.AtAgent(node),
+		v:     s.v,
+	}
 }

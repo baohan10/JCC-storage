@@ -21,21 +21,23 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Agent_SendIPFSFile_FullMethodName = "/Agent/SendIPFSFile"
-	Agent_GetIPFSFile_FullMethodName  = "/Agent/GetIPFSFile"
-	Agent_SendStream_FullMethodName   = "/Agent/SendStream"
-	Agent_FetchStream_FullMethodName  = "/Agent/FetchStream"
-	Agent_Ping_FullMethodName         = "/Agent/Ping"
+	Agent_ExecuteIOPlan_FullMethodName = "/Agent/ExecuteIOPlan"
+	Agent_SendStream_FullMethodName    = "/Agent/SendStream"
+	Agent_GetStream_FullMethodName     = "/Agent/GetStream"
+	Agent_SendVar_FullMethodName       = "/Agent/SendVar"
+	Agent_GetVar_FullMethodName        = "/Agent/GetVar"
+	Agent_Ping_FullMethodName          = "/Agent/Ping"
 )
 
 // AgentClient is the client API for Agent service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AgentClient interface {
-	SendIPFSFile(ctx context.Context, opts ...grpc.CallOption) (Agent_SendIPFSFileClient, error)
-	GetIPFSFile(ctx context.Context, in *GetIPFSFileReq, opts ...grpc.CallOption) (Agent_GetIPFSFileClient, error)
+	ExecuteIOPlan(ctx context.Context, in *ExecuteIOPlanReq, opts ...grpc.CallOption) (*ExecuteIOPlanResp, error)
 	SendStream(ctx context.Context, opts ...grpc.CallOption) (Agent_SendStreamClient, error)
-	FetchStream(ctx context.Context, in *FetchStreamReq, opts ...grpc.CallOption) (Agent_FetchStreamClient, error)
+	GetStream(ctx context.Context, in *GetStreamReq, opts ...grpc.CallOption) (Agent_GetStreamClient, error)
+	SendVar(ctx context.Context, in *SendVarReq, opts ...grpc.CallOption) (*SendVarResp, error)
+	GetVar(ctx context.Context, in *GetVarReq, opts ...grpc.CallOption) (*GetVarResp, error)
 	Ping(ctx context.Context, in *PingReq, opts ...grpc.CallOption) (*PingResp, error)
 }
 
@@ -47,74 +49,17 @@ func NewAgentClient(cc grpc.ClientConnInterface) AgentClient {
 	return &agentClient{cc}
 }
 
-func (c *agentClient) SendIPFSFile(ctx context.Context, opts ...grpc.CallOption) (Agent_SendIPFSFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[0], Agent_SendIPFSFile_FullMethodName, opts...)
+func (c *agentClient) ExecuteIOPlan(ctx context.Context, in *ExecuteIOPlanReq, opts ...grpc.CallOption) (*ExecuteIOPlanResp, error) {
+	out := new(ExecuteIOPlanResp)
+	err := c.cc.Invoke(ctx, Agent_ExecuteIOPlan_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &agentSendIPFSFileClient{stream}
-	return x, nil
-}
-
-type Agent_SendIPFSFileClient interface {
-	Send(*FileDataPacket) error
-	CloseAndRecv() (*SendIPFSFileResp, error)
-	grpc.ClientStream
-}
-
-type agentSendIPFSFileClient struct {
-	grpc.ClientStream
-}
-
-func (x *agentSendIPFSFileClient) Send(m *FileDataPacket) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *agentSendIPFSFileClient) CloseAndRecv() (*SendIPFSFileResp, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(SendIPFSFileResp)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *agentClient) GetIPFSFile(ctx context.Context, in *GetIPFSFileReq, opts ...grpc.CallOption) (Agent_GetIPFSFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[1], Agent_GetIPFSFile_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &agentGetIPFSFileClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Agent_GetIPFSFileClient interface {
-	Recv() (*FileDataPacket, error)
-	grpc.ClientStream
-}
-
-type agentGetIPFSFileClient struct {
-	grpc.ClientStream
-}
-
-func (x *agentGetIPFSFileClient) Recv() (*FileDataPacket, error) {
-	m := new(FileDataPacket)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 func (c *agentClient) SendStream(ctx context.Context, opts ...grpc.CallOption) (Agent_SendStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[2], Agent_SendStream_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[0], Agent_SendStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -147,12 +92,12 @@ func (x *agentSendStreamClient) CloseAndRecv() (*SendStreamResp, error) {
 	return m, nil
 }
 
-func (c *agentClient) FetchStream(ctx context.Context, in *FetchStreamReq, opts ...grpc.CallOption) (Agent_FetchStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[3], Agent_FetchStream_FullMethodName, opts...)
+func (c *agentClient) GetStream(ctx context.Context, in *GetStreamReq, opts ...grpc.CallOption) (Agent_GetStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Agent_ServiceDesc.Streams[1], Agent_GetStream_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &agentFetchStreamClient{stream}
+	x := &agentGetStreamClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -162,21 +107,39 @@ func (c *agentClient) FetchStream(ctx context.Context, in *FetchStreamReq, opts 
 	return x, nil
 }
 
-type Agent_FetchStreamClient interface {
+type Agent_GetStreamClient interface {
 	Recv() (*StreamDataPacket, error)
 	grpc.ClientStream
 }
 
-type agentFetchStreamClient struct {
+type agentGetStreamClient struct {
 	grpc.ClientStream
 }
 
-func (x *agentFetchStreamClient) Recv() (*StreamDataPacket, error) {
+func (x *agentGetStreamClient) Recv() (*StreamDataPacket, error) {
 	m := new(StreamDataPacket)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func (c *agentClient) SendVar(ctx context.Context, in *SendVarReq, opts ...grpc.CallOption) (*SendVarResp, error) {
+	out := new(SendVarResp)
+	err := c.cc.Invoke(ctx, Agent_SendVar_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentClient) GetVar(ctx context.Context, in *GetVarReq, opts ...grpc.CallOption) (*GetVarResp, error) {
+	out := new(GetVarResp)
+	err := c.cc.Invoke(ctx, Agent_GetVar_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *agentClient) Ping(ctx context.Context, in *PingReq, opts ...grpc.CallOption) (*PingResp, error) {
@@ -192,10 +155,11 @@ func (c *agentClient) Ping(ctx context.Context, in *PingReq, opts ...grpc.CallOp
 // All implementations must embed UnimplementedAgentServer
 // for forward compatibility
 type AgentServer interface {
-	SendIPFSFile(Agent_SendIPFSFileServer) error
-	GetIPFSFile(*GetIPFSFileReq, Agent_GetIPFSFileServer) error
+	ExecuteIOPlan(context.Context, *ExecuteIOPlanReq) (*ExecuteIOPlanResp, error)
 	SendStream(Agent_SendStreamServer) error
-	FetchStream(*FetchStreamReq, Agent_FetchStreamServer) error
+	GetStream(*GetStreamReq, Agent_GetStreamServer) error
+	SendVar(context.Context, *SendVarReq) (*SendVarResp, error)
+	GetVar(context.Context, *GetVarReq) (*GetVarResp, error)
 	Ping(context.Context, *PingReq) (*PingResp, error)
 	mustEmbedUnimplementedAgentServer()
 }
@@ -204,17 +168,20 @@ type AgentServer interface {
 type UnimplementedAgentServer struct {
 }
 
-func (UnimplementedAgentServer) SendIPFSFile(Agent_SendIPFSFileServer) error {
-	return status.Errorf(codes.Unimplemented, "method SendIPFSFile not implemented")
-}
-func (UnimplementedAgentServer) GetIPFSFile(*GetIPFSFileReq, Agent_GetIPFSFileServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetIPFSFile not implemented")
+func (UnimplementedAgentServer) ExecuteIOPlan(context.Context, *ExecuteIOPlanReq) (*ExecuteIOPlanResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExecuteIOPlan not implemented")
 }
 func (UnimplementedAgentServer) SendStream(Agent_SendStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendStream not implemented")
 }
-func (UnimplementedAgentServer) FetchStream(*FetchStreamReq, Agent_FetchStreamServer) error {
-	return status.Errorf(codes.Unimplemented, "method FetchStream not implemented")
+func (UnimplementedAgentServer) GetStream(*GetStreamReq, Agent_GetStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetStream not implemented")
+}
+func (UnimplementedAgentServer) SendVar(context.Context, *SendVarReq) (*SendVarResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendVar not implemented")
+}
+func (UnimplementedAgentServer) GetVar(context.Context, *GetVarReq) (*GetVarResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVar not implemented")
 }
 func (UnimplementedAgentServer) Ping(context.Context, *PingReq) (*PingResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
@@ -232,51 +199,22 @@ func RegisterAgentServer(s grpc.ServiceRegistrar, srv AgentServer) {
 	s.RegisterService(&Agent_ServiceDesc, srv)
 }
 
-func _Agent_SendIPFSFile_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(AgentServer).SendIPFSFile(&agentSendIPFSFileServer{stream})
-}
-
-type Agent_SendIPFSFileServer interface {
-	SendAndClose(*SendIPFSFileResp) error
-	Recv() (*FileDataPacket, error)
-	grpc.ServerStream
-}
-
-type agentSendIPFSFileServer struct {
-	grpc.ServerStream
-}
-
-func (x *agentSendIPFSFileServer) SendAndClose(m *SendIPFSFileResp) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *agentSendIPFSFileServer) Recv() (*FileDataPacket, error) {
-	m := new(FileDataPacket)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
+func _Agent_ExecuteIOPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteIOPlanReq)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	return m, nil
-}
-
-func _Agent_GetIPFSFile_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetIPFSFileReq)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+	if interceptor == nil {
+		return srv.(AgentServer).ExecuteIOPlan(ctx, in)
 	}
-	return srv.(AgentServer).GetIPFSFile(m, &agentGetIPFSFileServer{stream})
-}
-
-type Agent_GetIPFSFileServer interface {
-	Send(*FileDataPacket) error
-	grpc.ServerStream
-}
-
-type agentGetIPFSFileServer struct {
-	grpc.ServerStream
-}
-
-func (x *agentGetIPFSFileServer) Send(m *FileDataPacket) error {
-	return x.ServerStream.SendMsg(m)
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Agent_ExecuteIOPlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).ExecuteIOPlan(ctx, req.(*ExecuteIOPlanReq))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Agent_SendStream_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -305,25 +243,61 @@ func (x *agentSendStreamServer) Recv() (*StreamDataPacket, error) {
 	return m, nil
 }
 
-func _Agent_FetchStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(FetchStreamReq)
+func _Agent_GetStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetStreamReq)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(AgentServer).FetchStream(m, &agentFetchStreamServer{stream})
+	return srv.(AgentServer).GetStream(m, &agentGetStreamServer{stream})
 }
 
-type Agent_FetchStreamServer interface {
+type Agent_GetStreamServer interface {
 	Send(*StreamDataPacket) error
 	grpc.ServerStream
 }
 
-type agentFetchStreamServer struct {
+type agentGetStreamServer struct {
 	grpc.ServerStream
 }
 
-func (x *agentFetchStreamServer) Send(m *StreamDataPacket) error {
+func (x *agentGetStreamServer) Send(m *StreamDataPacket) error {
 	return x.ServerStream.SendMsg(m)
+}
+
+func _Agent_SendVar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendVarReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).SendVar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Agent_SendVar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).SendVar(ctx, req.(*SendVarReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Agent_GetVar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVarReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServer).GetVar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Agent_GetVar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServer).GetVar(ctx, req.(*GetVarReq))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Agent_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -352,29 +326,31 @@ var Agent_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AgentServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "ExecuteIOPlan",
+			Handler:    _Agent_ExecuteIOPlan_Handler,
+		},
+		{
+			MethodName: "SendVar",
+			Handler:    _Agent_SendVar_Handler,
+		},
+		{
+			MethodName: "GetVar",
+			Handler:    _Agent_GetVar_Handler,
+		},
+		{
 			MethodName: "Ping",
 			Handler:    _Agent_Ping_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "SendIPFSFile",
-			Handler:       _Agent_SendIPFSFile_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "GetIPFSFile",
-			Handler:       _Agent_GetIPFSFile_Handler,
-			ServerStreams: true,
-		},
-		{
 			StreamName:    "SendStream",
 			Handler:       _Agent_SendStream_Handler,
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "FetchStream",
-			Handler:       _Agent_FetchStream_Handler,
+			StreamName:    "GetStream",
+			Handler:       _Agent_GetStream_Handler,
 			ServerStreams: true,
 		},
 	},

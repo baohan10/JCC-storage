@@ -10,29 +10,25 @@ import (
 )
 
 type Length struct {
-	InputID  ioswitch.StreamID `json:"inputID"`
-	OutputID ioswitch.StreamID `json:"outputID"`
-	Length   int64             `json:"length"`
+	Input  *ioswitch.StreamVar `json:"input"`
+	Output *ioswitch.StreamVar `json:"output"`
+	Length int64               `json:"length"`
 }
 
-func (o *Length) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
-	strs, err := sw.WaitStreams(planID, o.InputID)
+func (o *Length) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+	err := sw.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
-	defer strs[0].Stream.Close()
+	defer o.Input.Stream.Close()
 
 	fut := future.NewSetVoid()
-	sw.StreamReady(planID,
-		ioswitch.NewStream(o.OutputID,
-			io2.AfterReadClosedOnce(io2.Length(strs[0].Stream, o.Length), func(closer io.ReadCloser) {
-				fut.SetVoid()
-			}),
-		),
-	)
+	o.Output.Stream = io2.AfterReadClosedOnce(io2.Length(o.Input.Stream, o.Length), func(closer io.ReadCloser) {
+		fut.SetVoid()
+	})
+	sw.PutVars(o.Output)
 
-	fut.Wait(context.TODO())
-	return nil
+	return fut.Wait(ctx)
 }
 
 func init() {

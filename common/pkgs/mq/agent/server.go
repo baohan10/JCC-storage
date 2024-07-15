@@ -6,8 +6,6 @@ import (
 )
 
 type Service interface {
-	IOService
-
 	ObjectService
 
 	StorageService

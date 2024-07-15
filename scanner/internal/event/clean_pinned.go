@@ -1,6 +1,7 @@
 package event
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -107,6 +108,7 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 
 	planBld := plans.NewPlanBuilder()
 	pinPlans := make(map[cdssdk.NodeID]*[]string)
+	plnningNodeIDs := make(map[cdssdk.NodeID]bool)
 
 	// 对于rep对象，统计出所有对象块分布最多的两个节点，用这两个节点代表所有rep对象块的分布，去进行退火算法
 	var repObjectsUpdating []coormq.UpdatingObjectRedundancy
@@ -131,10 +133,10 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 			pinnedAt:        obj.PinnedAt,
 			blocks:          obj.Blocks,
 		})
-		ecObjectsUpdating = append(ecObjectsUpdating, t.makePlansForECObject(allNodeInfos, solu, obj, &planBld))
+		ecObjectsUpdating = append(ecObjectsUpdating, t.makePlansForECObject(allNodeInfos, solu, obj, planBld, plnningNodeIDs))
 	}
 
-	ioSwRets, err := t.executePlans(execCtx, pinPlans, &planBld)
+	ioSwRets, err := t.executePlans(execCtx, pinPlans, planBld, plnningNodeIDs)
 	if err != nil {
 		log.Warn(err.Error())
 		return
@@ -748,7 +750,7 @@ func (t *CleanPinned) makePlansForRepObject(solu annealingSolution, obj stgmod.O
 	return entry
 }
 
-func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssdk.Node, solu annealingSolution, obj stgmod.ObjectDetail, planBld *plans.PlanBuilder) coormq.UpdatingObjectRedundancy {
+func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssdk.Node, solu annealingSolution, obj stgmod.ObjectDetail, planBld *plans.PlanBuilder, planningNodeIDs map[cdssdk.NodeID]bool) coormq.UpdatingObjectRedundancy {
 	entry := coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: obj.Object.Redundancy,
@@ -784,29 +786,26 @@ func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssd
 		agt := planBld.AtAgent(*allNodeInfos[id])
 
 		strs := agt.IPFSRead(obj.Object.FileHash).ChunkedSplit(ecRed.ChunkSize, ecRed.K, true)
-		ss := agt.ECReconstructAny(*ecRed, lo.Range(ecRed.K), *idxs, strs.Streams...)
-		for i, s := range ss.Streams {
-			s.IPFSWrite(fmt.Sprintf("%d.%d", obj.Object.ObjectID, (*idxs)[i]))
+		ss := agt.ECReconstructAny(*ecRed, lo.Range(ecRed.K), *idxs, strs)
+		for i, s := range ss {
+			s.IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d.%d", obj.Object.ObjectID, (*idxs)[i]))
 		}
+
+		planningNodeIDs[id] = true
 	}
 	return entry
 }
 
-func (t *CleanPinned) executePlans(execCtx ExecuteContext, pinPlans map[cdssdk.NodeID]*[]string, planBld *plans.PlanBuilder) (map[string]any, error) {
+func (t *CleanPinned) executePlans(execCtx ExecuteContext, pinPlans map[cdssdk.NodeID]*[]string, planBld *plans.PlanBuilder, plnningNodeIDs map[cdssdk.NodeID]bool) (map[string]any, error) {
 	log := logger.WithType[CleanPinned]("Event")
-
-	ioPlan, err := planBld.Build()
-	if err != nil {
-		return nil, fmt.Errorf("building io switch plan: %w", err)
-	}
 
 	// 统一加锁，有重复也没关系
 	lockBld := reqbuilder.NewBuilder()
 	for nodeID := range pinPlans {
 		lockBld.IPFS().Buzy(nodeID)
 	}
-	for _, plan := range ioPlan.AgentPlans {
-		lockBld.IPFS().Buzy(plan.Node.NodeID)
+	for id := range plnningNodeIDs {
+		lockBld.IPFS().Buzy(id)
 	}
 	lock, err := lockBld.MutexLock(execCtx.Args.DistLock)
 	if err != nil {
@@ -845,17 +844,12 @@ func (t *CleanPinned) executePlans(execCtx ExecuteContext, pinPlans map[cdssdk.N
 	go func() {
 		defer wg.Done()
 
-		exec, err := plans.Execute(*ioPlan)
+		ret, err := planBld.Execute().Wait(context.TODO())
 		if err != nil {
 			ioSwErr = fmt.Errorf("executing io switch plan: %w", err)
 			return
 		}
-		ret, err := exec.Wait()
-		if err != nil {
-			ioSwErr = fmt.Errorf("waiting io switch plan: %w", err)
-			return
-		}
-		ioSwRets = ret.ResultValues
+		ioSwRets = ret
 	}()
 
 	wg.Wait()

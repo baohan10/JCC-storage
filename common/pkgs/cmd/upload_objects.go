@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -17,6 +18,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -227,32 +229,27 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 	}
 
 	// 否则发送到agent上传
-	// 如果客户端与节点在同一个地域，则使用内网地址连接节点
-	nodeIP := uploadNode.Node.ExternalIP
-	grpcPort := uploadNode.Node.ExternalGRPCPort
-	if uploadNode.IsSameLocation {
-		nodeIP = uploadNode.Node.LocalIP
-		grpcPort = uploadNode.Node.LocalGRPCPort
-
-		logger.Debugf("client and node %d are at the same location, use local ip", uploadNode.Node.NodeID)
-	}
-
-	fileHash, err := uploadToNode(file, nodeIP, grpcPort)
+	fileHash, err := uploadToNode(file, uploadNode.Node)
 	if err != nil {
-		return "", fmt.Errorf("upload to node %s failed, err: %w", nodeIP, err)
+		return "", fmt.Errorf("uploading to node %v: %w", uploadNode.Node.NodeID, err)
 	}
 
 	return fileHash, nil
 }
 
-func uploadToNode(file io.Reader, nodeIP string, grpcPort int) (string, error) {
-	rpcCli, err := stgglb.AgentRPCPool.Acquire(nodeIP, grpcPort)
-	if err != nil {
-		return "", fmt.Errorf("new agent rpc client: %w", err)
-	}
-	defer rpcCli.Close()
+func uploadToNode(file io.Reader, node cdssdk.Node) (string, error) {
+	plan := plans.NewPlanBuilder()
+	str, v := plan.AtExecutor().WillWrite()
+	v.To(node).IPFSWrite().ToExecutor().Store("fileHash")
 
-	return rpcCli.SendIPFSFile(file)
+	exec := plan.Execute()
+	exec.BeginWrite(io.NopCloser(file), str)
+	ret, err := exec.Wait(context.TODO())
+	if err != nil {
+		return "", err
+	}
+
+	return ret["fileHash"].(string), nil
 }
 
 func uploadToLocalIPFS(file io.Reader, nodeID cdssdk.NodeID, shouldPin bool) (string, error) {

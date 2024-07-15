@@ -8,6 +8,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/db"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
+	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 	scmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/config"
 	"gitlink.org.cn/cloudream/storage/scanner/internal/event"
@@ -34,6 +35,8 @@ func main() {
 	}
 
 	stgglb.InitMQPool(&config.Cfg().RabbitMQ)
+
+	stgglb.InitAgentRPCPool(&agtrpc.PoolConfig{})
 
 	distlockSvc, err := distlock.NewService(&config.Cfg().DistLock)
 	if err != nil {

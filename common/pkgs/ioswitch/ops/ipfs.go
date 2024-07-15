@@ -14,15 +14,14 @@ import (
 )
 
 type IPFSRead struct {
-	Output   ioswitch.StreamID `json:"output"`
-	FileHash string            `json:"fileHash"`
-	Option   ipfs.ReadOption   `json:"option"`
+	Output   *ioswitch.StreamVar `json:"output"`
+	FileHash string              `json:"fileHash"`
+	Option   ipfs.ReadOption     `json:"option"`
 }
 
-func (o *IPFSRead) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
+func (o *IPFSRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	logger.
 		WithField("FileHash", o.FileHash).
-		WithField("Output", o.Output).
 		Debugf("ipfs read op")
 	defer logger.Debugf("ipfs read op finished")
 
@@ -36,28 +35,26 @@ func (o *IPFSRead) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	if err != nil {
 		return fmt.Errorf("reading ipfs: %w", err)
 	}
+	defer file.Close()
 
 	fut := future.NewSetVoid()
-	file = io2.AfterReadClosedOnce(file, func(closer io.ReadCloser) {
+	o.Output.Stream = io2.AfterReadClosedOnce(file, func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})
+	sw.PutVars(o.Output)
 
-	sw.StreamReady(planID, ioswitch.NewStream(o.Output, file))
-
-	// TODO context
-	fut.Wait(context.TODO())
-	return nil
+	return fut.Wait(ctx)
 }
 
 type IPFSWrite struct {
-	Input     ioswitch.StreamID `json:"input"`
-	ResultKey string            `json:"resultKey"`
+	Input    *ioswitch.StreamVar `json:"input"`
+	FileHash *ioswitch.StringVar `json:"fileHash"`
 }
 
-func (o *IPFSWrite) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
+func (o *IPFSWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	logger.
-		WithField("ResultKey", o.ResultKey).
-		WithField("Input", o.Input).
+		WithField("Input", o.Input.ID).
+		WithField("FileHashVar", o.FileHash.ID).
 		Debugf("ipfs write op")
 
 	ipfsCli, err := stgglb.IPFSPool.Acquire()
@@ -66,23 +63,18 @@ func (o *IPFSWrite) Execute(sw *ioswitch.Switch, planID ioswitch.PlanID) error {
 	}
 	defer stgglb.IPFSPool.Release(ipfsCli)
 
-	strs, err := sw.WaitStreams(planID, o.Input)
+	err = sw.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
-	defer strs[0].Stream.Close()
+	defer o.Input.Stream.Close()
 
-	fileHash, err := ipfsCli.CreateFile(strs[0].Stream)
+	o.FileHash.Value, err = ipfsCli.CreateFile(o.Input.Stream)
 	if err != nil {
 		return fmt.Errorf("creating ipfs file: %w", err)
 	}
 
-	if o.ResultKey != "" {
-		sw.AddResultValue(planID, ioswitch.ResultKV{
-			Key:   o.ResultKey,
-			Value: fileHash,
-		})
-	}
+	sw.PutVars(o.FileHash)
 
 	return nil
 }

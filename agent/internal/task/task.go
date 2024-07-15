@@ -10,7 +10,7 @@ import (
 
 type TaskContext struct {
 	distlock     *distlock.Service
-	sw           *ioswitch.Switch
+	swMgr        *ioswitch.Manager
 	connectivity *connectivity.Collector
 	downloader   *downloader.Downloader
 }
@@ -27,10 +27,10 @@ type Task = task.Task[TaskContext]
 
 type CompleteOption = task.CompleteOption
 
-func NewManager(distlock *distlock.Service, sw *ioswitch.Switch, connectivity *connectivity.Collector, downloader *downloader.Downloader) Manager {
+func NewManager(distlock *distlock.Service, swMgr *ioswitch.Manager, connectivity *connectivity.Collector, downloader *downloader.Downloader) Manager {
 	return task.NewManager(TaskContext{
 		distlock:     distlock,
-		sw:           sw,
+		swMgr:        swMgr,
 		connectivity: connectivity,
 		downloader:   downloader,
 	})
