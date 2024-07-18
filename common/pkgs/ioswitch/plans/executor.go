@@ -15,19 +15,19 @@ import (
 
 type Executor struct {
 	planID     ioswitch.PlanID
-	plan       *PlanBuilder
+	planBlder  *PlanBuilder
 	callback   *future.SetVoidFuture
 	ctx        context.Context
 	cancel     context.CancelFunc
 	executorSw *ioswitch.Switch
 }
 
-func (e *Executor) BeginWrite(str io.ReadCloser, target ExecutorWriteStream) {
+func (e *Executor) BeginWrite(str io.ReadCloser, target *ExecutorWriteStream) {
 	target.stream.Stream = str
 	e.executorSw.PutVars(target.stream)
 }
 
-func (e *Executor) BeginRead(target ExecutorReadStream) (io.ReadCloser, error) {
+func (e *Executor) BeginRead(target *ExecutorReadStream) (io.ReadCloser, error) {
 	err := e.executorSw.BindVars(e.ctx, target.stream)
 	if err != nil {
 		return nil, fmt.Errorf("bind vars: %w", err)
@@ -36,7 +36,7 @@ func (e *Executor) BeginRead(target ExecutorReadStream) (io.ReadCloser, error) {
 	return target.stream.Stream, nil
 }
 
-func (e *Executor) Signal(signal ExecutorSignalVar) {
+func (e *Executor) Signal(signal *ExecutorSignalVar) {
 	e.executorSw.PutVars(signal.v)
 }
 
@@ -47,7 +47,7 @@ func (e *Executor) Wait(ctx context.Context) (map[string]any, error) {
 	}
 
 	ret := make(map[string]any)
-	e.plan.storeMap.Range(func(k, v any) bool {
+	e.planBlder.storeMap.Range(func(k, v any) bool {
 		ret[k.(string)] = v
 		return true
 	})
@@ -58,7 +58,7 @@ func (e *Executor) Wait(ctx context.Context) (map[string]any, error) {
 func (e *Executor) execute() {
 	wg := sync.WaitGroup{}
 
-	for _, p := range e.plan.agentPlans {
+	for _, p := range e.planBlder.agentPlans {
 		wg.Add(1)
 
 		go func(p *AgentPlanBuilder) {
@@ -113,9 +113,10 @@ type ExecutorWriteStream struct {
 	stream *ioswitch.StreamVar
 }
 
-func (b *ExecutorPlanBuilder) WillWrite() (ExecutorWriteStream, *ExecutorStreamVar) {
+func (b *ExecutorPlanBuilder) WillWrite(str *ExecutorWriteStream) *ExecutorStreamVar {
 	stream := b.blder.newStreamVar()
-	return ExecutorWriteStream{stream}, &ExecutorStreamVar{blder: b.blder, v: stream}
+	str.stream = stream
+	return &ExecutorStreamVar{blder: b.blder, v: stream}
 }
 
 func (b *ExecutorPlanBuilder) WillSignal() *ExecutorSignalVar {
@@ -127,8 +128,8 @@ type ExecutorReadStream struct {
 	stream *ioswitch.StreamVar
 }
 
-func (v *ExecutorStreamVar) WillRead() ExecutorReadStream {
-	return ExecutorReadStream{v.v}
+func (v *ExecutorStreamVar) WillRead(str *ExecutorReadStream) {
+	str.stream = v.v
 }
 
 func (s *ExecutorStreamVar) To(node cdssdk.Node) *AgentStreamVar {

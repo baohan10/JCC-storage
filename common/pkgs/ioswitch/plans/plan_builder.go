@@ -54,7 +54,7 @@ func (b *PlanBuilder) Execute() *Executor {
 
 	exec := Executor{
 		planID:     planID,
-		plan:       b,
+		planBlder:  b,
 		callback:   future.NewSetVoid(),
 		ctx:        ctx,
 		cancel:     cancel,
