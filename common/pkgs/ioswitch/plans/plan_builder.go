@@ -6,41 +6,76 @@ import (
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/common/utils/lo2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 type PlanBuilder struct {
-	vars         []ioswitch.Var
-	agentPlans   map[cdssdk.NodeID]*AgentPlanBuilder
-	executorPlan ExecutorPlanBuilder
-	storeMap     *sync.Map
+	Vars         []ioswitch.Var
+	AgentPlans   map[cdssdk.NodeID]*AgentPlanBuilder
+	ExecutorPlan ExecutorPlanBuilder
 }
 
 func NewPlanBuilder() *PlanBuilder {
 	bld := &PlanBuilder{
-		agentPlans: make(map[cdssdk.NodeID]*AgentPlanBuilder),
-		storeMap:   &sync.Map{},
+		AgentPlans: make(map[cdssdk.NodeID]*AgentPlanBuilder),
+		ExecutorPlan: ExecutorPlanBuilder{
+			StoreMap: &sync.Map{},
+		},
 	}
-	bld.executorPlan.blder = bld
 
 	return bld
 }
 
 func (b *PlanBuilder) AtExecutor() *ExecutorPlanBuilder {
-	return &b.executorPlan
+	return &b.ExecutorPlan
 }
 
 func (b *PlanBuilder) AtAgent(node cdssdk.Node) *AgentPlanBuilder {
-	agtPlan, ok := b.agentPlans[node.NodeID]
+	agtPlan, ok := b.AgentPlans[node.NodeID]
 	if !ok {
 		agtPlan = &AgentPlanBuilder{
-			blder: b,
-			node:  node,
+			Node: node,
 		}
-		b.agentPlans[node.NodeID] = agtPlan
+		b.AgentPlans[node.NodeID] = agtPlan
 	}
 
 	return agtPlan
+}
+
+func (b *PlanBuilder) NewStreamVar() *ioswitch.StreamVar {
+	v := &ioswitch.StreamVar{
+		ID: ioswitch.VarID(len(b.Vars)),
+	}
+	b.Vars = append(b.Vars, v)
+
+	return v
+}
+
+func (b *PlanBuilder) NewIntVar() *ioswitch.IntVar {
+	v := &ioswitch.IntVar{
+		ID: ioswitch.VarID(len(b.Vars)),
+	}
+	b.Vars = append(b.Vars, v)
+
+	return v
+}
+
+func (b *PlanBuilder) NewStringVar() *ioswitch.StringVar {
+	v := &ioswitch.StringVar{
+		ID: ioswitch.VarID(len(b.Vars)),
+	}
+	b.Vars = append(b.Vars, v)
+
+	return v
+}
+func (b *PlanBuilder) NewSignalVar() *ioswitch.SignalVar {
+	v := &ioswitch.SignalVar{
+		ID: ioswitch.VarID(len(b.Vars)),
+	}
+	b.Vars = append(b.Vars, v)
+
+	return v
 }
 
 func (b *PlanBuilder) Execute() *Executor {
@@ -49,12 +84,12 @@ func (b *PlanBuilder) Execute() *Executor {
 
 	execPlan := ioswitch.Plan{
 		ID:  planID,
-		Ops: b.executorPlan.ops,
+		Ops: b.ExecutorPlan.Ops,
 	}
 
 	exec := Executor{
 		planID:     planID,
-		plan:       b,
+		planBlder:  b,
 		callback:   future.NewSetVoid(),
 		ctx:        ctx,
 		cancel:     cancel,
@@ -65,37 +100,28 @@ func (b *PlanBuilder) Execute() *Executor {
 	return &exec
 }
 
-func (b *PlanBuilder) newStreamVar() *ioswitch.StreamVar {
-	v := &ioswitch.StreamVar{
-		ID: ioswitch.VarID(len(b.vars)),
-	}
-	b.vars = append(b.vars, v)
-
-	return v
+type AgentPlanBuilder struct {
+	Node cdssdk.Node
+	Ops  []ioswitch.Op
 }
 
-func (b *PlanBuilder) newIntVar() *ioswitch.IntVar {
-	v := &ioswitch.IntVar{
-		ID: ioswitch.VarID(len(b.vars)),
-	}
-	b.vars = append(b.vars, v)
-
-	return v
+func (b *AgentPlanBuilder) AddOp(op ioswitch.Op) {
+	b.Ops = append(b.Ops, op)
 }
 
-func (b *PlanBuilder) newStringVar() *ioswitch.StringVar {
-	v := &ioswitch.StringVar{
-		ID: ioswitch.VarID(len(b.vars)),
-	}
-	b.vars = append(b.vars, v)
-
-	return v
+func (b *AgentPlanBuilder) RemoveOp(op ioswitch.Op) {
+	b.Ops = lo2.Remove(b.Ops, op)
 }
-func (b *PlanBuilder) newSignalVar() *ioswitch.SignalVar {
-	v := &ioswitch.SignalVar{
-		ID: ioswitch.VarID(len(b.vars)),
-	}
-	b.vars = append(b.vars, v)
 
-	return v
+type ExecutorPlanBuilder struct {
+	Ops      []ioswitch.Op
+	StoreMap *sync.Map
+}
+
+func (b *ExecutorPlanBuilder) AddOp(op ioswitch.Op) {
+	b.Ops = append(b.Ops, op)
+}
+
+func (b *ExecutorPlanBuilder) RemoveOp(op ioswitch.Op) {
+	b.Ops = lo2.Remove(b.Ops, op)
 }

@@ -107,17 +107,24 @@ func (r *IPFSReader) openStream() (io.ReadCloser, error) {
 
 func (r *IPFSReader) fromNode() (io.ReadCloser, error) {
 	planBld := plans.NewPlanBuilder()
-	fileStr := planBld.AtAgent(r.node).IPFSRead(r.fileHash, ipfs.ReadOption{
-		Offset: r.offset,
-		Length: -1,
-	}).ToExecutor().WillRead()
+	toExe, toStr := plans.NewToExecutor(-1)
+	ft := plans.FromTo{
+		Froms: []plans.From{
+			plans.NewFromIPFS(r.node, r.fileHash, -1),
+		},
+		Tos: []plans.To{
+			toExe,
+		},
+	}
+	par := plans.DefaultParser{}
+	par.Parse(ft, planBld)
 
 	exec := planBld.Execute()
 	go func() {
 		exec.Wait(context.Background())
 	}()
 
-	return exec.BeginRead(fileStr)
+	return exec.BeginRead(toStr)
 }
 
 func (r *IPFSReader) fromLocalIPFS() (io.ReadCloser, error) {
