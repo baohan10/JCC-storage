@@ -1,13 +1,17 @@
 package plans
 
-import cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+import (
+	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+)
 
 type From interface {
 	GetDataIndex() int
+	BuildOp() Node
 }
 
 type To interface {
 	GetDataIndex() int
+	BuildOp() Node
 }
 
 type FromTos []FromTo
@@ -18,7 +22,7 @@ type FromTo struct {
 }
 
 type FromExecutor struct {
-	Stream    ExecutorWriteStream
+	Stream    *ExecutorWriteStream
 	DataIndex int
 }
 
@@ -26,13 +30,25 @@ func (f *FromExecutor) GetDataIndex() int {
 	return f.DataIndex
 }
 
+func (f *FromExecutor) BuildOp() Node {
+	op := Node{
+		Env: &ExecutorEnv{},
+		Type: FromExecutorOp{
+			OutputVar: 0,
+			Handle:    f.Stream,
+		},
+	}
+	op.NewOutput(nil)
+	return op
+}
+
 type FromIPFS struct {
-	Node      cdssdk.Node
+	Node      *cdssdk.Node
 	FileHash  string
 	DataIndex int
 }
 
-func NewFromIPFS(node cdssdk.Node, fileHash string, dataIndex int) *FromIPFS {
+func NewFromIPFS(node *cdssdk.Node, fileHash string, dataIndex int) *FromIPFS {
 	return &FromIPFS{
 		Node:      node,
 		FileHash:  fileHash,
@@ -42,6 +58,25 @@ func NewFromIPFS(node cdssdk.Node, fileHash string, dataIndex int) *FromIPFS {
 
 func (f *FromIPFS) GetDataIndex() int {
 	return f.DataIndex
+}
+
+func (f *FromIPFS) BuildOp() Node {
+	op := Node{
+		Pinned: true,
+		Type: &IPFSReadType{
+			OutputVar: 0,
+			FileHash:  f.FileHash,
+		},
+	}
+
+	if f.Node == nil {
+		op.Env = nil
+	} else {
+		op.Env = &AgentEnv{*f.Node}
+	}
+
+	op.NewOutput(nil)
+	return op
 }
 
 type ToExecutor struct {
@@ -59,6 +94,19 @@ func NewToExecutor(dataIndex int) (*ToExecutor, *ExecutorReadStream) {
 
 func (t *ToExecutor) GetDataIndex() int {
 	return t.DataIndex
+}
+
+func (t *ToExecutor) BuildOp() Node {
+	op := Node{
+		Env:    &ExecutorEnv{},
+		Pinned: true,
+		Type: ToExecutorOp{
+			InputVar: 0,
+			Handle:   t.Stream,
+		},
+	}
+	op.NewOutput(nil)
+	return op
 }
 
 type ToIPFS struct {
@@ -79,18 +127,31 @@ func (t *ToIPFS) GetDataIndex() int {
 	return t.DataIndex
 }
 
-type ToStorage struct {
-	Storage   cdssdk.Storage
-	DataIndex int
-}
-
-func NewToStorage(storage cdssdk.Storage, dataIndex int) *ToStorage {
-	return &ToStorage{
-		Storage:   storage,
-		DataIndex: dataIndex,
+func (t *ToIPFS) BuildOp() Node {
+	op := Node{
+		Env:    &AgentEnv{t.Node},
+		Pinned: true,
+		Type: &IPFSWriteType{
+			InputVar:    0,
+			FileHashVar: 0,
+		},
 	}
+	op.NewInput(nil)
+	return op
 }
 
-func (t *ToStorage) GetDataIndex() int {
-	return t.DataIndex
-}
+// type ToStorage struct {
+// 	Storage   cdssdk.Storage
+// 	DataIndex int
+// }
+
+// func NewToStorage(storage cdssdk.Storage, dataIndex int) *ToStorage {
+// 	return &ToStorage{
+// 		Storage:   storage,
+// 		DataIndex: dataIndex,
+// 	}
+// }
+
+// func (t *ToStorage) GetDataIndex() int {
+// 	return t.DataIndex
+// }

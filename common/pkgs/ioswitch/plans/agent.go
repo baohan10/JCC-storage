@@ -1,18 +1,6 @@
 package plans
 
-import (
-	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
-	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
-)
-
-type AgentPlanBuilder struct {
-	blder *PlanBuilder
-	node  cdssdk.Node
-	ops   []ioswitch.Op
-}
-
+/*
 func (b *AgentPlanBuilder) IPFSRead(fileHash string, opts ...ipfs.ReadOption) *AgentStreamVar {
 	opt := ipfs.ReadOption{
 		Offset: 0,
@@ -24,10 +12,10 @@ func (b *AgentPlanBuilder) IPFSRead(fileHash string, opts ...ipfs.ReadOption) *A
 
 	str := &AgentStreamVar{
 		owner: b,
-		v:     b.blder.newStreamVar(),
+		v:     b.blder.NewStreamVar(),
 	}
 
-	b.ops = append(b.ops, &ops.IPFSRead{
+	b.Ops = append(b.Ops, &ops.IPFSRead{
 		Output:   str.v,
 		FileHash: fileHash,
 		Option:   opt,
@@ -38,10 +26,10 @@ func (b *AgentPlanBuilder) IPFSRead(fileHash string, opts ...ipfs.ReadOption) *A
 func (b *AgentPlanBuilder) FileRead(filePath string) *AgentStreamVar {
 	agtStr := &AgentStreamVar{
 		owner: b,
-		v:     b.blder.newStreamVar(),
+		v:     b.blder.NewStreamVar(),
 	}
 
-	b.ops = append(b.ops, &ops.FileRead{
+	b.Ops = append(b.Ops, &ops.FileRead{
 		Output:   agtStr.v,
 		FilePath: filePath,
 	})
@@ -59,7 +47,7 @@ func (b *AgentPlanBuilder) ECReconstructAny(ec cdssdk.ECRedundancy, inBlockIndex
 
 	var outputStrVars []*ioswitch.StreamVar
 	for i := 0; i < len(outBlockIndexes); i++ {
-		v := b.blder.newStreamVar()
+		v := b.blder.NewStreamVar()
 		strs = append(strs, &AgentStreamVar{
 			owner: b,
 			v:     v,
@@ -67,7 +55,7 @@ func (b *AgentPlanBuilder) ECReconstructAny(ec cdssdk.ECRedundancy, inBlockIndex
 		outputStrVars = append(outputStrVars, v)
 	}
 
-	b.ops = append(b.ops, &ops.ECReconstructAny{
+	b.Ops = append(b.Ops, &ops.ECReconstructAny{
 		EC:                 ec,
 		Inputs:             inputStrVars,
 		Outputs:            outputStrVars,
@@ -88,7 +76,7 @@ func (b *AgentPlanBuilder) ECReconstruct(ec cdssdk.ECRedundancy, inBlockIndexes 
 
 	var outputStrVars []*ioswitch.StreamVar
 	for i := 0; i < ec.K; i++ {
-		v := b.blder.newStreamVar()
+		v := b.blder.NewStreamVar()
 		strs = append(strs, &AgentStreamVar{
 			owner: b,
 			v:     v,
@@ -96,7 +84,7 @@ func (b *AgentPlanBuilder) ECReconstruct(ec cdssdk.ECRedundancy, inBlockIndexes 
 		outputStrVars = append(outputStrVars, v)
 	}
 
-	b.ops = append(b.ops, &ops.ECReconstruct{
+	b.Ops = append(b.Ops, &ops.ECReconstruct{
 		EC:                ec,
 		Inputs:            inputStrVars,
 		Outputs:           outputStrVars,
@@ -111,7 +99,7 @@ func (b *AgentPlanBuilder) ECMultiply(coef [][]byte, inputs []*AgentStreamVar, c
 	outs := make([]*AgentStreamVar, len(coef))
 	outVars := make([]*ioswitch.StreamVar, len(coef))
 	for i := 0; i < len(outs); i++ {
-		sv := b.blder.newStreamVar()
+		sv := b.blder.NewStreamVar()
 		outs[i] = &AgentStreamVar{
 			owner: b,
 			v:     sv,
@@ -124,7 +112,7 @@ func (b *AgentPlanBuilder) ECMultiply(coef [][]byte, inputs []*AgentStreamVar, c
 		ins[i] = inputs[i].v
 	}
 
-	b.ops = append(b.ops, &ops.ECMultiply{
+	b.Ops = append(b.Ops, &ops.ECMultiply{
 		Inputs:    ins,
 		Outputs:   outVars,
 		Coef:      coef,
@@ -137,7 +125,7 @@ func (b *AgentPlanBuilder) ECMultiply(coef [][]byte, inputs []*AgentStreamVar, c
 func (b *AgentPlanBuilder) Join(length int64, streams []*AgentStreamVar) *AgentStreamVar {
 	agtStr := &AgentStreamVar{
 		owner: b,
-		v:     b.blder.newStreamVar(),
+		v:     b.blder.NewStreamVar(),
 	}
 
 	var inputStrVars []*ioswitch.StreamVar
@@ -145,7 +133,7 @@ func (b *AgentPlanBuilder) Join(length int64, streams []*AgentStreamVar) *AgentS
 		inputStrVars = append(inputStrVars, str.v)
 	}
 
-	b.ops = append(b.ops, &ops.Join{
+	b.Ops = append(b.Ops, &ops.Join{
 		Inputs: inputStrVars,
 		Output: agtStr.v,
 		Length: length,
@@ -157,7 +145,7 @@ func (b *AgentPlanBuilder) Join(length int64, streams []*AgentStreamVar) *AgentS
 func (b *AgentPlanBuilder) ChunkedJoin(chunkSize int, streams []*AgentStreamVar) *AgentStreamVar {
 	agtStr := &AgentStreamVar{
 		owner: b,
-		v:     b.blder.newStreamVar(),
+		v:     b.blder.NewStreamVar(),
 	}
 
 	var inputStrVars []*ioswitch.StreamVar
@@ -165,7 +153,7 @@ func (b *AgentPlanBuilder) ChunkedJoin(chunkSize int, streams []*AgentStreamVar)
 		inputStrVars = append(inputStrVars, str.v)
 	}
 
-	b.ops = append(b.ops, &ops.ChunkedJoin{
+	b.Ops = append(b.Ops, &ops.ChunkedJoin{
 		Inputs:    inputStrVars,
 		Output:    agtStr.v,
 		ChunkSize: chunkSize,
@@ -175,7 +163,7 @@ func (b *AgentPlanBuilder) ChunkedJoin(chunkSize int, streams []*AgentStreamVar)
 }
 
 func (b *AgentPlanBuilder) NewString(str string) *AgentStringVar {
-	v := b.blder.newStringVar()
+	v := b.blder.NewStringVar()
 	v.Value = str
 
 	return &AgentStringVar{
@@ -185,7 +173,7 @@ func (b *AgentPlanBuilder) NewString(str string) *AgentStringVar {
 }
 
 func (b *AgentPlanBuilder) NewSignal() *AgentSignalVar {
-	v := b.blder.newSignalVar()
+	v := b.blder.NewSignalVar()
 
 	return &AgentSignalVar{
 		owner: b,
@@ -200,9 +188,9 @@ type AgentStreamVar struct {
 }
 
 func (s *AgentStreamVar) IPFSWrite() *AgentStringVar {
-	v := s.owner.blder.newStringVar()
+	v := s.owner.blder.NewStringVar()
 
-	s.owner.ops = append(s.owner.ops, &ops.IPFSWrite{
+	s.owner.Ops = append(s.owner.Ops, &ops.IPFSWrite{
 		Input:    s.v,
 		FileHash: v,
 	})
@@ -214,7 +202,7 @@ func (s *AgentStreamVar) IPFSWrite() *AgentStringVar {
 }
 
 func (b *AgentStreamVar) FileWrite(filePath string) {
-	b.owner.ops = append(b.owner.ops, &ops.FileWrite{
+	b.owner.Ops = append(b.owner.Ops, &ops.FileWrite{
 		Input:    b.v,
 		FilePath: filePath,
 	})
@@ -225,7 +213,7 @@ func (b *AgentStreamVar) ChunkedSplit(chunkSize int, streamCount int, paddingZer
 
 	var outputStrVars []*ioswitch.StreamVar
 	for i := 0; i < streamCount; i++ {
-		v := b.owner.blder.newStreamVar()
+		v := b.owner.blder.NewStreamVar()
 		strs = append(strs, &AgentStreamVar{
 			owner: b.owner,
 			v:     v,
@@ -233,7 +221,7 @@ func (b *AgentStreamVar) ChunkedSplit(chunkSize int, streamCount int, paddingZer
 		outputStrVars = append(outputStrVars, v)
 	}
 
-	b.owner.ops = append(b.owner.ops, &ops.ChunkedSplit{
+	b.owner.Ops = append(b.owner.Ops, &ops.ChunkedSplit{
 		Input:        b.v,
 		Outputs:      outputStrVars,
 		ChunkSize:    chunkSize,
@@ -246,10 +234,10 @@ func (b *AgentStreamVar) ChunkedSplit(chunkSize int, streamCount int, paddingZer
 func (s *AgentStreamVar) Length(length int64) *AgentStreamVar {
 	agtStr := &AgentStreamVar{
 		owner: s.owner,
-		v:     s.owner.blder.newStreamVar(),
+		v:     s.owner.blder.NewStreamVar(),
 	}
 
-	s.owner.ops = append(s.owner.ops, &ops.Length{
+	s.owner.Ops = append(s.owner.Ops, &ops.Length{
 		Input:  s.v,
 		Output: agtStr.v,
 		Length: length,
@@ -259,7 +247,7 @@ func (s *AgentStreamVar) Length(length int64) *AgentStreamVar {
 }
 
 func (s *AgentStreamVar) To(node cdssdk.Node) *AgentStreamVar {
-	s.owner.ops = append(s.owner.ops, &ops.SendStream{Stream: s.v, Node: node})
+	s.owner.Ops = append(s.owner.Ops, &ops.SendStream{Stream: s.v, Node: node})
 	s.owner = s.owner.blder.AtAgent(node)
 
 	return s
@@ -268,7 +256,7 @@ func (s *AgentStreamVar) To(node cdssdk.Node) *AgentStreamVar {
 func (s *AgentStreamVar) ToExecutor() *ExecutorStreamVar {
 	s.owner.blder.executorPlan.ops = append(s.owner.blder.executorPlan.ops, &ops.GetStream{
 		Stream: s.v,
-		Node:   s.owner.node,
+		Node:   s.owner.Node,
 	})
 
 	return &ExecutorStreamVar{
@@ -282,7 +270,7 @@ func (s *AgentStreamVar) Clone(cnt int) []*AgentStreamVar {
 
 	var outputStrVars []*ioswitch.StreamVar
 	for i := 0; i < cnt; i++ {
-		v := s.owner.blder.newStreamVar()
+		v := s.owner.blder.NewStreamVar()
 		strs = append(strs, &AgentStreamVar{
 			owner: s.owner,
 			v:     v,
@@ -290,7 +278,7 @@ func (s *AgentStreamVar) Clone(cnt int) []*AgentStreamVar {
 		outputStrVars = append(outputStrVars, v)
 	}
 
-	s.owner.ops = append(s.owner.ops, &ops.CloneStream{
+	s.owner.Ops = append(s.owner.Ops, &ops.CloneStream{
 		Input:   s.v,
 		Outputs: outputStrVars,
 	})
@@ -300,10 +288,10 @@ func (s *AgentStreamVar) Clone(cnt int) []*AgentStreamVar {
 
 // 当流产生时发送一个信号
 func (v *AgentStreamVar) OnBegin() (*AgentStreamVar, *AgentSignalVar) {
-	ns := v.owner.blder.newStreamVar()
-	s := v.owner.blder.newSignalVar()
+	ns := v.owner.blder.NewStreamVar()
+	s := v.owner.blder.NewSignalVar()
 
-	v.owner.ops = append(v.owner.ops, &ops.OnStreamBegin{
+	v.owner.Ops = append(v.owner.Ops, &ops.OnStreamBegin{
 		Raw:    v.v,
 		New:    ns,
 		Signal: s,
@@ -313,10 +301,10 @@ func (v *AgentStreamVar) OnBegin() (*AgentStreamVar, *AgentSignalVar) {
 
 // 当流结束时发送一个信号
 func (v *AgentStreamVar) OnEnd() (*AgentStreamVar, *AgentSignalVar) {
-	ns := v.owner.blder.newStreamVar()
-	s := v.owner.blder.newSignalVar()
+	ns := v.owner.blder.NewStreamVar()
+	s := v.owner.blder.NewSignalVar()
 
-	v.owner.ops = append(v.owner.ops, &ops.OnStreamEnd{
+	v.owner.Ops = append(v.owner.Ops, &ops.OnStreamEnd{
 		Raw:    v.v,
 		New:    ns,
 		Signal: s,
@@ -326,8 +314,8 @@ func (v *AgentStreamVar) OnEnd() (*AgentStreamVar, *AgentSignalVar) {
 
 // 将此流暂存，直到一个信号产生后才释放（一个新流）
 func (v *AgentStreamVar) HoldUntil(wait *AgentSignalVar) *AgentStreamVar {
-	nv := v.owner.blder.newStreamVar()
-	v.owner.ops = append(v.owner.ops, &ops.HoldUntil{
+	nv := v.owner.blder.NewStreamVar()
+	v.owner.Ops = append(v.owner.Ops, &ops.HoldUntil{
 		Waits: []*ioswitch.SignalVar{wait.v},
 		Holds: []ioswitch.Var{v.v},
 		Emits: []ioswitch.Var{nv},
@@ -342,7 +330,7 @@ type AgentStringVar struct {
 }
 
 func (v *AgentStringVar) To(node cdssdk.Node) *AgentStringVar {
-	v.owner.ops = append(v.owner.ops, &ops.SendVar{Var: v.v, Node: node})
+	v.owner.Ops = append(v.owner.Ops, &ops.SendVar{Var: v.v, Node: node})
 	v.owner = v.owner.blder.AtAgent(node)
 
 	return v
@@ -351,7 +339,7 @@ func (v *AgentStringVar) To(node cdssdk.Node) *AgentStringVar {
 func (v *AgentStringVar) ToExecutor() *ExecutorStringVar {
 	v.owner.blder.executorPlan.ops = append(v.owner.blder.executorPlan.ops, &ops.GetVar{
 		Var:  v.v,
-		Node: v.owner.node,
+		Node: v.owner.Node,
 	})
 
 	return &ExecutorStringVar{
@@ -361,10 +349,10 @@ func (v *AgentStringVar) ToExecutor() *ExecutorStringVar {
 }
 
 func (v *AgentStringVar) Clone() (*AgentStringVar, *AgentStringVar) {
-	c1 := v.owner.blder.newStringVar()
-	c2 := v.owner.blder.newStringVar()
+	c1 := v.owner.blder.NewStringVar()
+	c2 := v.owner.blder.NewStringVar()
 
-	v.owner.ops = append(v.owner.ops, &ops.CloneVar{
+	v.owner.Ops = append(v.owner.Ops, &ops.CloneVar{
 		Raw:     v.v,
 		Cloneds: []ioswitch.Var{c1, c2},
 	})
@@ -377,7 +365,7 @@ func (v *AgentStringVar) CloneN(cnt int) []*AgentStringVar {
 	var strs []*AgentStringVar
 	var cloned []ioswitch.Var
 	for i := 0; i < cnt+1; i++ {
-		c := v.owner.blder.newStringVar()
+		c := v.owner.blder.NewStringVar()
 		strs = append(strs, &AgentStringVar{
 			owner: v.owner,
 			v:     c,
@@ -385,7 +373,7 @@ func (v *AgentStringVar) CloneN(cnt int) []*AgentStringVar {
 		cloned = append(cloned, c)
 	}
 
-	v.owner.ops = append(v.owner.ops, &ops.CloneVar{
+	v.owner.Ops = append(v.owner.Ops, &ops.CloneVar{
 		Raw:     v.v,
 		Cloneds: cloned,
 	})
@@ -395,8 +383,8 @@ func (v *AgentStringVar) CloneN(cnt int) []*AgentStringVar {
 
 // 将此变量暂存，直到一个信号产生后才释放（一个新变量）
 func (v *AgentStringVar) HoldUntil(wait *AgentSignalVar) *AgentStringVar {
-	nv := v.owner.blder.newStringVar()
-	v.owner.ops = append(v.owner.ops, &ops.HoldUntil{
+	nv := v.owner.blder.NewStringVar()
+	v.owner.Ops = append(v.owner.Ops, &ops.HoldUntil{
 		Waits: []*ioswitch.SignalVar{wait.v},
 		Holds: []ioswitch.Var{v.v},
 		Emits: []ioswitch.Var{nv},
@@ -416,7 +404,7 @@ type AgentSignalVar struct {
 }
 
 func (v *AgentSignalVar) To(node cdssdk.Node) *AgentSignalVar {
-	v.owner.ops = append(v.owner.ops, &ops.SendVar{Var: v.v, Node: node})
+	v.owner.Ops = append(v.owner.Ops, &ops.SendVar{Var: v.v, Node: node})
 	v.owner = v.owner.blder.AtAgent(node)
 
 	return v
@@ -425,7 +413,7 @@ func (v *AgentSignalVar) To(node cdssdk.Node) *AgentSignalVar {
 func (v *AgentSignalVar) ToExecutor() *ExecutorSignalVar {
 	v.owner.blder.executorPlan.ops = append(v.owner.blder.executorPlan.ops, &ops.GetVar{
 		Var:  v.v,
-		Node: v.owner.node,
+		Node: v.owner.Node,
 	})
 
 	return &ExecutorSignalVar{
@@ -440,7 +428,7 @@ func (v *AgentSignalVar) Broadcast(cnt int) []*AgentSignalVar {
 	var targets []*ioswitch.SignalVar
 
 	for i := 0; i < cnt; i++ {
-		c := v.owner.blder.newSignalVar()
+		c := v.owner.blder.NewSignalVar()
 		ss = append(ss, &AgentSignalVar{
 			owner: v.owner,
 			v:     c,
@@ -448,10 +436,11 @@ func (v *AgentSignalVar) Broadcast(cnt int) []*AgentSignalVar {
 		targets = append(targets, c)
 	}
 
-	v.owner.ops = append(v.owner.ops, &ops.Broadcast{
+	v.owner.Ops = append(v.owner.Ops, &ops.Broadcast{
 		Source:  v.v,
 		Targets: targets,
 	})
 
 	return ss
 }
+*/

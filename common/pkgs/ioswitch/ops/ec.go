@@ -102,8 +102,8 @@ func (o *ECReconstruct) Execute(ctx context.Context, sw *ioswitch.Switch) error 
 }
 
 type ECMultiply struct {
-	Inputs    []*ioswitch.StreamVar `json:"inputs"`
 	Coef      [][]byte              `json:"coef"`
+	Inputs    []*ioswitch.StreamVar `json:"inputs"`
 	Outputs   []*ioswitch.StreamVar `json:"outputs"`
 	ChunkSize int64                 `json:"chunkSize"`
 }

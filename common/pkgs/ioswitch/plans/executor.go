@@ -7,10 +7,8 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
-	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
 )
 
 type Executor struct {
@@ -47,7 +45,7 @@ func (e *Executor) Wait(ctx context.Context) (map[string]any, error) {
 	}
 
 	ret := make(map[string]any)
-	e.planBlder.storeMap.Range(func(k, v any) bool {
+	e.planBlder.StoreMap.Range(func(k, v any) bool {
 		ret[k.(string)] = v
 		return true
 	})
@@ -58,7 +56,7 @@ func (e *Executor) Wait(ctx context.Context) (map[string]any, error) {
 func (e *Executor) execute() {
 	wg := sync.WaitGroup{}
 
-	for _, p := range e.planBlder.agentPlans {
+	for _, p := range e.planBlder.AgentPlans {
 		wg.Add(1)
 
 		go func(p *AgentPlanBuilder) {
@@ -66,19 +64,19 @@ func (e *Executor) execute() {
 
 			plan := ioswitch.Plan{
 				ID:  e.planID,
-				Ops: p.ops,
+				Ops: p.Ops,
 			}
 
-			cli, err := stgglb.AgentRPCPool.Acquire(stgglb.SelectGRPCAddress(&p.node))
+			cli, err := stgglb.AgentRPCPool.Acquire(stgglb.SelectGRPCAddress(&p.Node))
 			if err != nil {
-				e.stopWith(fmt.Errorf("new agent rpc client of node %v: %w", p.node.NodeID, err))
+				e.stopWith(fmt.Errorf("new agent rpc client of node %v: %w", p.Node.NodeID, err))
 				return
 			}
 			defer stgglb.AgentRPCPool.Release(cli)
 
 			err = cli.ExecuteIOPlan(e.ctx, plan)
 			if err != nil {
-				e.stopWith(fmt.Errorf("execute plan at %v: %w", p.node.NodeID, err))
+				e.stopWith(fmt.Errorf("execute plan at %v: %w", p.Node.NodeID, err))
 				return
 			}
 		}(p)
@@ -100,40 +98,35 @@ func (e *Executor) stopWith(err error) {
 	e.cancel()
 }
 
-type ExecutorPlanBuilder struct {
-	blder *PlanBuilder
-	ops   []ioswitch.Op
-}
-
-type ExecutorStreamVar struct {
-	blder *PlanBuilder
-	v     *ioswitch.StreamVar
-}
+//	type ExecutorStreamVar struct {
+//		blder *PlanBuilder
+//		v     *ioswitch.StreamVar
+//	}
 type ExecutorWriteStream struct {
 	stream *ioswitch.StreamVar
 }
 
-func (b *ExecutorPlanBuilder) WillWrite(str *ExecutorWriteStream) *ExecutorStreamVar {
-	stream := b.blder.newStreamVar()
-	str.stream = stream
-	return &ExecutorStreamVar{blder: b.blder, v: stream}
-}
+// func (b *ExecutorPlanBuilder) WillWrite(str *ExecutorWriteStream) *ExecutorStreamVar {
+// 	stream := b.blder.NewStreamVar()
+// 	str.stream = stream
+// 	return &ExecutorStreamVar{blder: b.blder, v: stream}
+// }
 
-func (b *ExecutorPlanBuilder) WillSignal() *ExecutorSignalVar {
-	s := b.blder.newSignalVar()
-	return &ExecutorSignalVar{blder: b.blder, v: s}
-}
+// func (b *ExecutorPlanBuilder) WillSignal() *ExecutorSignalVar {
+// 	s := b.blder.NewSignalVar()
+// 	return &ExecutorSignalVar{blder: b.blder, v: s}
+// }
 
 type ExecutorReadStream struct {
 	stream *ioswitch.StreamVar
 }
 
-func (v *ExecutorStreamVar) WillRead(str *ExecutorReadStream) {
-	str.stream = v.v
-}
-
+// func (v *ExecutorStreamVar) WillRead(str *ExecutorReadStream) {
+// 	str.stream = v.v
+// }
+/*
 func (s *ExecutorStreamVar) To(node cdssdk.Node) *AgentStreamVar {
-	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendStream{Stream: s.v, Node: node})
+	s.blder.ExecutorPlan.ops = append(s.blder.ExecutorPlan.ops, &ops.SendStream{Stream: s.v, Node: node})
 	return &AgentStreamVar{
 		owner: s.blder.AtAgent(node),
 		v:     s.v,
@@ -146,10 +139,10 @@ type ExecutorStringVar struct {
 }
 
 func (s *ExecutorStringVar) Store(key string) {
-	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.Store{
+	s.blder.ExecutorPlan.ops = append(s.blder.ExecutorPlan.ops, &ops.Store{
 		Var:   s.v,
 		Key:   key,
-		Store: s.blder.storeMap,
+		Store: s.blder.StoreMap,
 	})
 }
 
@@ -159,9 +152,10 @@ type ExecutorSignalVar struct {
 }
 
 func (s *ExecutorSignalVar) To(node cdssdk.Node) *AgentSignalVar {
-	s.blder.executorPlan.ops = append(s.blder.executorPlan.ops, &ops.SendVar{Var: s.v, Node: node})
+	s.blder.ExecutorPlan.ops = append(s.blder.ExecutorPlan.ops, &ops.SendVar{Var: s.v, Node: node})
 	return &AgentSignalVar{
 		owner: s.blder.AtAgent(node),
 		v:     s.v,
 	}
 }
+*/
