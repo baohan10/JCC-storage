@@ -2,27 +2,43 @@ package plans
 
 import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 )
 
-type From interface {
-	GetDataIndex() int
-	BuildOp() Node
+type FromTo struct {
+	Object stgmod.ObjectDetail
+	Froms  []From
+	Tos    []To
 }
 
-type To interface {
-	GetDataIndex() int
-	BuildOp() Node
+func (ft *FromTo) AddFrom(from From) *FromTo {
+	ft.Froms = append(ft.Froms, from)
+	return ft
+}
+
+func (ft *FromTo) AddTo(to To) *FromTo {
+	ft.Tos = append(ft.Tos, to)
+	return ft
 }
 
 type FromTos []FromTo
 
-type FromTo struct {
-	Froms []From
-	Tos   []To
+type From interface {
+	GetDataIndex() int
+}
+
+type To interface {
+	GetRange() Range
+	GetDataIndex() int
+}
+
+type Range struct {
+	Offset int64
+	Length int64
 }
 
 type FromExecutor struct {
-	Stream    *ExecutorWriteStream
+	Handle    *ExecutorWriteStream
 	DataIndex int
 }
 
@@ -30,64 +46,43 @@ func (f *FromExecutor) GetDataIndex() int {
 	return f.DataIndex
 }
 
-func (f *FromExecutor) BuildOp() Node {
+func (f *FromExecutor) BuildNode(ft *FromTo) Node {
 	op := Node{
 		Env: &ExecutorEnv{},
-		Type: FromExecutorOp{
-			OutputVar: 0,
-			Handle:    f.Stream,
+		Type: &FromExecutorOp{
+			Handle: f.Handle,
 		},
 	}
-	op.NewOutput(nil)
+	op.NewOutput(f.DataIndex)
 	return op
 }
 
-type FromIPFS struct {
+type FromNode struct {
 	Node      *cdssdk.Node
-	FileHash  string
 	DataIndex int
 }
 
-func NewFromIPFS(node *cdssdk.Node, fileHash string, dataIndex int) *FromIPFS {
-	return &FromIPFS{
+func NewFromNode(node *cdssdk.Node, dataIndex int) *FromNode {
+	return &FromNode{
 		Node:      node,
-		FileHash:  fileHash,
 		DataIndex: dataIndex,
 	}
 }
 
-func (f *FromIPFS) GetDataIndex() int {
+func (f *FromNode) GetDataIndex() int {
 	return f.DataIndex
 }
 
-func (f *FromIPFS) BuildOp() Node {
-	op := Node{
-		Pinned: true,
-		Type: &IPFSReadType{
-			OutputVar: 0,
-			FileHash:  f.FileHash,
-		},
-	}
-
-	if f.Node == nil {
-		op.Env = nil
-	} else {
-		op.Env = &AgentEnv{*f.Node}
-	}
-
-	op.NewOutput(nil)
-	return op
-}
-
 type ToExecutor struct {
-	Stream    *ExecutorReadStream
+	Handle    *ExecutorReadStream
 	DataIndex int
+	Range     Range
 }
 
 func NewToExecutor(dataIndex int) (*ToExecutor, *ExecutorReadStream) {
 	str := ExecutorReadStream{}
 	return &ToExecutor{
-		Stream:    &str,
+		Handle:    &str,
 		DataIndex: dataIndex,
 	}, &str
 }
@@ -96,48 +91,31 @@ func (t *ToExecutor) GetDataIndex() int {
 	return t.DataIndex
 }
 
-func (t *ToExecutor) BuildOp() Node {
-	op := Node{
-		Env:    &ExecutorEnv{},
-		Pinned: true,
-		Type: ToExecutorOp{
-			InputVar: 0,
-			Handle:   t.Stream,
-		},
-	}
-	op.NewOutput(nil)
-	return op
+func (t *ToExecutor) GetRange() Range {
+	return t.Range
 }
 
-type ToIPFS struct {
-	Node        cdssdk.Node
-	DataIndex   int
-	FileHashKey string
+type ToAgent struct {
+	Node             cdssdk.Node
+	DataIndex        int
+	Range            Range
+	FileHashStoreKey string
 }
 
-func NewToIPFS(node cdssdk.Node, dataIndex int, fileHashKey string) *ToIPFS {
-	return &ToIPFS{
-		Node:        node,
-		DataIndex:   dataIndex,
-		FileHashKey: fileHashKey,
+func NewToAgent(node cdssdk.Node, dataIndex int, fileHashStoreKey string) *ToAgent {
+	return &ToAgent{
+		Node:             node,
+		DataIndex:        dataIndex,
+		FileHashStoreKey: fileHashStoreKey,
 	}
 }
 
-func (t *ToIPFS) GetDataIndex() int {
+func (t *ToAgent) GetDataIndex() int {
 	return t.DataIndex
 }
 
-func (t *ToIPFS) BuildOp() Node {
-	op := Node{
-		Env:    &AgentEnv{t.Node},
-		Pinned: true,
-		Type: &IPFSWriteType{
-			InputVar:    0,
-			FileHashVar: 0,
-		},
-	}
-	op.NewInput(nil)
-	return op
+func (t *ToAgent) GetRange() Range {
+	return t.Range
 }
 
 // type ToStorage struct {

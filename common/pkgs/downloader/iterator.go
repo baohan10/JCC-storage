@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -21,6 +22,7 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -170,27 +172,45 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(obj downloadReqeust2
 		return nil, err
 	}
 
+	var strHandle *plans.ExecutorReadStream
+	ft := plans.FromTo{
+		Object: *obj.Detail,
+	}
+
 	bsc, blocks := iter.getMinReadingBlockSolution(allNodes, 1)
 	osc, node := iter.getMinReadingObjectSolution(allNodes, 1)
 	if bsc < osc {
 		logger.Debugf("downloading object from node %v(%v)", blocks[0].Node.Name, blocks[0].Node.NodeID)
 
-		return NewIPFSReaderWithRange(blocks[0].Node, blocks[0].Block.FileHash, ipfs.ReadOption{
-			Offset: obj.Raw.Offset,
-			Length: obj.Raw.Length,
-		}), nil
-	}
+		toExec, handle := plans.NewToExecutor(-1)
+		ft.AddFrom(plans.NewFromNode(&blocks[0].Node, -1)).AddTo(toExec)
+		strHandle = handle
 
-	// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
-	if osc == math.MaxFloat64 {
+		// TODO2 处理Offset和Length
+	} else if osc == math.MaxFloat64 {
+		// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
 		return nil, fmt.Errorf("no node has this object")
+	} else {
+		logger.Debugf("downloading object from node %v(%v)", node.Name, node.NodeID)
+
+		toExec, handle := plans.NewToExecutor(-1)
+		ft.AddFrom(plans.NewFromNode(node, -1)).AddTo(toExec)
+		strHandle = handle
+		// TODO2 处理Offset和Length
 	}
 
-	logger.Debugf("downloading object from node %v(%v)", node.Name, node.NodeID)
-	return NewIPFSReaderWithRange(*node, obj.Detail.Object.FileHash, ipfs.ReadOption{
-		Offset: obj.Raw.Offset,
-		Length: obj.Raw.Length,
-	}), nil
+	parser := plans.DefaultParser{
+		EC: cdssdk.DefaultECRedundancy,
+	}
+	plans := plans.NewPlanBuilder()
+	if err := parser.Parse(ft, plans); err != nil {
+		return nil, fmt.Errorf("parsing plan: %w", err)
+	}
+
+	exec := plans.Execute()
+	go exec.Wait(context.TODO())
+
+	return exec.BeginRead(strHandle)
 }
 
 func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
