@@ -2,9 +2,12 @@ package plans
 
 import (
 	"fmt"
+	"math"
 
+	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
+	"gitlink.org.cn/cloudream/common/utils/math2"
 )
 
 type FromToParser interface {
@@ -15,9 +18,19 @@ type DefaultParser struct {
 	EC cdssdk.ECRedundancy
 }
 
+func NewParser(ec cdssdk.ECRedundancy) *DefaultParser {
+	return &DefaultParser{
+		EC: ec,
+	}
+}
+
 type ParseContext struct {
-	Ft    FromTo
-	Nodes []*Node
+	Ft      FromTo
+	Nodes   []*Node
+	ToNodes []*Node
+	// 为了产生所有To所需的数据范围，而需要From打开的范围。
+	// 这个范围是基于整个文件的，且上下界都取整到条带大小的整数倍，因此上界是有可能超过文件大小的。
+	StreamRange Range
 }
 
 func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
@@ -25,6 +38,10 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 
 	// 分成两个阶段：
 	// 1. 基于From和To生成更多指令，初步匹配to的需求
+
+	// 计算一下打开流的范围
+	p.calcStreamRange(&ctx)
+
 	err := p.extend(&ctx, ft, blder)
 	if err != nil {
 		return err
@@ -80,6 +97,7 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 	p.dropUnused(&ctx)
 	p.storeIPFSWriteResult(&ctx)
 	p.generateClone(&ctx)
+	p.generateRange(&ctx)
 	p.generateSend(&ctx)
 
 	return p.buildPlan(&ctx, blder)
@@ -96,9 +114,44 @@ func (p *DefaultParser) findOutputStream(ctx *ParseContext, dataIndex int) *Stre
 	return nil
 }
 
+// 计算输入流的打开范围。会把流的范围按条带大小取整
+func (p *DefaultParser) calcStreamRange(ctx *ParseContext) {
+	stripSize := int64(p.EC.ChunkSize * p.EC.K)
+
+	rng := Range{
+		Offset: math.MaxInt64,
+	}
+
+	for _, to := range ctx.Ft.Toes {
+		if to.GetDataIndex() == -1 {
+			toRng := to.GetRange()
+			rng.ExtendStart(math2.Floor(toRng.Offset, stripSize))
+			if toRng.Length != nil {
+				rng.ExtendEnd(math2.Ceil(toRng.Offset+*toRng.Length, stripSize))
+			} else {
+				rng.Length = nil
+			}
+
+		} else {
+			toRng := to.GetRange()
+
+			blkStartIndex := math2.FloorDiv(toRng.Offset, int64(p.EC.ChunkSize))
+			rng.ExtendStart(blkStartIndex * stripSize)
+			if toRng.Length != nil {
+				blkEndIndex := math2.CeilDiv(toRng.Offset+*toRng.Length, int64(p.EC.ChunkSize))
+				rng.ExtendEnd(blkEndIndex * stripSize)
+			} else {
+				rng.Length = nil
+			}
+		}
+	}
+
+	ctx.StreamRange = rng
+}
+
 func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo, blder *PlanBuilder) error {
 	for _, f := range ft.Froms {
-		n, err := p.buildFromNode(&ft, f)
+		n, err := p.buildFromNode(ctx, &ft, f)
 		if err != nil {
 			return err
 		}
@@ -157,13 +210,14 @@ loop:
 	}
 
 	// 为每一个To找到一个输入流
-	for _, t := range ft.Tos {
+	for _, t := range ft.Toes {
 		n, err := p.buildToNode(&ft, t)
 		if err != nil {
 			return err
 		}
 
 		ctx.Nodes = append(ctx.Nodes, n)
+		ctx.ToNodes = append(ctx.ToNodes, n)
 
 		str := p.findOutputStream(ctx, t.GetDataIndex())
 		if str == nil {
@@ -176,12 +230,43 @@ loop:
 	return nil
 }
 
-func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
+func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *FromTo, f From) (*Node, error) {
+	var repRange Range
+	var blkRange Range
+
+	repRange.Offset = ctx.StreamRange.Offset
+	blkRange.Offset = ctx.StreamRange.Offset / int64(p.EC.ChunkSize*p.EC.K) * int64(p.EC.ChunkSize)
+	if ctx.StreamRange.Length != nil {
+		repRngLen := *ctx.StreamRange.Length
+		repRange.Length = &repRngLen
+
+		blkRngLen := *ctx.StreamRange.Length / int64(p.EC.ChunkSize*p.EC.K) * int64(p.EC.ChunkSize)
+		blkRange.Length = &blkRngLen
+	}
+
 	switch f := f.(type) {
 	case *FromNode:
+		ty := &IPFSReadType{
+			FileHash: f.FileHash,
+			Option: ipfs.ReadOption{
+				Offset: 0,
+				Length: -1,
+			},
+		}
+		if f.DataIndex == -1 {
+			ty.Option.Offset = repRange.Offset
+			if repRange.Length != nil {
+				ty.Option.Length = *repRange.Length
+			}
+		} else {
+			ty.Option.Offset = blkRange.Offset
+			if blkRange.Length != nil {
+				ty.Option.Length = *blkRange.Length
+			}
+		}
+
 		n := &Node{
-			// TODO2 需要FromTo的Range来设置Option
-			Type: &IPFSReadType{FileHash: ft.Object.Object.FileHash},
+			Type: ty,
 		}
 		n.NewOutput(f.DataIndex)
 
@@ -197,6 +282,15 @@ func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
 			Type: &FromExecutorOp{Handle: f.Handle},
 		}
 		n.NewOutput(f.DataIndex)
+
+		if f.DataIndex == -1 {
+			f.Handle.RangeHint.Offset = repRange.Offset
+			f.Handle.RangeHint.Length = repRange.Length
+		} else {
+			f.Handle.RangeHint.Offset = blkRange.Offset
+			f.Handle.RangeHint.Length = blkRange.Length
+		}
+
 		return n, nil
 
 	default:
@@ -206,16 +300,16 @@ func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
 
 func (p *DefaultParser) buildToNode(ft *FromTo, t To) (*Node, error) {
 	switch t := t.(type) {
-	case *ToAgent:
+	case *ToNode:
 		return &Node{
 			Env:  &AgentEnv{t.Node},
-			Type: &IPFSWriteType{FileHashStoreKey: t.FileHashStoreKey},
+			Type: &IPFSWriteType{FileHashStoreKey: t.FileHashStoreKey, Range: t.Range},
 		}, nil
 
 	case *ToExecutor:
 		return &Node{
 			Env:  &ExecutorEnv{},
-			Type: &ToExecutorOp{Handle: t.Handle},
+			Type: &ToExecutorOp{Handle: t.Handle, Range: t.Range},
 		}, nil
 
 	default:
@@ -633,6 +727,37 @@ func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
 		}
 		storeOp.AddInputVar(op.OutputValues[0])
 		ctx.Nodes = append(ctx.Nodes, storeOp)
+	}
+}
+
+// 生成Range指令。StreamRange可能超过文件总大小，但Range指令会在数据量不够时不报错而是正常返回
+func (p *DefaultParser) generateRange(ctx *ParseContext) {
+	for i, to := range ctx.ToNodes {
+		toDataIdx := ctx.Ft.Toes[i].GetDataIndex()
+		toRng := ctx.Ft.Toes[i].GetRange()
+
+		if toDataIdx == -1 {
+			rngType := &RangeType{Range: Range{Offset: toRng.Offset - ctx.StreamRange.Offset, Length: toRng.Length}}
+			rngNode := &Node{
+				Env:  to.InputStreams[0].From.Env,
+				Type: rngType,
+			}
+
+			to.ReplaceInput(to.InputStreams[0], rngNode.NewOutput(toDataIdx))
+		} else {
+			stripSize := int64(p.EC.ChunkSize * p.EC.K)
+			blkStartIdx := ctx.StreamRange.Offset / stripSize
+
+			blkStart := blkStartIdx * int64(p.EC.ChunkSize)
+
+			rngType := &RangeType{Range: Range{Offset: toRng.Offset - blkStart, Length: toRng.Length}}
+			rngNode := &Node{
+				Env:  to.InputStreams[0].From.Env,
+				Type: rngType,
+			}
+
+			to.ReplaceInput(to.InputStreams[0], rngNode.NewOutput(toDataIdx))
+		}
 	}
 }
 

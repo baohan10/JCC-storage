@@ -11,7 +11,6 @@ import (
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
-	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
@@ -172,45 +171,20 @@ func (iter *DownloadObjectIterator) downloadNoneOrRepObject(obj downloadReqeust2
 		return nil, err
 	}
 
-	var strHandle *plans.ExecutorReadStream
-	ft := plans.FromTo{
-		Object: *obj.Detail,
-	}
-
 	bsc, blocks := iter.getMinReadingBlockSolution(allNodes, 1)
 	osc, node := iter.getMinReadingObjectSolution(allNodes, 1)
 	if bsc < osc {
 		logger.Debugf("downloading object from node %v(%v)", blocks[0].Node.Name, blocks[0].Node.NodeID)
+		return iter.downloadFromNode(&blocks[0].Node, obj)
+	}
 
-		toExec, handle := plans.NewToExecutor(-1)
-		ft.AddFrom(plans.NewFromNode(&blocks[0].Node, -1)).AddTo(toExec)
-		strHandle = handle
-
-		// TODO2 处理Offset和Length
-	} else if osc == math.MaxFloat64 {
+	if osc == math.MaxFloat64 {
 		// bsc >= osc，如果osc是MaxFloat64，那么bsc也一定是，也就意味着没有足够块来恢复文件
 		return nil, fmt.Errorf("no node has this object")
-	} else {
-		logger.Debugf("downloading object from node %v(%v)", node.Name, node.NodeID)
-
-		toExec, handle := plans.NewToExecutor(-1)
-		ft.AddFrom(plans.NewFromNode(node, -1)).AddTo(toExec)
-		strHandle = handle
-		// TODO2 处理Offset和Length
 	}
 
-	parser := plans.DefaultParser{
-		EC: cdssdk.DefaultECRedundancy,
-	}
-	plans := plans.NewPlanBuilder()
-	if err := parser.Parse(ft, plans); err != nil {
-		return nil, fmt.Errorf("parsing plan: %w", err)
-	}
-
-	exec := plans.Execute()
-	go exec.Wait(context.TODO())
-
-	return exec.BeginRead(strHandle)
+	logger.Debugf("downloading object from node %v(%v)", node.Name, node.NodeID)
+	return iter.downloadFromNode(node, obj)
 }
 
 func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed *cdssdk.ECRedundancy) (io.ReadCloser, error) {
@@ -280,10 +254,7 @@ func (iter *DownloadObjectIterator) downloadECObject(req downloadReqeust2, ecRed
 	}
 
 	logger.Debugf("downloading ec object from node %v(%v)", node.Name, node.NodeID)
-	return NewIPFSReaderWithRange(*node, req.Detail.Object.FileHash, ipfs.ReadOption{
-		Offset: req.Raw.Offset,
-		Length: req.Raw.Length,
-	}), nil
+	return iter.downloadFromNode(node, req)
 }
 
 func (iter *DownloadObjectIterator) sortDownloadNodes(req downloadReqeust2) ([]*DownloadNodeInfo, error) {
@@ -388,4 +359,31 @@ func (iter *DownloadObjectIterator) getNodeDistance(node cdssdk.Node) float64 {
 	}
 
 	return consts.NodeDistanceOther
+}
+
+func (iter *DownloadObjectIterator) downloadFromNode(node *cdssdk.Node, req downloadReqeust2) (io.ReadCloser, error) {
+	var strHandle *plans.ExecutorReadStream
+	ft := plans.NewFromTo()
+
+	toExec, handle := plans.NewToExecutor(-1)
+	toExec.Range = plans.Range{
+		Offset: req.Raw.Offset,
+	}
+	if req.Raw.Length != -1 {
+		len := req.Raw.Length
+		toExec.Range.Length = &len
+	}
+	ft.AddFrom(plans.NewFromNode(req.Detail.Object.FileHash, node, -1)).AddTo(toExec)
+	strHandle = handle
+
+	parser := plans.NewParser(cdssdk.DefaultECRedundancy)
+	plans := plans.NewPlanBuilder()
+	if err := parser.Parse(ft, plans); err != nil {
+		return nil, fmt.Errorf("parsing plan: %w", err)
+	}
+
+	exec := plans.Execute()
+	go exec.Wait(context.TODO())
+
+	return exec.BeginRead(strHandle)
 }

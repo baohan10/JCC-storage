@@ -143,6 +143,7 @@ func (t *IPFSReadType) GenerateOp(node *Node, blder *PlanBuilder) error {
 
 type IPFSWriteType struct {
 	FileHashStoreKey string
+	Range            Range
 }
 
 func (t *IPFSWriteType) GenerateOp(op *Node, blder *PlanBuilder) error {
@@ -274,6 +275,7 @@ func (t *FromExecutorOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 
 type ToExecutorOp struct {
 	Handle *ExecutorReadStream
+	Range  Range
 }
 
 func (t *ToExecutorOp) GenerateOp(op *Node, blder *PlanBuilder) error {
@@ -347,6 +349,20 @@ func (t *GetVarOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 		Output: op.OutputValues[0].Var,
 		Get:    op.InputValues[0].Var,
 		Node:   fromAgt.Node,
+	}, op.Env, blder)
+	return nil
+}
+
+type RangeType struct {
+	Range Range
+}
+
+func (t *RangeType) GenerateOp(op *Node, blder *PlanBuilder) error {
+	addOpByEnv(&ops.Range{
+		Input:  op.InputStreams[0].Var,
+		Output: op.OutputStreams[0].Var,
+		Offset: t.Range.Offset,
+		Length: t.Range.Length,
 	}, op.Env, blder)
 	return nil
 }

@@ -781,14 +781,20 @@ func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssd
 	}
 
 	ecRed := obj.Object.Redundancy.(*cdssdk.ECRedundancy)
+	parser := plans.NewParser(*ecRed)
 
 	for id, idxs := range reconstrct {
-		agt := planBld.AtAgent(*allNodeInfos[id])
+		ft := plans.NewFromTo()
+		ft.AddFrom(plans.NewFromNode(obj.Object.FileHash, allNodeInfos[id], -1))
 
-		strs := agt.IPFSRead(obj.Object.FileHash).ChunkedSplit(ecRed.ChunkSize, ecRed.K, true)
-		ss := agt.ECReconstructAny(*ecRed, lo.Range(ecRed.K), *idxs, strs)
-		for i, s := range ss {
-			s.IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d.%d", obj.Object.ObjectID, (*idxs)[i]))
+		for _, i := range *idxs {
+			ft.AddTo(plans.NewToNode(*allNodeInfos[id], i, fmt.Sprintf("%d.%d", obj.Object.ObjectID, i)))
+		}
+
+		err := parser.Parse(ft, planBld)
+		if err != nil {
+			// TODO 错误处理
+			continue
 		}
 
 		planningNodeIDs[id] = true
