@@ -12,12 +12,12 @@ type FromToParser interface {
 }
 
 type DefaultParser struct {
-	EC *cdssdk.ECRedundancy
+	EC cdssdk.ECRedundancy
 }
 
 type ParseContext struct {
-	Ft  FromTo
-	Ops []*Node
+	Ft    FromTo
+	Nodes []*Node
 }
 
 func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
@@ -85,7 +85,7 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 	return p.buildPlan(&ctx, blder)
 }
 func (p *DefaultParser) findOutputStream(ctx *ParseContext, dataIndex int) *StreamVar {
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		for _, o := range op.OutputStreams {
 			if o.DataIndex == dataIndex {
 				return o
@@ -98,8 +98,11 @@ func (p *DefaultParser) findOutputStream(ctx *ParseContext, dataIndex int) *Stre
 
 func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo, blder *PlanBuilder) error {
 	for _, f := range ft.Froms {
-		o := f.BuildOp()
-		ctx.Ops = append(ctx.Ops, &o)
+		n, err := p.buildFromNode(&ft, f)
+		if err != nil {
+			return err
+		}
+		ctx.Nodes = append(ctx.Nodes, n)
 
 		// 对于完整文件的From，生成Split指令
 		if f.GetDataIndex() == -1 {
@@ -107,18 +110,18 @@ func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo, blder *PlanBuilder)
 				Env:  nil,
 				Type: &ChunkedSplitOp{ChunkSize: p.EC.ChunkSize, PaddingZeros: true},
 			}
-			splitOp.AddInput(o.OutputStreams[0])
+			splitOp.AddInput(n.OutputStreams[0])
 			for i := 0; i < p.EC.K; i++ {
 				splitOp.NewOutput(i)
 			}
-			ctx.Ops = append(ctx.Ops, splitOp)
+			ctx.Nodes = append(ctx.Nodes, splitOp)
 		}
 	}
 
 	// 如果有K个不同的文件块流，则生成Multiply指令，同时针对其生成的流，生成Join指令
 	ecInputStrs := make(map[int]*StreamVar)
 loop:
-	for _, o := range ctx.Ops {
+	for _, o := range ctx.Nodes {
 		for _, s := range o.OutputStreams {
 			if s.DataIndex >= 0 && ecInputStrs[s.DataIndex] == nil {
 				ecInputStrs[s.DataIndex] = s
@@ -140,7 +143,7 @@ loop:
 		for i := 0; i < p.EC.N; i++ {
 			mulOp.NewOutput(i)
 		}
-		ctx.Ops = append(ctx.Ops, mulOp)
+		ctx.Nodes = append(ctx.Nodes, mulOp)
 
 		joinOp := &Node{
 			Env:  nil,
@@ -155,24 +158,75 @@ loop:
 
 	// 为每一个To找到一个输入流
 	for _, t := range ft.Tos {
-		o := t.BuildOp()
-		ctx.Ops = append(ctx.Ops, &o)
+		n, err := p.buildToNode(&ft, t)
+		if err != nil {
+			return err
+		}
+
+		ctx.Nodes = append(ctx.Nodes, n)
 
 		str := p.findOutputStream(ctx, t.GetDataIndex())
 		if str == nil {
 			return fmt.Errorf("no output stream found for data index %d", t.GetDataIndex())
 		}
 
-		o.AddInput(str)
+		n.AddInput(str)
 	}
 
 	return nil
 }
 
+func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
+	switch f := f.(type) {
+	case *FromNode:
+		n := &Node{
+			// TODO2 需要FromTo的Range来设置Option
+			Type: &IPFSReadType{FileHash: ft.Object.Object.FileHash},
+		}
+		n.NewOutput(f.DataIndex)
+
+		if f.Node != nil {
+			n.Env = &AgentEnv{Node: *f.Node}
+		}
+
+		return n, nil
+
+	case *FromExecutor:
+		n := &Node{
+			Env:  &ExecutorEnv{},
+			Type: &FromExecutorOp{Handle: f.Handle},
+		}
+		n.NewOutput(f.DataIndex)
+		return n, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported from type %T", f)
+	}
+}
+
+func (p *DefaultParser) buildToNode(ft *FromTo, t To) (*Node, error) {
+	switch t := t.(type) {
+	case *ToAgent:
+		return &Node{
+			Env:  &AgentEnv{t.Node},
+			Type: &IPFSWriteType{FileHashStoreKey: t.FileHashStoreKey},
+		}, nil
+
+	case *ToExecutor:
+		return &Node{
+			Env:  &ExecutorEnv{},
+			Type: &ToExecutorOp{Handle: t.Handle},
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported to type %T", t)
+	}
+}
+
 // 删除输出流未被使用的Join指令
 func (p *DefaultParser) removeUnusedJoin(ctx *ParseContext) bool {
 	opted := false
-	for i, op := range ctx.Ops {
+	for i, op := range ctx.Nodes {
 		_, ok := op.Type.(*ChunkedJoinOp)
 		if !ok {
 			continue
@@ -186,18 +240,18 @@ func (p *DefaultParser) removeUnusedJoin(ctx *ParseContext) bool {
 			in.RemoveTo(op)
 		}
 
-		ctx.Ops[i] = nil
+		ctx.Nodes[i] = nil
 		opted = true
 	}
 
-	ctx.Ops = lo2.RemoveAllDefault(ctx.Ops)
+	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
 	return opted
 }
 
 // 减少未使用的Multiply指令的输出流。如果减少到0，则删除该指令
 func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
 	opted := false
-	for i, op := range ctx.Ops {
+	for i, op := range ctx.Nodes {
 		_, ok := op.Type.(*MultiplyOp)
 		if !ok {
 			continue
@@ -217,20 +271,20 @@ func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
 				in.RemoveTo(op)
 			}
 
-			ctx.Ops[i] = nil
+			ctx.Nodes[i] = nil
 		}
 
 		opted = true
 	}
 
-	ctx.Ops = lo2.RemoveAllDefault(ctx.Ops)
+	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
 	return opted
 }
 
 // 删除未使用的Split指令
 func (p *DefaultParser) removeUnusedSplit(ctx *ParseContext) bool {
 	opted := false
-	for i, op := range ctx.Ops {
+	for i, op := range ctx.Nodes {
 		_, ok := op.Type.(*ChunkedSplitOp)
 		if !ok {
 			continue
@@ -247,12 +301,12 @@ func (p *DefaultParser) removeUnusedSplit(ctx *ParseContext) bool {
 
 		if isAllUnused {
 			op.InputStreams[0].RemoveTo(op)
-			ctx.Ops[i] = nil
+			ctx.Nodes[i] = nil
 			opted = true
 		}
 	}
 
-	ctx.Ops = lo2.RemoveAllDefault(ctx.Ops)
+	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
 	return opted
 }
 
@@ -260,7 +314,7 @@ func (p *DefaultParser) removeUnusedSplit(ctx *ParseContext) bool {
 func (p *DefaultParser) omitSplitJoin(ctx *ParseContext) bool {
 	opted := false
 loop:
-	for iSplit, splitOp := range ctx.Ops {
+	for iSplit, splitOp := range ctx.Nodes {
 		// 进行合并操作时会删除多个指令，因此这里存在splitOp == nil的情况
 		if splitOp == nil {
 			continue
@@ -309,19 +363,19 @@ loop:
 		}
 
 		// 并删除这两个指令
-		ctx.Ops[iSplit] = nil
-		lo2.Clear(ctx.Ops, joinOp)
+		ctx.Nodes[iSplit] = nil
+		lo2.Clear(ctx.Nodes, joinOp)
 		opted = true
 	}
 
-	ctx.Ops = lo2.RemoveAllDefault(ctx.Ops)
+	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
 	return opted
 }
 
 // 确定Split命令的执行位置
 func (p *DefaultParser) pinSplit(ctx *ParseContext) bool {
 	opted := false
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		_, ok := op.Type.(*ChunkedSplitOp)
 		if !ok {
 			continue
@@ -380,7 +434,7 @@ func (p *DefaultParser) pinSplit(ctx *ParseContext) bool {
 // 确定Join命令的执行位置，策略与固定Split类似
 func (p *DefaultParser) pinJoin(ctx *ParseContext) bool {
 	opted := false
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		_, ok := op.Type.(*ChunkedJoinOp)
 		if !ok {
 			continue
@@ -443,7 +497,7 @@ func (p *DefaultParser) pinJoin(ctx *ParseContext) bool {
 // 确定Multiply命令的执行位置
 func (p *DefaultParser) pinMultiply(ctx *ParseContext) bool {
 	opted := false
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		_, ok := op.Type.(*MultiplyOp)
 		if !ok {
 			continue
@@ -507,7 +561,7 @@ func (p *DefaultParser) pinMultiply(ctx *ParseContext) bool {
 // 确定IPFS读取指令的执行位置
 func (p *DefaultParser) pinIPFSRead(ctx *ParseContext) bool {
 	opted := false
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		_, ok := op.Type.(*IPFSReadType)
 		if !ok {
 			continue
@@ -545,7 +599,7 @@ func (p *DefaultParser) pinIPFSRead(ctx *ParseContext) bool {
 
 // 对于所有未使用的流，增加Drop指令
 func (p *DefaultParser) dropUnused(ctx *ParseContext) {
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		for _, out := range op.OutputStreams {
 			if len(out.Toes) == 0 {
 				dropOp := &Node{
@@ -553,7 +607,7 @@ func (p *DefaultParser) dropUnused(ctx *ParseContext) {
 					Type: &DropOp{},
 				}
 				dropOp.AddInput(out)
-				ctx.Ops = append(ctx.Ops, dropOp)
+				ctx.Nodes = append(ctx.Nodes, dropOp)
 			}
 		}
 	}
@@ -561,7 +615,7 @@ func (p *DefaultParser) dropUnused(ctx *ParseContext) {
 
 // 为IPFS写入指令存储结果
 func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		w, ok := op.Type.(*IPFSWriteType)
 		if !ok {
 			continue
@@ -578,13 +632,13 @@ func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
 			},
 		}
 		storeOp.AddInputVar(op.OutputValues[0])
-		ctx.Ops = append(ctx.Ops, storeOp)
+		ctx.Nodes = append(ctx.Nodes, storeOp)
 	}
 }
 
 // 生成Clone指令
 func (p *DefaultParser) generateClone(ctx *ParseContext) {
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		for _, out := range op.OutputStreams {
 			if len(out.Toes) <= 1 {
 				continue
@@ -599,7 +653,7 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 			}
 			out.Toes = nil
 			cloneOp.AddInput(out)
-			ctx.Ops = append(ctx.Ops, cloneOp)
+			ctx.Nodes = append(ctx.Nodes, cloneOp)
 		}
 
 		for _, out := range op.OutputValues {
@@ -622,7 +676,7 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 
 // 生成Send指令
 func (p *DefaultParser) generateSend(ctx *ParseContext) {
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		for _, out := range op.OutputStreams {
 			to := out.Toes[0]
 			if to.Env.Equals(op.Env) {
@@ -639,7 +693,7 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 				out.Toes = nil
 				getStrOp.AddInput(out)
 				to.ReplaceInput(out, getStrOp.NewOutput(out.DataIndex))
-				ctx.Ops = append(ctx.Ops, getStrOp)
+				ctx.Nodes = append(ctx.Nodes, getStrOp)
 
 			case *AgentEnv:
 				// 如果是要送到Agent，则可以直接发送
@@ -650,7 +704,7 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 				out.Toes = nil
 				sendStrOp.AddInput(out)
 				to.ReplaceInput(out, sendStrOp.NewOutput(out.DataIndex))
-				ctx.Ops = append(ctx.Ops, sendStrOp)
+				ctx.Nodes = append(ctx.Nodes, sendStrOp)
 			}
 		}
 
@@ -670,7 +724,7 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 				out.Toes = nil
 				getVarOp.AddInputVar(out)
 				to.ReplaceInputVar(out, getVarOp.NewOutputVar(out.Type))
-				ctx.Ops = append(ctx.Ops, getVarOp)
+				ctx.Nodes = append(ctx.Nodes, getVarOp)
 
 			case *AgentEnv:
 				// 如果是要送到Agent，则可以直接发送
@@ -681,7 +735,7 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 				out.Toes = nil
 				sendVarOp.AddInputVar(out)
 				to.ReplaceInputVar(out, sendVarOp.NewOutputVar(out.Type))
-				ctx.Ops = append(ctx.Ops, sendVarOp)
+				ctx.Nodes = append(ctx.Nodes, sendVarOp)
 			}
 		}
 	}
@@ -689,7 +743,7 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 
 // 生成Plan
 func (p *DefaultParser) buildPlan(ctx *ParseContext, blder *PlanBuilder) error {
-	for _, op := range ctx.Ops {
+	for _, op := range ctx.Nodes {
 		for _, out := range op.OutputStreams {
 			if out.Var != nil {
 				continue

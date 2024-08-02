@@ -42,3 +42,7 @@ func (r *Rs) ReconstructAny(blocks [][]byte, outBlockIdxes []int) error {
 	}
 	return r.encoder.ReconstructAny(blocks, required)
 }
+
+func (r *Rs) GenerateMatrix(inputIdxs []int, outputIdxs []int) ([][]byte, error) {
+	return r.encoder.(reedsolomon.Extensions).GenerateMatrix(inputIdxs, outputIdxs)
+}

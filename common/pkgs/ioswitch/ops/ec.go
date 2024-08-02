@@ -105,7 +105,7 @@ type ECMultiply struct {
 	Coef      [][]byte              `json:"coef"`
 	Inputs    []*ioswitch.StreamVar `json:"inputs"`
 	Outputs   []*ioswitch.StreamVar `json:"outputs"`
-	ChunkSize int64                 `json:"chunkSize"`
+	ChunkSize int                   `json:"chunkSize"`
 }
 
 func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
