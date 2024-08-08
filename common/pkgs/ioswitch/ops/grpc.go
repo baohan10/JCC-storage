@@ -44,6 +44,7 @@ func (o *SendStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 }
 
 type GetStream struct {
+	Signal *ioswitch.SignalVar `json:"signal"`
 	Get    *ioswitch.StreamVar `json:"get"`
 	Output *ioswitch.StreamVar `json:"output"`
 	Node   cdssdk.Node         `json:"node"`
@@ -58,7 +59,7 @@ func (o *GetStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 
 	logger.Debugf("getting stream %v as %v from node %v", o.Get.ID, o.Output.ID, o.Node)
 
-	str, err := agtCli.GetStream(sw.Plan().ID, o.Get.ID)
+	str, err := agtCli.GetStream(sw.Plan().ID, o.Get.ID, o.Signal)
 	if err != nil {
 		return fmt.Errorf("getting stream: %w", err)
 	}
@@ -103,9 +104,10 @@ func (o *SendVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 }
 
 type GetVar struct {
-	Get    ioswitch.Var `json:"get"`
-	Output ioswitch.Var `json:"output"`
-	Node   cdssdk.Node  `json:"node"`
+	Signal *ioswitch.SignalVar `json:"signal"`
+	Get    ioswitch.Var        `json:"get"`
+	Output ioswitch.Var        `json:"output"`
+	Node   cdssdk.Node         `json:"node"`
 }
 
 func (o *GetVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
@@ -117,7 +119,7 @@ func (o *GetVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 
 	logger.Debugf("getting var %v as %v from node %v", o.Get.GetID(), o.Output.GetID(), o.Node)
 
-	v2, err := agtCli.GetVar(ctx, sw.Plan().ID, o.Get)
+	v2, err := agtCli.GetVar(ctx, sw.Plan().ID, o.Get, o.Signal)
 	if err != nil {
 		return fmt.Errorf("getting var: %w", err)
 	}

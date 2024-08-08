@@ -24,6 +24,8 @@ type Var interface {
 var VarUnion = types.NewTypeUnion[Var](
 	(*IntVar)(nil),
 	(*StringVar)(nil),
+	(*SignalVar)(nil),
+	(*StreamVar)(nil),
 )
 var _ = serder.UseTypeUnionExternallyTagged(&VarUnion)
 

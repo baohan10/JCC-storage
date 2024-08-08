@@ -1,6 +1,8 @@
 package plans
 
 import (
+	"fmt"
+
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
@@ -31,6 +33,7 @@ type ValueVarType int
 
 const (
 	StringValueVar ValueVarType = iota
+	SignalValueVar
 )
 
 type ValueVar struct {
@@ -83,26 +86,23 @@ type Node struct {
 	OutputValues  []*ValueVar
 }
 
-func (o *Node) NewOutput(dataIndex int) *StreamVar {
+func (o *Node) NewOutputStream(dataIndex int) *StreamVar {
 	v := &StreamVar{DataIndex: dataIndex, From: o}
 	o.OutputStreams = append(o.OutputStreams, v)
 	return v
 }
 
-func (o *Node) AddInput(str *StreamVar) {
+func (o *Node) AddInputStream(str *StreamVar) {
 	o.InputStreams = append(o.InputStreams, str)
 	str.AddTo(o)
 }
 
-func (o *Node) ReplaceInput(org *StreamVar, new *StreamVar) {
-	idx := lo.IndexOf(o.InputStreams, org)
-	if idx < 0 {
-		return
-	}
-
-	o.InputStreams[idx].RemoveTo(o)
-	o.InputStreams[idx] = new
+func (o *Node) ReplaceInputStream(old *StreamVar, new *StreamVar) {
+	old.RemoveTo(o)
 	new.AddTo(o)
+
+	idx := lo.IndexOf(o.InputStreams, old)
+	o.InputStreams[idx] = new
 }
 
 func (o *Node) NewOutputVar(typ ValueVarType) *ValueVar {
@@ -116,15 +116,16 @@ func (o *Node) AddInputVar(v *ValueVar) {
 	v.AddTo(o)
 }
 
-func (o *Node) ReplaceInputVar(org *ValueVar, new *ValueVar) {
-	idx := lo.IndexOf(o.InputValues, org)
-	if idx < 0 {
-		return
-	}
-
-	o.InputValues[idx].RemoveTo(o)
-	o.InputValues[idx] = new
+func (o *Node) ReplaceInputVar(old *ValueVar, new *ValueVar) {
+	old.RemoveTo(o)
 	new.AddTo(o)
+
+	idx := lo.IndexOf(o.InputValues, old)
+	o.InputValues[idx] = new
+}
+
+func (o *Node) String() string {
+	return fmt.Sprintf("Node(%T)", o.Type)
 }
 
 type IPFSReadType struct {
@@ -154,12 +155,12 @@ func (t *IPFSWriteType) GenerateOp(op *Node, blder *PlanBuilder) error {
 	return nil
 }
 
-type ChunkedSplitOp struct {
+type ChunkedSplitType struct {
 	ChunkSize    int
 	PaddingZeros bool
 }
 
-func (t *ChunkedSplitOp) GenerateOp(op *Node, blder *PlanBuilder) error {
+func (t *ChunkedSplitType) GenerateOp(op *Node, blder *PlanBuilder) error {
 	addOpByEnv(&ops.ChunkedSplit{
 		Input: op.InputStreams[0].Var,
 		Outputs: lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *ioswitch.StreamVar {
@@ -171,11 +172,11 @@ func (t *ChunkedSplitOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 	return nil
 }
 
-type ChunkedJoinOp struct {
+type ChunkedJoinType struct {
 	ChunkSize int
 }
 
-func (t *ChunkedJoinOp) GenerateOp(op *Node, blder *PlanBuilder) error {
+func (t *ChunkedJoinType) GenerateOp(op *Node, blder *PlanBuilder) error {
 	addOpByEnv(&ops.ChunkedJoin{
 		Inputs: lo.Map(op.InputStreams, func(v *StreamVar, idx int) *ioswitch.StreamVar {
 			return v.Var
@@ -186,9 +187,9 @@ func (t *ChunkedJoinOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 	return nil
 }
 
-type CloneStreamOp struct{}
+type CloneStreamType struct{}
 
-func (t *CloneStreamOp) GenerateOp(op *Node, blder *PlanBuilder) error {
+func (t *CloneStreamType) GenerateOp(op *Node, blder *PlanBuilder) error {
 	addOpByEnv(&ops.CloneStream{
 		Input: op.InputStreams[0].Var,
 		Outputs: lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *ioswitch.StreamVar {
@@ -198,9 +199,9 @@ func (t *CloneStreamOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 	return nil
 }
 
-type CloneVarOp struct{}
+type CloneVarType struct{}
 
-func (t *CloneVarOp) GenerateOp(op *Node, blder *PlanBuilder) error {
+func (t *CloneVarType) GenerateOp(op *Node, blder *PlanBuilder) error {
 	addOpByEnv(&ops.CloneVar{
 		Raw: op.InputValues[0].Var,
 		Cloneds: lo.Map(op.OutputValues, func(v *ValueVar, idx int) ioswitch.Var {
@@ -211,8 +212,7 @@ func (t *CloneVarOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 }
 
 type MultiplyOp struct {
-	EC        cdssdk.ECRedundancy
-	ChunkSize int
+	EC cdssdk.ECRedundancy
 }
 
 func (t *MultiplyOp) GenerateOp(op *Node, blder *PlanBuilder) error {
@@ -225,7 +225,7 @@ func (t *MultiplyOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 		outputIdxs = append(outputIdxs, out.DataIndex)
 	}
 
-	rs, _ := ec.NewRs(t.EC.K, t.EC.N)
+	rs, err := ec.NewRs(t.EC.K, t.EC.N)
 	coef, err := rs.GenerateMatrix(inputIdxs, outputIdxs)
 	if err != nil {
 		return err
@@ -235,7 +235,7 @@ func (t *MultiplyOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 		Coef:      coef,
 		Inputs:    lo.Map(op.InputStreams, func(v *StreamVar, idx int) *ioswitch.StreamVar { return v.Var }),
 		Outputs:   lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *ioswitch.StreamVar { return v.Var }),
-		ChunkSize: t.ChunkSize,
+		ChunkSize: t.EC.ChunkSize,
 	}, op.Env, blder)
 	return nil
 }
@@ -322,6 +322,7 @@ type GetStreamOp struct{}
 func (t *GetStreamOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 	fromAgt := op.InputStreams[0].From.Env.(*AgentEnv)
 	addOpByEnv(&ops.GetStream{
+		Signal: op.OutputValues[0].Var.(*ioswitch.SignalVar),
 		Output: op.OutputStreams[0].Var,
 		Get:    op.InputStreams[0].Var,
 		Node:   fromAgt.Node,
@@ -346,7 +347,8 @@ type GetVarOp struct{}
 func (t *GetVarOp) GenerateOp(op *Node, blder *PlanBuilder) error {
 	fromAgt := op.InputValues[0].From.Env.(*AgentEnv)
 	addOpByEnv(&ops.GetVar{
-		Output: op.OutputValues[0].Var,
+		Signal: op.OutputValues[0].Var.(*ioswitch.SignalVar),
+		Output: op.OutputValues[1].Var,
 		Get:    op.InputValues[0].Var,
 		Node:   fromAgt.Node,
 	}, op.Env, blder)
@@ -364,6 +366,28 @@ func (t *RangeType) GenerateOp(op *Node, blder *PlanBuilder) error {
 		Offset: t.Range.Offset,
 		Length: t.Range.Length,
 	}, op.Env, blder)
+	return nil
+}
+
+type HoldUntilOp struct {
+}
+
+func (t *HoldUntilOp) GenerateOp(op *Node, blder *PlanBuilder) error {
+	o := &ops.HoldUntil{
+		Waits: []*ioswitch.SignalVar{op.InputValues[0].Var.(*ioswitch.SignalVar)},
+	}
+
+	for i := 0; i < len(op.OutputValues); i++ {
+		o.Holds = append(o.Holds, op.InputValues[i+1].Var)
+		o.Emits = append(o.Emits, op.OutputValues[i].Var)
+	}
+
+	for i := 0; i < len(op.OutputStreams); i++ {
+		o.Holds = append(o.Holds, op.InputStreams[i].Var)
+		o.Emits = append(o.Emits, op.OutputStreams[i].Var)
+	}
+
+	addOpByEnv(o, op.Env, blder)
 	return nil
 }
 

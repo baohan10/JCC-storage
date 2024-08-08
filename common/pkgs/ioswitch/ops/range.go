@@ -61,7 +61,8 @@ func (o *Range) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		return err
 	}
 
-	return io2.DropWithBuf(o.Input.Stream, buf)
+	io2.DropWithBuf(o.Input.Stream, buf)
+	return nil
 }
 
 func init() {

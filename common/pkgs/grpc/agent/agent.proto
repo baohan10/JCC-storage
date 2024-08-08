@@ -37,6 +37,7 @@ message SendStreamResp {}
 message GetStreamReq {
     string PlanID = 1;
     int32 VarID = 2;
+    string Signal = 3;
 }
 
 message SendVarReq {
@@ -48,6 +49,7 @@ message SendVarResp {}
 message GetVarReq {
     string PlanID = 1;
     string Var = 2;
+    string Signal = 3;
 }
 message GetVarResp {
     string Var = 1; // 此处不使用VarID的原因是，Switch的BindVars函数还需要知道Var的类型

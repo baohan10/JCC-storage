@@ -131,7 +131,7 @@ func (f *FromExecutor) BuildNode(ft *FromTo) Node {
 			Handle: f.Handle,
 		},
 	}
-	op.NewOutput(f.DataIndex)
+	op.NewOutputStream(f.DataIndex)
 	return op
 }
 

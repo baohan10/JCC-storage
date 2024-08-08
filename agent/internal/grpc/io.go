@@ -127,10 +127,17 @@ func (s *Service) GetStream(req *agtrpc.GetStreamReq, server agtrpc.Agent_GetStr
 		return fmt.Errorf("plan not found")
 	}
 
+	signal, err := serder.JSONToObjectEx[*ioswitch.SignalVar]([]byte(req.Signal))
+	if err != nil {
+		return fmt.Errorf("deserializing var: %w", err)
+	}
+
+	sw.PutVars(signal)
+
 	strVar := &ioswitch.StreamVar{
 		ID: ioswitch.VarID(req.VarID),
 	}
-	err := sw.BindVars(server.Context(), strVar)
+	err = sw.BindVars(server.Context(), strVar)
 	if err != nil {
 		return fmt.Errorf("binding vars: %w", err)
 	}
@@ -213,6 +220,13 @@ func (s *Service) GetVar(ctx context.Context, req *agtrpc.GetVarReq) (*agtrpc.Ge
 	if err != nil {
 		return nil, fmt.Errorf("deserializing var: %w", err)
 	}
+
+	signal, err := serder.JSONToObjectEx[*ioswitch.SignalVar]([]byte(req.Signal))
+	if err != nil {
+		return nil, fmt.Errorf("deserializing var: %w", err)
+	}
+
+	sw.PutVars(signal)
 
 	err = sw.BindVars(ctx, v)
 	if err != nil {

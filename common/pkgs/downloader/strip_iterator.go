@@ -110,7 +110,7 @@ func (s *StripIterator) Close() {
 func (s *StripIterator) downloading() {
 	ft := plans.NewFromTo()
 	for _, b := range s.blocks {
-		ft.AddFrom(plans.NewFromNode(s.object.FileHash, &b.Node, b.Block.Index))
+		ft.AddFrom(plans.NewFromNode(b.Block.FileHash, &b.Node, b.Block.Index))
 	}
 
 	toExec, hd := plans.NewToExecutorWithRange(-1, plans.Range{
