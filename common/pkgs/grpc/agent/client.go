@@ -132,12 +132,18 @@ func (c *Client) SendStream(ctx context.Context, planID ioswitch.PlanID, varID i
 	}
 }
 
-func (c *Client) GetStream(planID ioswitch.PlanID, varID ioswitch.VarID) (io.ReadCloser, error) {
+func (c *Client) GetStream(planID ioswitch.PlanID, varID ioswitch.VarID, signal *ioswitch.SignalVar) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	sdata, err := serder.ObjectToJSONEx(signal)
+	if err != nil {
+		return nil, err
+	}
 
 	stream, err := c.cli.GetStream(ctx, &GetStreamReq{
 		PlanID: string(planID),
 		VarID:  int32(varID),
+		Signal: string(sdata),
 	})
 	if err != nil {
 		cancel()
@@ -163,15 +169,21 @@ func (c *Client) SendVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch
 	return err
 }
 
-func (c *Client) GetVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch.Var) (ioswitch.Var, error) {
-	data, err := serder.ObjectToJSONEx(v)
+func (c *Client) GetVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch.Var, signal *ioswitch.SignalVar) (ioswitch.Var, error) {
+	vdata, err := serder.ObjectToJSONEx(v)
+	if err != nil {
+		return nil, err
+	}
+
+	sdata, err := serder.ObjectToJSONEx(signal)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := c.cli.GetVar(ctx, &GetVarReq{
 		PlanID: string(planID),
-		Var:    string(data),
+		Var:    string(vdata),
+		Signal: string(sdata),
 	})
 	if err != nil {
 		return nil, err

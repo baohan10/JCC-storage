@@ -2,13 +2,16 @@ package plans
 
 import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
-	stgmod "gitlink.org.cn/cloudream/storage/common/models"
+	"gitlink.org.cn/cloudream/common/utils/math2"
 )
 
 type FromTo struct {
-	Object stgmod.ObjectDetail
-	Froms  []From
-	Tos    []To
+	Froms []From
+	Toes  []To
+}
+
+func NewFromTo() FromTo {
+	return FromTo{}
 }
 
 func (ft *FromTo) AddFrom(from From) *FromTo {
@@ -17,7 +20,7 @@ func (ft *FromTo) AddFrom(from From) *FromTo {
 }
 
 func (ft *FromTo) AddTo(to To) *FromTo {
-	ft.Tos = append(ft.Tos, to)
+	ft.Toes = append(ft.Toes, to)
 	return ft
 }
 
@@ -28,18 +31,93 @@ type From interface {
 }
 
 type To interface {
+	// To所需要的文件流的范围。具体含义与DataIndex有关系：
+	// 如果DataIndex == -1，则表示在整个文件的范围。
+	// 如果DataIndex >= 0，则表示在文件的某个分片的范围。
 	GetRange() Range
 	GetDataIndex() int
 }
 
 type Range struct {
 	Offset int64
-	Length int64
+	Length *int64
+}
+
+func (r *Range) Extend(other Range) {
+	newOffset := math2.Min(r.Offset, other.Offset)
+
+	if r.Length == nil {
+		r.Offset = newOffset
+		return
+	}
+
+	if other.Length == nil {
+		r.Offset = newOffset
+		r.Length = nil
+		return
+	}
+
+	otherEnd := other.Offset + *other.Length
+	rEnd := r.Offset + *r.Length
+
+	newEnd := math2.Max(otherEnd, rEnd)
+	r.Offset = newOffset
+	*r.Length = newEnd - newOffset
+}
+
+func (r *Range) ExtendStart(start int64) {
+	r.Offset = math2.Min(r.Offset, start)
+}
+
+func (r *Range) ExtendEnd(end int64) {
+	if r.Length == nil {
+		return
+	}
+
+	rEnd := r.Offset + *r.Length
+	newLen := math2.Max(end, rEnd) - r.Offset
+	r.Length = &newLen
+}
+
+func (r *Range) Fix(maxLength int64) {
+	if r.Length != nil {
+		return
+	}
+
+	len := maxLength - r.Offset
+	r.Length = &len
+}
+
+func (r *Range) ToStartEnd(maxLen int64) (start int64, end int64) {
+	if r.Length == nil {
+		return r.Offset, maxLen
+	}
+
+	end = r.Offset + *r.Length
+	return r.Offset, end
+}
+
+func (r *Range) ClampLength(maxLen int64) {
+	if r.Length == nil {
+		return
+	}
+
+	*r.Length = math2.Min(*r.Length, maxLen-r.Offset)
 }
 
 type FromExecutor struct {
 	Handle    *ExecutorWriteStream
 	DataIndex int
+}
+
+func NewFromExecutor(dataIndex int) (*FromExecutor, *ExecutorWriteStream) {
+	handle := &ExecutorWriteStream{
+		RangeHint: &Range{},
+	}
+	return &FromExecutor{
+		Handle:    handle,
+		DataIndex: dataIndex,
+	}, handle
 }
 
 func (f *FromExecutor) GetDataIndex() int {
@@ -53,17 +131,19 @@ func (f *FromExecutor) BuildNode(ft *FromTo) Node {
 			Handle: f.Handle,
 		},
 	}
-	op.NewOutput(f.DataIndex)
+	op.NewOutputStream(f.DataIndex)
 	return op
 }
 
 type FromNode struct {
+	FileHash  string
 	Node      *cdssdk.Node
 	DataIndex int
 }
 
-func NewFromNode(node *cdssdk.Node, dataIndex int) *FromNode {
+func NewFromNode(fileHash string, node *cdssdk.Node, dataIndex int) *FromNode {
 	return &FromNode{
+		FileHash:  fileHash,
 		Node:      node,
 		DataIndex: dataIndex,
 	}
@@ -87,6 +167,15 @@ func NewToExecutor(dataIndex int) (*ToExecutor, *ExecutorReadStream) {
 	}, &str
 }
 
+func NewToExecutorWithRange(dataIndex int, rng Range) (*ToExecutor, *ExecutorReadStream) {
+	str := ExecutorReadStream{}
+	return &ToExecutor{
+		Handle:    &str,
+		DataIndex: dataIndex,
+		Range:     rng,
+	}, &str
+}
+
 func (t *ToExecutor) GetDataIndex() int {
 	return t.DataIndex
 }
@@ -95,26 +184,35 @@ func (t *ToExecutor) GetRange() Range {
 	return t.Range
 }
 
-type ToAgent struct {
+type ToNode struct {
 	Node             cdssdk.Node
 	DataIndex        int
 	Range            Range
 	FileHashStoreKey string
 }
 
-func NewToAgent(node cdssdk.Node, dataIndex int, fileHashStoreKey string) *ToAgent {
-	return &ToAgent{
+func NewToNode(node cdssdk.Node, dataIndex int, fileHashStoreKey string) *ToNode {
+	return &ToNode{
 		Node:             node,
 		DataIndex:        dataIndex,
 		FileHashStoreKey: fileHashStoreKey,
 	}
 }
 
-func (t *ToAgent) GetDataIndex() int {
+func NewToNodeWithRange(node cdssdk.Node, dataIndex int, fileHashStoreKey string, rng Range) *ToNode {
+	return &ToNode{
+		Node:             node,
+		DataIndex:        dataIndex,
+		FileHashStoreKey: fileHashStoreKey,
+		Range:            rng,
+	}
+}
+
+func (t *ToNode) GetDataIndex() int {
 	return t.DataIndex
 }
 
-func (t *ToAgent) GetRange() Range {
+func (t *ToNode) GetRange() Range {
 	return t.Range
 }
 

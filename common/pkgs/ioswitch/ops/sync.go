@@ -93,6 +93,13 @@ func (w *HoldUntil) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		return err
 	}
 
+	for i := 0; i < len(w.Holds); i++ {
+		err := ioswitch.AssignVar(w.Holds[i], w.Emits[i])
+		if err != nil {
+			return err
+		}
+	}
+
 	sw.PutVars(w.Emits...)
 	return nil
 }

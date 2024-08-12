@@ -64,7 +64,7 @@ func (o *ChunkedJoin) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	}()
 
 	fut := future.NewSetVoid()
-	o.Output.Stream = io2.AfterReadClosedOnce(io2.ChunkedJoin(strReaders, o.ChunkSize), func(closer io.ReadCloser) {
+	o.Output.Stream = io2.AfterReadClosedOnce(io2.BufferedChunkedJoin(strReaders, o.ChunkSize), func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})
 	sw.PutVars(o.Output)

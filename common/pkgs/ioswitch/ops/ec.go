@@ -119,14 +119,11 @@ func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		}
 	}()
 
-	outputVars := make([]*ioswitch.StreamVar, len(o.Outputs))
 	outputWrs := make([]*io.PipeWriter, len(o.Outputs))
 
 	for i := range o.Outputs {
 		rd, wr := io.Pipe()
-		outputVars[i] = &ioswitch.StreamVar{
-			Stream: rd,
-		}
+		o.Outputs[i].Stream = rd
 		outputWrs[i] = wr
 	}
 
@@ -173,7 +170,7 @@ func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		}
 	}()
 
-	ioswitch.PutArrayVars(sw, outputVars)
+	ioswitch.PutArrayVars(sw, o.Outputs)
 	err = fut.Wait(ctx)
 	if err != nil {
 		for _, wr := range outputWrs {

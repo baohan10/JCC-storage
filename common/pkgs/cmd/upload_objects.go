@@ -238,12 +238,19 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 }
 
 func uploadToNode(file io.Reader, node cdssdk.Node) (string, error) {
-	plan := plans.NewPlanBuilder()
-	str, v := plan.AtExecutor().WillWrite()
-	v.To(node).IPFSWrite().ToExecutor().Store("fileHash")
+	ft := plans.NewFromTo()
+	fromExec, hd := plans.NewFromExecutor(-1)
+	ft.AddFrom(fromExec).AddTo(plans.NewToNode(node, -1, "fileHash"))
 
-	exec := plan.Execute()
-	exec.BeginWrite(io.NopCloser(file), str)
+	parser := plans.NewParser(cdssdk.DefaultECRedundancy)
+	plans := plans.NewPlanBuilder()
+	err := parser.Parse(ft, plans)
+	if err != nil {
+		return "", fmt.Errorf("parsing plan: %w", err)
+	}
+
+	exec := plans.Execute()
+	exec.BeginWrite(io.NopCloser(file), hd)
 	ret, err := exec.Wait(context.TODO())
 	if err != nil {
 		return "", err

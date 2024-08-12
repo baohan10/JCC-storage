@@ -2,9 +2,12 @@ package plans
 
 import (
 	"fmt"
+	"math"
 
+	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
+	"gitlink.org.cn/cloudream/common/utils/math2"
 )
 
 type FromToParser interface {
@@ -15,9 +18,19 @@ type DefaultParser struct {
 	EC cdssdk.ECRedundancy
 }
 
+func NewParser(ec cdssdk.ECRedundancy) *DefaultParser {
+	return &DefaultParser{
+		EC: ec,
+	}
+}
+
 type ParseContext struct {
-	Ft    FromTo
-	Nodes []*Node
+	Ft      FromTo
+	Nodes   []*Node
+	ToNodes []*Node
+	// 为了产生所有To所需的数据范围，而需要From打开的范围。
+	// 这个范围是基于整个文件的，且上下界都取整到条带大小的整数倍，因此上界是有可能超过文件大小的。
+	StreamRange Range
 }
 
 func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
@@ -25,6 +38,10 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 
 	// 分成两个阶段：
 	// 1. 基于From和To生成更多指令，初步匹配to的需求
+
+	// 计算一下打开流的范围
+	p.calcStreamRange(&ctx)
+
 	err := p.extend(&ctx, ft, blder)
 	if err != nil {
 		return err
@@ -80,6 +97,7 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 	p.dropUnused(&ctx)
 	p.storeIPFSWriteResult(&ctx)
 	p.generateClone(&ctx)
+	p.generateRange(&ctx)
 	p.generateSend(&ctx)
 
 	return p.buildPlan(&ctx, blder)
@@ -96,9 +114,44 @@ func (p *DefaultParser) findOutputStream(ctx *ParseContext, dataIndex int) *Stre
 	return nil
 }
 
+// 计算输入流的打开范围。会把流的范围按条带大小取整
+func (p *DefaultParser) calcStreamRange(ctx *ParseContext) {
+	stripSize := int64(p.EC.ChunkSize * p.EC.K)
+
+	rng := Range{
+		Offset: math.MaxInt64,
+	}
+
+	for _, to := range ctx.Ft.Toes {
+		if to.GetDataIndex() == -1 {
+			toRng := to.GetRange()
+			rng.ExtendStart(math2.Floor(toRng.Offset, stripSize))
+			if toRng.Length != nil {
+				rng.ExtendEnd(math2.Ceil(toRng.Offset+*toRng.Length, stripSize))
+			} else {
+				rng.Length = nil
+			}
+
+		} else {
+			toRng := to.GetRange()
+
+			blkStartIndex := math2.FloorDiv(toRng.Offset, int64(p.EC.ChunkSize))
+			rng.ExtendStart(blkStartIndex * stripSize)
+			if toRng.Length != nil {
+				blkEndIndex := math2.CeilDiv(toRng.Offset+*toRng.Length, int64(p.EC.ChunkSize))
+				rng.ExtendEnd(blkEndIndex * stripSize)
+			} else {
+				rng.Length = nil
+			}
+		}
+	}
+
+	ctx.StreamRange = rng
+}
+
 func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo, blder *PlanBuilder) error {
 	for _, f := range ft.Froms {
-		n, err := p.buildFromNode(&ft, f)
+		n, err := p.buildFromNode(ctx, &ft, f)
 		if err != nil {
 			return err
 		}
@@ -108,11 +161,11 @@ func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo, blder *PlanBuilder)
 		if f.GetDataIndex() == -1 {
 			splitOp := &Node{
 				Env:  nil,
-				Type: &ChunkedSplitOp{ChunkSize: p.EC.ChunkSize, PaddingZeros: true},
+				Type: &ChunkedSplitType{ChunkSize: p.EC.ChunkSize, PaddingZeros: true},
 			}
-			splitOp.AddInput(n.OutputStreams[0])
+			splitOp.AddInputStream(n.OutputStreams[0])
 			for i := 0; i < p.EC.K; i++ {
-				splitOp.NewOutput(i)
+				splitOp.NewOutputStream(i)
 			}
 			ctx.Nodes = append(ctx.Nodes, splitOp)
 		}
@@ -134,56 +187,89 @@ loop:
 	if len(ecInputStrs) == p.EC.K {
 		mulOp := &Node{
 			Env:  nil,
-			Type: &MultiplyOp{ChunkSize: p.EC.ChunkSize},
+			Type: &MultiplyOp{EC: p.EC},
 		}
 
 		for _, s := range ecInputStrs {
-			mulOp.AddInput(s)
+			mulOp.AddInputStream(s)
 		}
 		for i := 0; i < p.EC.N; i++ {
-			mulOp.NewOutput(i)
+			mulOp.NewOutputStream(i)
 		}
 		ctx.Nodes = append(ctx.Nodes, mulOp)
 
 		joinOp := &Node{
 			Env:  nil,
-			Type: &ChunkedJoinOp{p.EC.ChunkSize},
+			Type: &ChunkedJoinType{p.EC.ChunkSize},
 		}
 		for i := 0; i < p.EC.K; i++ {
 			// 不可能找不到流
-			joinOp.AddInput(p.findOutputStream(ctx, i))
+			joinOp.AddInputStream(p.findOutputStream(ctx, i))
 		}
-		joinOp.NewOutput(-1)
+		joinOp.NewOutputStream(-1)
+		ctx.Nodes = append(ctx.Nodes, joinOp)
 	}
 
 	// 为每一个To找到一个输入流
-	for _, t := range ft.Tos {
+	for _, t := range ft.Toes {
 		n, err := p.buildToNode(&ft, t)
 		if err != nil {
 			return err
 		}
 
 		ctx.Nodes = append(ctx.Nodes, n)
+		ctx.ToNodes = append(ctx.ToNodes, n)
 
 		str := p.findOutputStream(ctx, t.GetDataIndex())
 		if str == nil {
 			return fmt.Errorf("no output stream found for data index %d", t.GetDataIndex())
 		}
 
-		n.AddInput(str)
+		n.AddInputStream(str)
 	}
 
 	return nil
 }
 
-func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
+func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *FromTo, f From) (*Node, error) {
+	var repRange Range
+	var blkRange Range
+
+	repRange.Offset = ctx.StreamRange.Offset
+	blkRange.Offset = ctx.StreamRange.Offset / int64(p.EC.ChunkSize*p.EC.K) * int64(p.EC.ChunkSize)
+	if ctx.StreamRange.Length != nil {
+		repRngLen := *ctx.StreamRange.Length
+		repRange.Length = &repRngLen
+
+		blkRngLen := *ctx.StreamRange.Length / int64(p.EC.ChunkSize*p.EC.K) * int64(p.EC.ChunkSize)
+		blkRange.Length = &blkRngLen
+	}
+
 	switch f := f.(type) {
 	case *FromNode:
-		n := &Node{
-			// TODO2 需要FromTo的Range来设置Option
-			Type: &IPFSReadType{FileHash: ft.Object.Object.FileHash},
+		ty := &IPFSReadType{
+			FileHash: f.FileHash,
+			Option: ipfs.ReadOption{
+				Offset: 0,
+				Length: -1,
+			},
 		}
-		n.NewOutput(f.DataIndex)
+		if f.DataIndex == -1 {
+			ty.Option.Offset = repRange.Offset
+			if repRange.Length != nil {
+				ty.Option.Length = *repRange.Length
+			}
+		} else {
+			ty.Option.Offset = blkRange.Offset
+			if blkRange.Length != nil {
+				ty.Option.Length = *blkRange.Length
+			}
+		}
+
+		n := &Node{
+			Type: ty,
+		}
+		n.NewOutputStream(f.DataIndex)
 
 		if f.Node != nil {
 			n.Env = &AgentEnv{Node: *f.Node}
@@ -196,7 +282,16 @@ func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
 			Env:  &ExecutorEnv{},
 			Type: &FromExecutorOp{Handle: f.Handle},
 		}
-		n.NewOutput(f.DataIndex)
+		n.NewOutputStream(f.DataIndex)
+
+		if f.DataIndex == -1 {
+			f.Handle.RangeHint.Offset = repRange.Offset
+			f.Handle.RangeHint.Length = repRange.Length
+		} else {
+			f.Handle.RangeHint.Offset = blkRange.Offset
+			f.Handle.RangeHint.Length = blkRange.Length
+		}
+
 		return n, nil
 
 	default:
@@ -206,16 +301,19 @@ func (p *DefaultParser) buildFromNode(ft *FromTo, f From) (*Node, error) {
 
 func (p *DefaultParser) buildToNode(ft *FromTo, t To) (*Node, error) {
 	switch t := t.(type) {
-	case *ToAgent:
-		return &Node{
+	case *ToNode:
+		n := &Node{
 			Env:  &AgentEnv{t.Node},
-			Type: &IPFSWriteType{FileHashStoreKey: t.FileHashStoreKey},
-		}, nil
+			Type: &IPFSWriteType{FileHashStoreKey: t.FileHashStoreKey, Range: t.Range},
+		}
+		n.NewOutputVar(StringValueVar)
+
+		return n, nil
 
 	case *ToExecutor:
 		return &Node{
 			Env:  &ExecutorEnv{},
-			Type: &ToExecutorOp{Handle: t.Handle},
+			Type: &ToExecutorOp{Handle: t.Handle, Range: t.Range},
 		}, nil
 
 	default:
@@ -227,7 +325,7 @@ func (p *DefaultParser) buildToNode(ft *FromTo, t To) (*Node, error) {
 func (p *DefaultParser) removeUnusedJoin(ctx *ParseContext) bool {
 	opted := false
 	for i, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedJoinOp)
+		_, ok := op.Type.(*ChunkedJoinType)
 		if !ok {
 			continue
 		}
@@ -263,6 +361,7 @@ func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
 			}
 
 			op.OutputStreams[i2] = nil
+			opted = true
 		}
 		op.OutputStreams = lo2.RemoveAllDefault(op.OutputStreams)
 
@@ -272,9 +371,8 @@ func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
 			}
 
 			ctx.Nodes[i] = nil
+			opted = true
 		}
-
-		opted = true
 	}
 
 	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
@@ -285,7 +383,7 @@ func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
 func (p *DefaultParser) removeUnusedSplit(ctx *ParseContext) bool {
 	opted := false
 	for i, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedSplitOp)
+		_, ok := op.Type.(*ChunkedSplitType)
 		if !ok {
 			continue
 		}
@@ -320,7 +418,7 @@ loop:
 			continue
 		}
 
-		_, ok := splitOp.Type.(*ChunkedSplitOp)
+		_, ok := splitOp.Type.(*ChunkedSplitType)
 		if !ok {
 			continue
 		}
@@ -344,7 +442,7 @@ loop:
 		}
 
 		// 且这个目的地要是一个Join指令
-		_, ok = joinOp.Type.(*ChunkedJoinOp)
+		_, ok = joinOp.Type.(*ChunkedJoinType)
 		if !ok {
 			continue
 		}
@@ -358,8 +456,8 @@ loop:
 		// 所有条件都满足，可以开始省略操作，将Join操作的目的地的输入流替换为Split操作的输入流：
 		// F->Split->Join->T 变换为：F->T
 		splitOp.InputStreams[0].RemoveTo(splitOp)
-		for _, to := range joinOp.OutputStreams[0].Toes {
-			to.ReplaceInput(joinOp.OutputStreams[0], splitOp.InputStreams[0])
+		for i := len(joinOp.OutputStreams[0].Toes) - 1; i >= 0; i-- {
+			joinOp.OutputStreams[0].Toes[i].ReplaceInputStream(joinOp.OutputStreams[0], splitOp.InputStreams[0])
 		}
 
 		// 并删除这两个指令
@@ -376,7 +474,7 @@ loop:
 func (p *DefaultParser) pinSplit(ctx *ParseContext) bool {
 	opted := false
 	for _, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedSplitOp)
+		_, ok := op.Type.(*ChunkedSplitType)
 		if !ok {
 			continue
 		}
@@ -435,7 +533,7 @@ func (p *DefaultParser) pinSplit(ctx *ParseContext) bool {
 func (p *DefaultParser) pinJoin(ctx *ParseContext) bool {
 	opted := false
 	for _, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedJoinOp)
+		_, ok := op.Type.(*ChunkedJoinType)
 		if !ok {
 			continue
 		}
@@ -603,10 +701,10 @@ func (p *DefaultParser) dropUnused(ctx *ParseContext) {
 		for _, out := range op.OutputStreams {
 			if len(out.Toes) == 0 {
 				dropOp := &Node{
-					Env:  nil,
+					Env:  op.Env,
 					Type: &DropOp{},
 				}
-				dropOp.AddInput(out)
+				dropOp.AddInputStream(out)
 				ctx.Nodes = append(ctx.Nodes, dropOp)
 			}
 		}
@@ -636,6 +734,41 @@ func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
 	}
 }
 
+// 生成Range指令。StreamRange可能超过文件总大小，但Range指令会在数据量不够时不报错而是正常返回
+func (p *DefaultParser) generateRange(ctx *ParseContext) {
+	for i, to := range ctx.ToNodes {
+		toDataIdx := ctx.Ft.Toes[i].GetDataIndex()
+		toRng := ctx.Ft.Toes[i].GetRange()
+
+		if toDataIdx == -1 {
+			rngType := &RangeType{Range: Range{Offset: toRng.Offset - ctx.StreamRange.Offset, Length: toRng.Length}}
+			rngNode := &Node{
+				Env:  to.InputStreams[0].From.Env,
+				Type: rngType,
+			}
+			rngNode.AddInputStream(to.InputStreams[0])
+
+			to.ReplaceInputStream(to.InputStreams[0], rngNode.NewOutputStream(toDataIdx))
+			ctx.Nodes = append(ctx.Nodes, rngNode)
+		} else {
+			stripSize := int64(p.EC.ChunkSize * p.EC.K)
+			blkStartIdx := ctx.StreamRange.Offset / stripSize
+
+			blkStart := blkStartIdx * int64(p.EC.ChunkSize)
+
+			rngType := &RangeType{Range: Range{Offset: toRng.Offset - blkStart, Length: toRng.Length}}
+			rngNode := &Node{
+				Env:  to.InputStreams[0].From.Env,
+				Type: rngType,
+			}
+			rngNode.AddInputStream(to.InputStreams[0])
+
+			to.ReplaceInputStream(to.InputStreams[0], rngNode.NewOutputStream(toDataIdx))
+			ctx.Nodes = append(ctx.Nodes, rngNode)
+		}
+	}
+}
+
 // 生成Clone指令
 func (p *DefaultParser) generateClone(ctx *ParseContext) {
 	for _, op := range ctx.Nodes {
@@ -646,13 +779,13 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 
 			cloneOp := &Node{
 				Env:  op.Env,
-				Type: &CloneStreamOp{},
+				Type: &CloneStreamType{},
 			}
-			for _, to := range out.Toes {
-				to.ReplaceInput(out, cloneOp.NewOutput(out.DataIndex))
+			for i := len(out.Toes) - 1; i >= 0; i-- {
+				out.Toes[i].ReplaceInputStream(out, cloneOp.NewOutputStream(out.DataIndex))
 			}
 			out.Toes = nil
-			cloneOp.AddInput(out)
+			cloneOp.AddInputStream(out)
 			ctx.Nodes = append(ctx.Nodes, cloneOp)
 		}
 
@@ -663,13 +796,14 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 
 			cloneOp := &Node{
 				Env:  op.Env,
-				Type: &CloneVarOp{},
+				Type: &CloneVarType{},
 			}
-			for _, to := range out.Toes {
-				to.ReplaceInputVar(out, cloneOp.NewOutputVar(out.Type))
+			for i := len(out.Toes) - 1; i >= 0; i-- {
+				out.Toes[i].ReplaceInputVar(out, cloneOp.NewOutputVar(out.Type))
 			}
 			out.Toes = nil
 			cloneOp.AddInputVar(out)
+			ctx.Nodes = append(ctx.Nodes, cloneOp)
 		}
 	}
 }
@@ -678,21 +812,31 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 func (p *DefaultParser) generateSend(ctx *ParseContext) {
 	for _, op := range ctx.Nodes {
 		for _, out := range op.OutputStreams {
-			to := out.Toes[0]
-			if to.Env.Equals(op.Env) {
+			toOp := out.Toes[0]
+			if toOp.Env.Equals(op.Env) {
 				continue
 			}
 
-			switch to.Env.(type) {
+			switch toOp.Env.(type) {
 			case *ExecutorEnv:
 				// 如果是要送到Executor，则只能由Executor主动去拉取
 				getStrOp := &Node{
 					Env:  &ExecutorEnv{},
 					Type: &GetStreamOp{},
 				}
-				out.Toes = nil
-				getStrOp.AddInput(out)
-				to.ReplaceInput(out, getStrOp.NewOutput(out.DataIndex))
+
+				// 同时需要对此变量生成HoldUntil指令，避免Plan结束时Get指令还未到达
+				holdOp := &Node{
+					Env:  op.Env,
+					Type: &HoldUntilOp{},
+				}
+				holdOp.AddInputVar(getStrOp.NewOutputVar(SignalValueVar))
+				holdOp.AddInputStream(out)
+
+				getStrOp.AddInputStream(holdOp.NewOutputStream(out.DataIndex))
+				toOp.ReplaceInputStream(out, getStrOp.NewOutputStream(out.DataIndex))
+
+				ctx.Nodes = append(ctx.Nodes, holdOp)
 				ctx.Nodes = append(ctx.Nodes, getStrOp)
 
 			case *AgentEnv:
@@ -702,29 +846,39 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 					Type: &SendStreamOp{},
 				}
 				out.Toes = nil
-				sendStrOp.AddInput(out)
-				to.ReplaceInput(out, sendStrOp.NewOutput(out.DataIndex))
+				sendStrOp.AddInputStream(out)
+				toOp.ReplaceInputStream(out, sendStrOp.NewOutputStream(out.DataIndex))
 				ctx.Nodes = append(ctx.Nodes, sendStrOp)
 			}
 		}
 
 		for _, out := range op.OutputValues {
-			to := out.Toes[0]
-			if to.Env.Equals(op.Env) {
+			toOp := out.Toes[0]
+			if toOp.Env.Equals(op.Env) {
 				continue
 			}
 
-			switch to.Env.(type) {
+			switch toOp.Env.(type) {
 			case *ExecutorEnv:
 				// 如果是要送到Executor，则只能由Executor主动去拉取
-				getVarOp := &Node{
+				getStrOp := &Node{
 					Env:  &ExecutorEnv{},
 					Type: &GetVarOp{},
 				}
-				out.Toes = nil
-				getVarOp.AddInputVar(out)
-				to.ReplaceInputVar(out, getVarOp.NewOutputVar(out.Type))
-				ctx.Nodes = append(ctx.Nodes, getVarOp)
+
+				// 同时需要对此变量生成HoldUntil指令，避免Plan结束时Get指令还未到达
+				holdOp := &Node{
+					Env:  op.Env,
+					Type: &HoldUntilOp{},
+				}
+				holdOp.AddInputVar(getStrOp.NewOutputVar(SignalValueVar))
+				holdOp.AddInputVar(out)
+
+				getStrOp.AddInputVar(holdOp.NewOutputVar(out.Type))
+				toOp.ReplaceInputVar(out, getStrOp.NewOutputVar(out.Type))
+
+				ctx.Nodes = append(ctx.Nodes, holdOp)
+				ctx.Nodes = append(ctx.Nodes, getStrOp)
 
 			case *AgentEnv:
 				// 如果是要送到Agent，则可以直接发送
@@ -734,7 +888,7 @@ func (p *DefaultParser) generateSend(ctx *ParseContext) {
 				}
 				out.Toes = nil
 				sendVarOp.AddInputVar(out)
-				to.ReplaceInputVar(out, sendVarOp.NewOutputVar(out.Type))
+				toOp.ReplaceInputVar(out, sendVarOp.NewOutputVar(out.Type))
 				ctx.Nodes = append(ctx.Nodes, sendVarOp)
 			}
 		}
@@ -768,6 +922,8 @@ func (p *DefaultParser) buildPlan(ctx *ParseContext, blder *PlanBuilder) error {
 			switch out.Type {
 			case StringValueVar:
 				out.Var = blder.NewStringVar()
+			case SignalValueVar:
+				out.Var = blder.NewSignalVar()
 			}
 
 		}
@@ -780,6 +936,8 @@ func (p *DefaultParser) buildPlan(ctx *ParseContext, blder *PlanBuilder) error {
 			switch in.Type {
 			case StringValueVar:
 				in.Var = blder.NewStringVar()
+			case SignalValueVar:
+				in.Var = blder.NewSignalVar()
 			}
 		}
 

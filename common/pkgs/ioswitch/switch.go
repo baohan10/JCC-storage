@@ -48,7 +48,7 @@ func (s *Switch) Run(ctx context.Context) error {
 
 		if err != nil {
 			cancel()
-			return err
+			return fmt.Errorf("%T: %w", o, err)
 		}
 
 		return nil

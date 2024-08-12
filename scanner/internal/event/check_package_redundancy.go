@@ -413,14 +413,19 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 		return nil, fmt.Errorf("requesting to get nodes: %w", err)
 	}
 
-	planBlder := plans.NewPlanBuilder()
-	inputStrs := planBlder.AtAgent(getNodes.Nodes[0]).IPFSRead(obj.Object.FileHash).ChunkedSplit(red.ChunkSize, red.K, true)
-	outputStrs := planBlder.AtAgent(getNodes.Nodes[0]).ECReconstructAny(*red, lo.Range(red.K), lo.Range(red.N), inputStrs)
+	ft := plans.NewFromTo()
+	ft.AddFrom(plans.NewFromNode(obj.Object.FileHash, &getNodes.Nodes[0], -1))
 	for i := 0; i < red.N; i++ {
-		outputStrs[i].To(uploadNodes[i].Node).IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d", i))
+		ft.AddTo(plans.NewToNode(uploadNodes[i].Node, i, fmt.Sprintf("%d", i)))
+	}
+	parser := plans.NewParser(*red)
+	plans := plans.NewPlanBuilder()
+	err = parser.Parse(ft, plans)
+	if err != nil {
+		return nil, fmt.Errorf("parsing plan: %w", err)
 	}
 
-	ioRet, err := planBlder.Execute().Wait(context.TODO())
+	ioRet, err := plans.Execute().Wait(context.TODO())
 	if err != nil {
 		return nil, fmt.Errorf("executing io plan: %w", err)
 	}
@@ -510,17 +515,25 @@ func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk
 	uploadNodes = lo.UniqBy(uploadNodes, func(item *NodeLoadInfo) cdssdk.NodeID { return item.Node.NodeID })
 
 	// 每个被选节点都在自己节点上重建原始数据
+	parser := plans.NewParser(*srcRed)
 	planBlder := plans.NewPlanBuilder()
 	for i := range uploadNodes {
-		tarNode := planBlder.AtAgent(uploadNodes[i].Node)
+		ft := plans.NewFromTo()
 
-		var inputs []*plans.AgentStreamVar
 		for _, block := range chosenBlocks {
-			inputs = append(inputs, tarNode.IPFSRead(block.FileHash))
+			ft.AddFrom(plans.NewFromNode(block.FileHash, &uploadNodes[i].Node, block.Index))
 		}
 
-		outputs := tarNode.ECReconstruct(*srcRed, chosenBlockIndexes, inputs)
-		tarNode.ChunkedJoin(srcRed.ChunkSize, outputs).Length(obj.Object.Size).IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d", i))
+		len := obj.Object.Size
+		ft.AddTo(plans.NewToNodeWithRange(uploadNodes[i].Node, -1, fmt.Sprintf("%d", i), plans.Range{
+			Offset: 0,
+			Length: &len,
+		}))
+
+		err := parser.Parse(ft, planBlder)
+		if err != nil {
+			return nil, fmt.Errorf("parsing plan: %w", err)
+		}
 	}
 
 	ioRet, err := planBlder.Execute().Wait(context.TODO())
@@ -555,11 +568,9 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 	grpBlocks := obj.GroupBlocks()
 
 	var chosenBlocks []stgmod.GrouppedObjectBlock
-	var chosenBlockIndexes []int
 	for _, block := range grpBlocks {
 		if len(block.NodeIDs) > 0 {
 			chosenBlocks = append(chosenBlocks, block)
-			chosenBlockIndexes = append(chosenBlockIndexes, block.Index)
 		}
 
 		if len(chosenBlocks) == srcRed.K {
@@ -572,6 +583,7 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 	}
 
 	// 目前EC的参数都相同，所以可以不用重建出完整数据然后再分块，可以直接构建出目的节点需要的块
+	parser := plans.NewParser(*srcRed)
 	planBlder := plans.NewPlanBuilder()
 
 	var newBlocks []stgmod.ObjectBlock
@@ -595,15 +607,20 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 		shouldUpdateBlocks = true
 
 		// 否则就要重建出这个节点需要的块
-		tarNode := planBlder.AtAgent(node.Node)
 
-		var inputs []*plans.AgentStreamVar
+		ft := plans.NewFromTo()
 		for _, block := range chosenBlocks {
-			inputs = append(inputs, tarNode.IPFSRead(block.FileHash))
+			ft.AddFrom(plans.NewFromNode(block.FileHash, &node.Node, block.Index))
 		}
 
 		// 输出只需要自己要保存的那一块
-		tarNode.ECReconstructAny(*srcRed, chosenBlockIndexes, []int{i}, inputs)[0].IPFSWrite().ToExecutor().Store(fmt.Sprintf("%d", i))
+		ft.AddTo(plans.NewToNode(node.Node, i, fmt.Sprintf("%d", i)))
+
+		err := parser.Parse(ft, planBlder)
+		if err != nil {
+			return nil, fmt.Errorf("parsing plan: %w", err)
+		}
+
 		newBlocks = append(newBlocks, newBlock)
 	}
 

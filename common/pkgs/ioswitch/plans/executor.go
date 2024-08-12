@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
@@ -20,7 +21,14 @@ type Executor struct {
 	executorSw *ioswitch.Switch
 }
 
+// 开始写入一个流。此函数会将输入视为一个完整的流，因此会给流包装一个Range来获取只需要的部分。
 func (e *Executor) BeginWrite(str io.ReadCloser, handle *ExecutorWriteStream) {
+	handle.Var.Stream = io2.NewRange(str, handle.RangeHint.Offset, handle.RangeHint.Length)
+	e.executorSw.PutVars(handle.Var)
+}
+
+// 开始写入一个流。此函数默认输入流已经是Handle的RangeHint锁描述的范围，因此不会做任何其他处理
+func (e *Executor) BeginWriteRanged(str io.ReadCloser, handle *ExecutorWriteStream) {
 	handle.Var.Stream = str
 	e.executorSw.PutVars(handle.Var)
 }
@@ -99,7 +107,8 @@ func (e *Executor) stopWith(err error) {
 }
 
 type ExecutorWriteStream struct {
-	Var *ioswitch.StreamVar
+	Var       *ioswitch.StreamVar
+	RangeHint *Range
 }
 
 type ExecutorReadStream struct {
