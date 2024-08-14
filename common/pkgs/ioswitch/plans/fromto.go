@@ -3,6 +3,7 @@ package plans
 import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/math2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/exec"
 )
 
 type FromTo struct {
@@ -124,51 +125,40 @@ func (f *FromExecutor) GetDataIndex() int {
 	return f.DataIndex
 }
 
-func (f *FromExecutor) BuildNode(ft *FromTo) Node {
-	op := Node{
-		Env: &ExecutorEnv{},
-		Type: &FromExecutorOp{
-			Handle: f.Handle,
-		},
-	}
-	op.NewOutputStream(f.DataIndex)
-	return op
-}
-
-type FromNode struct {
+type FromWorker struct {
 	FileHash  string
 	Node      *cdssdk.Node
 	DataIndex int
 }
 
-func NewFromNode(fileHash string, node *cdssdk.Node, dataIndex int) *FromNode {
-	return &FromNode{
+func NewFromNode(fileHash string, node *cdssdk.Node, dataIndex int) *FromWorker {
+	return &FromWorker{
 		FileHash:  fileHash,
 		Node:      node,
 		DataIndex: dataIndex,
 	}
 }
 
-func (f *FromNode) GetDataIndex() int {
+func (f *FromWorker) GetDataIndex() int {
 	return f.DataIndex
 }
 
 type ToExecutor struct {
-	Handle    *ExecutorReadStream
+	Handle    *exec.ExecutorReadStream
 	DataIndex int
 	Range     Range
 }
 
-func NewToExecutor(dataIndex int) (*ToExecutor, *ExecutorReadStream) {
-	str := ExecutorReadStream{}
+func NewToExecutor(dataIndex int) (*ToExecutor, *exec.ExecutorReadStream) {
+	str := exec.ExecutorReadStream{}
 	return &ToExecutor{
 		Handle:    &str,
 		DataIndex: dataIndex,
 	}, &str
 }
 
-func NewToExecutorWithRange(dataIndex int, rng Range) (*ToExecutor, *ExecutorReadStream) {
-	str := ExecutorReadStream{}
+func NewToExecutorWithRange(dataIndex int, rng Range) (*ToExecutor, *exec.ExecutorReadStream) {
+	str := exec.ExecutorReadStream{}
 	return &ToExecutor{
 		Handle:    &str,
 		DataIndex: dataIndex,

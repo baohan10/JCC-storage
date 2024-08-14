@@ -8,10 +8,57 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/exec"
 )
 
+type NodeProps struct {
+	From From
+	To   To
+}
+
+type ValueVarType int
+
+const (
+	StringValueVar ValueVarType = iota
+	SignalValueVar
+)
+
+type VarProps struct {
+	StreamIndex int          // 流的编号，只在StreamVar上有意义
+	ValueType   ValueVarType // 值类型，只在ValueVar上有意义
+	Var         ioswitch.Var // 生成Plan的时候创建的对应的Var
+}
+
+type Graph = dag.Graph[NodeProps, VarProps]
+
+type Node = dag.Node[NodeProps, VarProps]
+
+type StreamVar = dag.StreamVar[NodeProps, VarProps]
+
+type ValueVar = dag.ValueVar[NodeProps, VarProps]
+
+type AgentWorker struct {
+	Node cdssdk.Node
+}
+
+func (w *AgentWorker) GetAddress() string {
+	// TODO 选择地址
+	return fmt.Sprintf("%v:%v", w.Node.ExternalIP, w.Node.ExternalGRPCPort)
+}
+
+func (w *AgentWorker) Equals(worker exec.Worker) bool {
+	aw, ok := worker.(*AgentWorker)
+	if !ok {
+		return false
+	}
+
+	return w.Node.NodeID == aw.Node.NodeID
+}
+
 type FromToParser interface {
-	Parse(ft FromTo, blder *PlanBuilder) error
+	Parse(ft FromTo, blder *builder.PlanBuilder) error
 }
 
 type DefaultParser struct {
@@ -25,15 +72,14 @@ func NewParser(ec cdssdk.ECRedundancy) *DefaultParser {
 }
 
 type ParseContext struct {
-	Ft      FromTo
-	Nodes   []*Node
-	ToNodes []*Node
+	Ft  FromTo
+	DAG *Graph
 	// 为了产生所有To所需的数据范围，而需要From打开的范围。
 	// 这个范围是基于整个文件的，且上下界都取整到条带大小的整数倍，因此上界是有可能超过文件大小的。
 	StreamRange Range
 }
 
-func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
+func (p *DefaultParser) Parse(ft FromTo, blder *builder.PlanBuilder) error {
 	ctx := ParseContext{Ft: ft}
 
 	// 分成两个阶段：
@@ -42,7 +88,7 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 	// 计算一下打开流的范围
 	p.calcStreamRange(&ctx)
 
-	err := p.extend(&ctx, ft, blder)
+	err := p.extend(&ctx, ft)
 	if err != nil {
 		return err
 	}
@@ -72,25 +118,7 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 	}
 
 	// 确定指令执行位置的过程，也需要反复进行，直到没有变化为止。
-	// 从目前实现上来说不会死循环
-	for {
-		opted := false
-		if p.pinIPFSRead(&ctx) {
-			opted = true
-		}
-		if p.pinJoin(&ctx) {
-			opted = true
-		}
-		if p.pinMultiply(&ctx) {
-			opted = true
-		}
-		if p.pinSplit(&ctx) {
-			opted = true
-		}
-
-		if !opted {
-			break
-		}
+	for p.pin(&ctx) {
 	}
 
 	// 下面这些只需要执行一次，但需要按顺序
@@ -102,16 +130,19 @@ func (p *DefaultParser) Parse(ft FromTo, blder *PlanBuilder) error {
 
 	return p.buildPlan(&ctx, blder)
 }
-func (p *DefaultParser) findOutputStream(ctx *ParseContext, dataIndex int) *StreamVar {
-	for _, op := range ctx.Nodes {
-		for _, o := range op.OutputStreams {
-			if o.DataIndex == dataIndex {
-				return o
+func (p *DefaultParser) findOutputStream(ctx *ParseContext, streamIndex int) *StreamVar {
+	var ret *StreamVar
+	ctx.DAG.Walk(func(n *dag.Node[NodeProps, VarProps]) bool {
+		for _, o := range n.OutputStreams {
+			if o != nil && o.Props.StreamIndex == streamIndex {
+				ret = o
+				return false
 			}
 		}
-	}
+		return true
+	})
 
-	return nil
+	return ret
 }
 
 // 计算输入流的打开范围。会把流的范围按条带大小取整
@@ -149,35 +180,29 @@ func (p *DefaultParser) calcStreamRange(ctx *ParseContext) {
 	ctx.StreamRange = rng
 }
 
-func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo, blder *PlanBuilder) error {
+func (p *DefaultParser) extend(ctx *ParseContext, ft FromTo) error {
 	for _, f := range ft.Froms {
-		n, err := p.buildFromNode(ctx, &ft, f)
+		_, err := p.buildFromNode(ctx, &ft, f)
 		if err != nil {
 			return err
 		}
-		ctx.Nodes = append(ctx.Nodes, n)
 
 		// 对于完整文件的From，生成Split指令
 		if f.GetDataIndex() == -1 {
-			splitOp := &Node{
-				Env:  nil,
-				Type: &ChunkedSplitType{ChunkSize: p.EC.ChunkSize, PaddingZeros: true},
-			}
-			splitOp.AddInputStream(n.OutputStreams[0])
+			n, _ := dag.NewNode(ctx.DAG, &ChunkedSplitType{ChunkSize: p.EC.ChunkSize, OutputCount: p.EC.K}, NodeProps{})
 			for i := 0; i < p.EC.K; i++ {
-				splitOp.NewOutputStream(i)
+				n.OutputStreams[i].Props.StreamIndex = i
 			}
-			ctx.Nodes = append(ctx.Nodes, splitOp)
 		}
 	}
 
 	// 如果有K个不同的文件块流，则生成Multiply指令，同时针对其生成的流，生成Join指令
 	ecInputStrs := make(map[int]*StreamVar)
 loop:
-	for _, o := range ctx.Nodes {
+	for _, o := range ctx.DAG.Nodes {
 		for _, s := range o.OutputStreams {
-			if s.DataIndex >= 0 && ecInputStrs[s.DataIndex] == nil {
-				ecInputStrs[s.DataIndex] = s
+			if s.Props.StreamIndex >= 0 && ecInputStrs[s.Props.StreamIndex] == nil {
+				ecInputStrs[s.Props.StreamIndex] = s
 				if len(ecInputStrs) == p.EC.K {
 					break loop
 				}
@@ -185,47 +210,42 @@ loop:
 		}
 	}
 	if len(ecInputStrs) == p.EC.K {
-		mulOp := &Node{
-			Env:  nil,
-			Type: &MultiplyOp{EC: p.EC},
-		}
+		mulNode, mulType := dag.NewNode(ctx.DAG, &MultiplyType{
+			EC: p.EC,
+		}, NodeProps{})
 
 		for _, s := range ecInputStrs {
-			mulOp.AddInputStream(s)
+			mulType.AddInput(mulNode, s)
 		}
 		for i := 0; i < p.EC.N; i++ {
-			mulOp.NewOutputStream(i)
+			mulType.NewOutput(mulNode, i)
 		}
-		ctx.Nodes = append(ctx.Nodes, mulOp)
 
-		joinOp := &Node{
-			Env:  nil,
-			Type: &ChunkedJoinType{p.EC.ChunkSize},
-		}
+		joinNode, _ := dag.NewNode(ctx.DAG, &ChunkedJoinType{
+			InputCount: p.EC.K,
+			ChunkSize:  p.EC.ChunkSize,
+		}, NodeProps{})
+
 		for i := 0; i < p.EC.K; i++ {
 			// 不可能找不到流
-			joinOp.AddInputStream(p.findOutputStream(ctx, i))
+			p.findOutputStream(ctx, i).To(joinNode, i)
 		}
-		joinOp.NewOutputStream(-1)
-		ctx.Nodes = append(ctx.Nodes, joinOp)
+		joinNode.OutputStreams[0].Props.StreamIndex = -1
 	}
 
 	// 为每一个To找到一个输入流
 	for _, t := range ft.Toes {
-		n, err := p.buildToNode(&ft, t)
+		n, err := p.buildToNode(ctx, &ft, t)
 		if err != nil {
 			return err
 		}
-
-		ctx.Nodes = append(ctx.Nodes, n)
-		ctx.ToNodes = append(ctx.ToNodes, n)
 
 		str := p.findOutputStream(ctx, t.GetDataIndex())
 		if str == nil {
 			return fmt.Errorf("no output stream found for data index %d", t.GetDataIndex())
 		}
 
-		n.AddInputStream(str)
+		str.To(n, 0)
 	}
 
 	return nil
@@ -246,43 +266,40 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *FromTo, f From) (*N
 	}
 
 	switch f := f.(type) {
-	case *FromNode:
-		ty := &IPFSReadType{
+	case *FromWorker:
+		n, t := dag.NewNode(ctx.DAG, &IPFSReadType{
 			FileHash: f.FileHash,
 			Option: ipfs.ReadOption{
 				Offset: 0,
 				Length: -1,
 			},
-		}
+		}, NodeProps{
+			From: f,
+		})
+		n.OutputStreams[0].Props.StreamIndex = f.DataIndex
+
 		if f.DataIndex == -1 {
-			ty.Option.Offset = repRange.Offset
+			t.Option.Offset = repRange.Offset
 			if repRange.Length != nil {
-				ty.Option.Length = *repRange.Length
+				t.Option.Length = *repRange.Length
 			}
 		} else {
-			ty.Option.Offset = blkRange.Offset
+			t.Option.Offset = blkRange.Offset
 			if blkRange.Length != nil {
-				ty.Option.Length = *blkRange.Length
+				t.Option.Length = *blkRange.Length
 			}
 		}
 
-		n := &Node{
-			Type: ty,
-		}
-		n.NewOutputStream(f.DataIndex)
-
 		if f.Node != nil {
-			n.Env = &AgentEnv{Node: *f.Node}
+			n.Env.ToEnvWorker(&AgentWorker{*f.Node})
 		}
 
 		return n, nil
 
 	case *FromExecutor:
-		n := &Node{
-			Env:  &ExecutorEnv{},
-			Type: &FromExecutorOp{Handle: f.Handle},
-		}
-		n.NewOutputStream(f.DataIndex)
+		n, _ := dag.NewNode(ctx.DAG, &FromExecutorType{Handle: f.Handle}, NodeProps{From: f})
+		n.Env.ToEnvExecutor()
+		n.OutputStreams[0].Props.StreamIndex = f.DataIndex
 
 		if f.DataIndex == -1 {
 			f.Handle.RangeHint.Offset = repRange.Offset
@@ -299,22 +316,23 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *FromTo, f From) (*N
 	}
 }
 
-func (p *DefaultParser) buildToNode(ft *FromTo, t To) (*Node, error) {
+func (p *DefaultParser) buildToNode(ctx *ParseContext, ft *FromTo, t To) (*Node, error) {
 	switch t := t.(type) {
 	case *ToNode:
-		n := &Node{
-			Env:  &AgentEnv{t.Node},
-			Type: &IPFSWriteType{FileHashStoreKey: t.FileHashStoreKey, Range: t.Range},
-		}
-		n.NewOutputVar(StringValueVar)
+		n, _ := dag.NewNode(ctx.DAG, &IPFSWriteType{
+			FileHashStoreKey: t.FileHashStoreKey,
+			Range:            t.Range,
+		}, NodeProps{
+			To: t,
+		})
 
 		return n, nil
 
 	case *ToExecutor:
-		return &Node{
-			Env:  &ExecutorEnv{},
-			Type: &ToExecutorOp{Handle: t.Handle, Range: t.Range},
-		}, nil
+		n, _ := dag.NewNode(ctx.DAG, &ToExecutorType{Handle: t.Handle, Range: t.Range}, NodeProps{To: t})
+		n.Env.ToEnvExecutor()
+
+		return n, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported to type %T", t)
@@ -323,294 +341,142 @@ func (p *DefaultParser) buildToNode(ft *FromTo, t To) (*Node, error) {
 
 // 删除输出流未被使用的Join指令
 func (p *DefaultParser) removeUnusedJoin(ctx *ParseContext) bool {
-	opted := false
-	for i, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedJoinType)
-		if !ok {
-			continue
+	changed := false
+
+	dag.WalkOnlyType[*ChunkedJoinType](ctx.DAG, func(node *Node, typ *ChunkedJoinType) bool {
+		if len(node.OutputStreams[0].Toes) > 0 {
+			return true
 		}
 
-		if len(op.OutputStreams[0].Toes) > 0 {
-			continue
+		for _, in := range node.InputStreams {
+			in.NotTo(node)
 		}
 
-		for _, in := range op.InputStreams {
-			in.RemoveTo(op)
-		}
+		ctx.DAG.RemoveNode(node)
+		return true
+	})
 
-		ctx.Nodes[i] = nil
-		opted = true
-	}
-
-	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
-	return opted
+	return changed
 }
 
 // 减少未使用的Multiply指令的输出流。如果减少到0，则删除该指令
 func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
-	opted := false
-	for i, op := range ctx.Nodes {
-		_, ok := op.Type.(*MultiplyOp)
-		if !ok {
-			continue
-		}
-
-		for i2, out := range op.OutputStreams {
+	changed := false
+	dag.WalkOnlyType[*MultiplyType](ctx.DAG, func(node *Node, typ *MultiplyType) bool {
+		for i2, out := range node.OutputStreams {
 			if len(out.Toes) > 0 {
 				continue
 			}
 
-			op.OutputStreams[i2] = nil
-			opted = true
+			node.OutputStreams[i2] = nil
+			changed = true
 		}
-		op.OutputStreams = lo2.RemoveAllDefault(op.OutputStreams)
+		node.OutputStreams = lo2.RemoveAllDefault(node.OutputStreams)
 
-		if len(op.OutputStreams) == 0 {
-			for _, in := range op.InputStreams {
-				in.RemoveTo(op)
+		// 如果所有输出流都被删除，则删除该指令
+		if len(node.OutputStreams) == 0 {
+			for _, in := range node.InputStreams {
+				in.NotTo(node)
 			}
 
-			ctx.Nodes[i] = nil
-			opted = true
+			ctx.DAG.RemoveNode(node)
+			changed = true
 		}
-	}
 
-	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
-	return opted
+		return true
+	})
+	return changed
 }
 
 // 删除未使用的Split指令
 func (p *DefaultParser) removeUnusedSplit(ctx *ParseContext) bool {
-	opted := false
-	for i, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedSplitType)
-		if !ok {
-			continue
-		}
-
+	changed := false
+	dag.WalkOnlyType[*ChunkedSplitType](ctx.DAG, func(node *Node, typ *ChunkedSplitType) bool {
 		// Split出来的每一个流都没有被使用，才能删除这个指令
-		isAllUnused := true
-		for _, out := range op.OutputStreams {
+		for _, out := range node.OutputStreams {
 			if len(out.Toes) > 0 {
-				isAllUnused = false
-				break
+				return true
 			}
 		}
 
-		if isAllUnused {
-			op.InputStreams[0].RemoveTo(op)
-			ctx.Nodes[i] = nil
-			opted = true
-		}
-	}
+		node.InputStreams[0].NotTo(node)
+		ctx.DAG.RemoveNode(node)
+		changed = true
+		return true
+	})
 
-	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
-	return opted
+	return changed
 }
 
 // 如果Split的结果被完全用于Join，则省略Split和Join指令
 func (p *DefaultParser) omitSplitJoin(ctx *ParseContext) bool {
-	opted := false
-loop:
-	for iSplit, splitOp := range ctx.Nodes {
-		// 进行合并操作时会删除多个指令，因此这里存在splitOp == nil的情况
-		if splitOp == nil {
-			continue
-		}
+	changed := false
 
-		_, ok := splitOp.Type.(*ChunkedSplitType)
-		if !ok {
-			continue
-		}
-
+	dag.WalkOnlyType[*ChunkedSplitType](ctx.DAG, func(splitNode *Node, typ *ChunkedSplitType) bool {
 		// Split指令的每一个输出都有且只有一个目的地
-		var joinOp *Node
-		for _, out := range splitOp.OutputStreams {
+		var joinNode *Node
+		for _, out := range splitNode.OutputStreams {
 			if len(out.Toes) != 1 {
 				continue
 			}
 
-			if joinOp == nil {
-				joinOp = out.Toes[0]
-			} else if joinOp != out.Toes[0] {
-				continue loop
+			if joinNode == nil {
+				joinNode = out.Toes[0].Node
+			} else if joinNode != out.Toes[0].Node {
+				return true
 			}
 		}
 
-		if joinOp == nil {
-			continue
+		if joinNode == nil {
+			return true
 		}
 
 		// 且这个目的地要是一个Join指令
-		_, ok = joinOp.Type.(*ChunkedJoinType)
+		_, ok := joinNode.Type.(*ChunkedJoinType)
 		if !ok {
-			continue
+			return true
 		}
 
 		// 同时这个Join指令的输入也必须全部来自Split指令的输出。
 		// 由于上面判断了Split指令的输出目的地都相同，所以这里只要判断Join指令的输入数量是否与Split指令的输出数量相同即可
-		if len(joinOp.InputStreams) != len(splitOp.OutputStreams) {
-			continue
+		if len(joinNode.InputStreams) != len(splitNode.OutputStreams) {
+			return true
 		}
 
 		// 所有条件都满足，可以开始省略操作，将Join操作的目的地的输入流替换为Split操作的输入流：
 		// F->Split->Join->T 变换为：F->T
-		splitOp.InputStreams[0].RemoveTo(splitOp)
-		for i := len(joinOp.OutputStreams[0].Toes) - 1; i >= 0; i-- {
-			joinOp.OutputStreams[0].Toes[i].ReplaceInputStream(joinOp.OutputStreams[0], splitOp.InputStreams[0])
+		splitNode.InputStreams[0].NotTo(splitNode)
+		for _, out := range joinNode.OutputStreams[0].Toes {
+			splitNode.InputStreams[0].To(out.Node, out.SlotIndex)
 		}
 
 		// 并删除这两个指令
-		ctx.Nodes[iSplit] = nil
-		lo2.Clear(ctx.Nodes, joinOp)
-		opted = true
-	}
+		ctx.DAG.RemoveNode(joinNode)
+		ctx.DAG.RemoveNode(splitNode)
 
-	ctx.Nodes = lo2.RemoveAllDefault(ctx.Nodes)
-	return opted
+		changed = true
+		return true
+	})
+
+	return changed
 }
 
-// 确定Split命令的执行位置
-func (p *DefaultParser) pinSplit(ctx *ParseContext) bool {
-	opted := false
-	for _, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedSplitType)
-		if !ok {
-			continue
-		}
-
-		// 如果Split的每一个流的目的地都是同一个，则将Split固定在这个地方执行
-		var toEnv OpEnv
-		useToEnv := true
-		for _, out := range op.OutputStreams {
+// 通过流的输入输出位置来确定指令的执行位置。
+// To系列的指令都会有固定的执行位置，这些位置会随着pin操作逐步扩散到整个DAG，
+// 所以理论上不会出现有指令的位置始终无法确定的情况。
+func (p *DefaultParser) pin(ctx *ParseContext) bool {
+	changed := false
+	ctx.DAG.Walk(func(node *Node) bool {
+		var toEnv *dag.NodeEnv
+		for _, out := range node.OutputStreams {
 			for _, to := range out.Toes {
-				// 如果某个流的目的地也不确定，则将其视为与其他流的目的地相同
-				if to.Env == nil {
+				if to.Node.Env.Type == dag.EnvUnknown {
 					continue
 				}
 
 				if toEnv == nil {
-					toEnv = to.Env
-				} else if toEnv.Equals(to.Env) {
-					useToEnv = false
-					break
-				}
-			}
-			if !useToEnv {
-				break
-			}
-		}
-
-		// 所有输出流的目的地都不确定，那么就不能根据输出流去固定
-		if toEnv == nil {
-			useToEnv = false
-		}
-
-		if useToEnv {
-			if op.Env == nil || !op.Env.Equals(toEnv) {
-				opted = true
-			}
-
-			op.Env = toEnv
-			continue
-		}
-
-		// 此时查看输入流的始发地是否可以确定，可以的话使用这个位置
-		fromEnv := op.InputStreams[0].From.Env
-		if fromEnv != nil {
-			if op.Env == nil || !op.Env.Equals(fromEnv) {
-				opted = true
-			}
-
-			op.Env = fromEnv
-		}
-	}
-
-	return opted
-}
-
-// 确定Join命令的执行位置，策略与固定Split类似
-func (p *DefaultParser) pinJoin(ctx *ParseContext) bool {
-	opted := false
-	for _, op := range ctx.Nodes {
-		_, ok := op.Type.(*ChunkedJoinType)
-		if !ok {
-			continue
-		}
-
-		// 先查看输出流的目的地是否可以确定，可以的话使用这个位置
-		var toEnv OpEnv
-		for _, to := range op.OutputStreams[0].Toes {
-			if to.Env == nil {
-				continue
-			}
-
-			if toEnv == nil {
-				toEnv = to.Env
-			} else if !toEnv.Equals(to.Env) {
-				toEnv = nil
-				break
-			}
-		}
-
-		if toEnv != nil {
-			if op.Env == nil || !op.Env.Equals(toEnv) {
-				opted = true
-			}
-
-			op.Env = toEnv
-			continue
-		}
-
-		// 否则根据输入流的始发地来固定
-		var fromEnv OpEnv
-		for _, in := range op.InputStreams {
-			if in.From.Env == nil {
-				continue
-			}
-
-			if fromEnv == nil {
-				fromEnv = in.From.Env
-			} else if !fromEnv.Equals(in.From.Env) {
-				// 输入流的始发地不同，那也必须选一个作为固定位置
-				break
-			}
-		}
-
-		// 所有输入流的始发地都不确定，那没办法了
-		if fromEnv != nil {
-			if op.Env == nil || !op.Env.Equals(fromEnv) {
-				opted = true
-			}
-
-			op.Env = fromEnv
-			continue
-		}
-
-	}
-
-	return opted
-}
-
-// 确定Multiply命令的执行位置
-func (p *DefaultParser) pinMultiply(ctx *ParseContext) bool {
-	opted := false
-	for _, op := range ctx.Nodes {
-		_, ok := op.Type.(*MultiplyOp)
-		if !ok {
-			continue
-		}
-
-		var toEnv OpEnv
-		for _, out := range op.OutputStreams {
-			for _, to := range out.Toes {
-				if to.Env == nil {
-					continue
-				}
-
-				if toEnv == nil {
-					toEnv = to.Env
-				} else if !toEnv.Equals(to.Env) {
+					toEnv = &to.Node.Env
+				} else if !toEnv.Equals(to.Node.Env) {
 					toEnv = nil
 					break
 				}
@@ -618,333 +484,287 @@ func (p *DefaultParser) pinMultiply(ctx *ParseContext) bool {
 		}
 
 		if toEnv != nil {
-			if op.Env == nil || !op.Env.Equals(toEnv) {
-				opted = true
+			if !node.Env.Equals(*toEnv) {
+				changed = true
 			}
 
-			op.Env = toEnv
-			continue
+			node.Env = *toEnv
+			return true
 		}
 
 		// 否则根据输入流的始发地来固定
-		var fromEnv OpEnv
-		for _, in := range op.InputStreams {
-			if in.From.Env == nil {
+		var fromEnv *dag.NodeEnv
+		for _, in := range node.InputStreams {
+			if in.From.Node.Env.Type == dag.EnvUnknown {
 				continue
 			}
 
 			if fromEnv == nil {
-				fromEnv = in.From.Env
-			} else if !fromEnv.Equals(in.From.Env) {
-				// 输入流的始发地不同，那也必须选一个作为固定位置
+				fromEnv = &in.From.Node.Env
+			} else if !fromEnv.Equals(in.From.Node.Env) {
+				fromEnv = nil
 				break
 			}
 		}
 
-		// 所有输入流的始发地都不确定，那没办法了
 		if fromEnv != nil {
-			if op.Env == nil || !op.Env.Equals(fromEnv) {
-				opted = true
+			if !node.Env.Equals(*fromEnv) {
+				changed = true
 			}
 
-			op.Env = fromEnv
-			continue
+			node.Env = *fromEnv
 		}
+		return true
+	})
 
-	}
-
-	return opted
-}
-
-// 确定IPFS读取指令的执行位置
-func (p *DefaultParser) pinIPFSRead(ctx *ParseContext) bool {
-	opted := false
-	for _, op := range ctx.Nodes {
-		_, ok := op.Type.(*IPFSReadType)
-		if !ok {
-			continue
-		}
-
-		if op.Env != nil {
-			continue
-		}
-
-		var toEnv OpEnv
-		for _, to := range op.OutputStreams[0].Toes {
-			if to.Env == nil {
-				continue
-			}
-
-			if toEnv == nil {
-				toEnv = to.Env
-			} else if !toEnv.Equals(to.Env) {
-				toEnv = nil
-				break
-			}
-		}
-
-		if toEnv != nil {
-			if op.Env == nil || !op.Env.Equals(toEnv) {
-				opted = true
-			}
-
-			op.Env = toEnv
-		}
-	}
-
-	return opted
+	return changed
 }
 
 // 对于所有未使用的流，增加Drop指令
 func (p *DefaultParser) dropUnused(ctx *ParseContext) {
-	for _, op := range ctx.Nodes {
-		for _, out := range op.OutputStreams {
+	ctx.DAG.Walk(func(node *Node) bool {
+		for _, out := range node.OutputStreams {
 			if len(out.Toes) == 0 {
-				dropOp := &Node{
-					Env:  op.Env,
-					Type: &DropOp{},
-				}
-				dropOp.AddInputStream(out)
-				ctx.Nodes = append(ctx.Nodes, dropOp)
+				n := ctx.DAG.NewNode(&DropType{}, NodeProps{})
+				n.Env = node.Env
+				out.To(n, 0)
 			}
 		}
-	}
+		return true
+	})
 }
 
 // 为IPFS写入指令存储结果
 func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
-	for _, op := range ctx.Nodes {
-		w, ok := op.Type.(*IPFSWriteType)
-		if !ok {
-			continue
+	dag.WalkOnlyType[*IPFSWriteType](ctx.DAG, func(node *Node, typ *IPFSWriteType) bool {
+		if typ.FileHashStoreKey == "" {
+			return true
 		}
 
-		if w.FileHashStoreKey == "" {
-			continue
-		}
+		n := ctx.DAG.NewNode(&StoreType{
+			StoreKey: typ.FileHashStoreKey,
+		}, NodeProps{})
+		n.Env.ToEnvExecutor()
 
-		storeOp := &Node{
-			Env: &ExecutorEnv{},
-			Type: &StoreOp{
-				StoreKey: w.FileHashStoreKey,
-			},
-		}
-		storeOp.AddInputVar(op.OutputValues[0])
-		ctx.Nodes = append(ctx.Nodes, storeOp)
-	}
+		node.OutputValues[0].To(n, 0)
+		return true
+	})
 }
 
 // 生成Range指令。StreamRange可能超过文件总大小，但Range指令会在数据量不够时不报错而是正常返回
 func (p *DefaultParser) generateRange(ctx *ParseContext) {
-	for i, to := range ctx.ToNodes {
-		toDataIdx := ctx.Ft.Toes[i].GetDataIndex()
-		toRng := ctx.Ft.Toes[i].GetRange()
+	ctx.DAG.Walk(func(node *dag.Node[NodeProps, VarProps]) bool {
+		if node.Props.To == nil {
+			return true
+		}
+
+		toDataIdx := node.Props.To.GetDataIndex()
+		toRng := node.Props.To.GetRange()
 
 		if toDataIdx == -1 {
-			rngType := &RangeType{Range: Range{Offset: toRng.Offset - ctx.StreamRange.Offset, Length: toRng.Length}}
-			rngNode := &Node{
-				Env:  to.InputStreams[0].From.Env,
-				Type: rngType,
-			}
-			rngNode.AddInputStream(to.InputStreams[0])
+			n := ctx.DAG.NewNode(&RangeType{
+				Range: Range{
+					Offset: toRng.Offset - ctx.StreamRange.Offset,
+					Length: toRng.Length,
+				},
+			}, NodeProps{})
+			n.Env = node.InputStreams[0].From.Node.Env
 
-			to.ReplaceInputStream(to.InputStreams[0], rngNode.NewOutputStream(toDataIdx))
-			ctx.Nodes = append(ctx.Nodes, rngNode)
+			node.InputStreams[0].To(n, 0)
+			node.InputStreams[0].NotTo(node)
+			n.OutputStreams[0].To(node, 0)
+
 		} else {
 			stripSize := int64(p.EC.ChunkSize * p.EC.K)
 			blkStartIdx := ctx.StreamRange.Offset / stripSize
 
 			blkStart := blkStartIdx * int64(p.EC.ChunkSize)
 
-			rngType := &RangeType{Range: Range{Offset: toRng.Offset - blkStart, Length: toRng.Length}}
-			rngNode := &Node{
-				Env:  to.InputStreams[0].From.Env,
-				Type: rngType,
-			}
-			rngNode.AddInputStream(to.InputStreams[0])
+			n := ctx.DAG.NewNode(&RangeType{
+				Range: Range{
+					Offset: toRng.Offset - blkStart,
+					Length: toRng.Length,
+				},
+			}, NodeProps{})
+			n.Env = node.InputStreams[0].From.Node.Env
 
-			to.ReplaceInputStream(to.InputStreams[0], rngNode.NewOutputStream(toDataIdx))
-			ctx.Nodes = append(ctx.Nodes, rngNode)
+			node.InputStreams[0].To(n, 0)
+			node.InputStreams[0].NotTo(node)
+			n.OutputStreams[0].To(node, 0)
 		}
-	}
+
+		return true
+	})
 }
 
 // 生成Clone指令
 func (p *DefaultParser) generateClone(ctx *ParseContext) {
-	for _, op := range ctx.Nodes {
-		for _, out := range op.OutputStreams {
+	ctx.DAG.Walk(func(node *dag.Node[NodeProps, VarProps]) bool {
+		for _, out := range node.OutputStreams {
 			if len(out.Toes) <= 1 {
 				continue
 			}
 
-			cloneOp := &Node{
-				Env:  op.Env,
-				Type: &CloneStreamType{},
-			}
-			for i := len(out.Toes) - 1; i >= 0; i-- {
-				out.Toes[i].ReplaceInputStream(out, cloneOp.NewOutputStream(out.DataIndex))
+			n, t := dag.NewNode(ctx.DAG, &CloneStreamType{}, NodeProps{})
+			n.Env = node.Env
+			for _, to := range out.Toes {
+				t.NewOutput(node).To(to.Node, to.SlotIndex)
 			}
 			out.Toes = nil
-			cloneOp.AddInputStream(out)
-			ctx.Nodes = append(ctx.Nodes, cloneOp)
+			out.To(n, 0)
 		}
 
-		for _, out := range op.OutputValues {
+		for _, out := range node.OutputValues {
 			if len(out.Toes) <= 1 {
 				continue
 			}
 
-			cloneOp := &Node{
-				Env:  op.Env,
-				Type: &CloneVarType{},
-			}
-			for i := len(out.Toes) - 1; i >= 0; i-- {
-				out.Toes[i].ReplaceInputVar(out, cloneOp.NewOutputVar(out.Type))
+			n, t := dag.NewNode(ctx.DAG, &CloneVarType{}, NodeProps{})
+			n.Env = node.Env
+			for _, to := range out.Toes {
+				t.NewOutput(node).To(to.Node, to.SlotIndex)
 			}
 			out.Toes = nil
-			cloneOp.AddInputVar(out)
-			ctx.Nodes = append(ctx.Nodes, cloneOp)
+			out.To(n, 0)
 		}
-	}
+
+		return true
+	})
 }
 
 // 生成Send指令
 func (p *DefaultParser) generateSend(ctx *ParseContext) {
-	for _, op := range ctx.Nodes {
-		for _, out := range op.OutputStreams {
-			toOp := out.Toes[0]
-			if toOp.Env.Equals(op.Env) {
+	ctx.DAG.Walk(func(node *dag.Node[NodeProps, VarProps]) bool {
+		for _, out := range node.OutputStreams {
+			to := out.Toes[0]
+			if to.Node.Env.Equals(node.Env) {
 				continue
 			}
 
-			switch toOp.Env.(type) {
-			case *ExecutorEnv:
-				// 如果是要送到Executor，则只能由Executor主动去拉取
-				getStrOp := &Node{
-					Env:  &ExecutorEnv{},
-					Type: &GetStreamOp{},
-				}
+			switch to.Node.Env.Type {
+			case dag.EnvExecutor:
+				// // 如果是要送到Executor，则只能由Executor主动去拉取
+				getNode := ctx.DAG.NewNode(&GetStreamType{}, NodeProps{})
+				getNode.Env.ToEnvExecutor()
 
-				// 同时需要对此变量生成HoldUntil指令，避免Plan结束时Get指令还未到达
-				holdOp := &Node{
-					Env:  op.Env,
-					Type: &HoldUntilOp{},
-				}
-				holdOp.AddInputVar(getStrOp.NewOutputVar(SignalValueVar))
-				holdOp.AddInputStream(out)
+				// // 同时需要对此变量生成HoldUntil指令，避免Plan结束时Get指令还未到达
+				holdNode := ctx.DAG.NewNode(&HoldUntilType{}, NodeProps{})
+				holdNode.Env = node.Env
 
-				getStrOp.AddInputStream(holdOp.NewOutputStream(out.DataIndex))
-				toOp.ReplaceInputStream(out, getStrOp.NewOutputStream(out.DataIndex))
-
-				ctx.Nodes = append(ctx.Nodes, holdOp)
-				ctx.Nodes = append(ctx.Nodes, getStrOp)
-
-			case *AgentEnv:
-				// 如果是要送到Agent，则可以直接发送
-				sendStrOp := &Node{
-					Env:  op.Env,
-					Type: &SendStreamOp{},
-				}
+				// 将Get指令的信号送到Hold指令
+				getNode.OutputValues[0].To(holdNode, 0)
+				// 将Get指令的输出送到目的地
+				getNode.OutputStreams[0].To(to.Node, to.SlotIndex)
 				out.Toes = nil
-				sendStrOp.AddInputStream(out)
-				toOp.ReplaceInputStream(out, sendStrOp.NewOutputStream(out.DataIndex))
-				ctx.Nodes = append(ctx.Nodes, sendStrOp)
+				// 将源节点的输出送到Hold指令
+				out.To(holdNode, 0)
+				// 将Hold指令的输出送到Get指令
+				holdNode.OutputStreams[0].To(getNode, 0)
+
+			case dag.EnvWorker:
+				// 如果是要送到Agent，则可以直接发送
+				n := ctx.DAG.NewNode(&SendStreamType{}, NodeProps{})
+				n.Env = node.Env
+				n.OutputStreams[0].To(to.Node, to.SlotIndex)
+				out.Toes = nil
+				out.To(n, 0)
 			}
 		}
 
-		for _, out := range op.OutputValues {
-			toOp := out.Toes[0]
-			if toOp.Env.Equals(op.Env) {
+		for _, out := range node.OutputValues {
+			to := out.Toes[0]
+			if to.Node.Env.Equals(node.Env) {
 				continue
 			}
 
-			switch toOp.Env.(type) {
-			case *ExecutorEnv:
-				// 如果是要送到Executor，则只能由Executor主动去拉取
-				getStrOp := &Node{
-					Env:  &ExecutorEnv{},
-					Type: &GetVarOp{},
-				}
+			switch to.Node.Env.Type {
+			case dag.EnvExecutor:
+				// // 如果是要送到Executor，则只能由Executor主动去拉取
+				getNode := ctx.DAG.NewNode(&GetVaType{}, NodeProps{})
+				getNode.Env.ToEnvExecutor()
 
-				// 同时需要对此变量生成HoldUntil指令，避免Plan结束时Get指令还未到达
-				holdOp := &Node{
-					Env:  op.Env,
-					Type: &HoldUntilOp{},
-				}
-				holdOp.AddInputVar(getStrOp.NewOutputVar(SignalValueVar))
-				holdOp.AddInputVar(out)
+				// // 同时需要对此变量生成HoldUntil指令，避免Plan结束时Get指令还未到达
+				holdNode := ctx.DAG.NewNode(&HoldUntilType{}, NodeProps{})
+				holdNode.Env = node.Env
 
-				getStrOp.AddInputVar(holdOp.NewOutputVar(out.Type))
-				toOp.ReplaceInputVar(out, getStrOp.NewOutputVar(out.Type))
-
-				ctx.Nodes = append(ctx.Nodes, holdOp)
-				ctx.Nodes = append(ctx.Nodes, getStrOp)
-
-			case *AgentEnv:
-				// 如果是要送到Agent，则可以直接发送
-				sendVarOp := &Node{
-					Env:  op.Env,
-					Type: &SendVarOp{},
-				}
+				// 将Get指令的信号送到Hold指令
+				getNode.OutputValues[0].To(holdNode, 0)
+				// 将Get指令的输出送到目的地
+				getNode.OutputValues[1].To(to.Node, to.SlotIndex)
 				out.Toes = nil
-				sendVarOp.AddInputVar(out)
-				toOp.ReplaceInputVar(out, sendVarOp.NewOutputVar(out.Type))
-				ctx.Nodes = append(ctx.Nodes, sendVarOp)
+				// 将源节点的输出送到Hold指令
+				out.To(holdNode, 0)
+				// 将Hold指令的输出送到Get指令
+				holdNode.OutputValues[0].To(getNode, 0)
+
+			case dag.EnvWorker:
+				// 如果是要送到Agent，则可以直接发送
+				n := ctx.DAG.NewNode(&SendVarType{}, NodeProps{})
+				n.Env = node.Env
+				n.OutputValues[0].To(to.Node, to.SlotIndex)
+				out.Toes = nil
+				out.To(n, 0)
 			}
 		}
-	}
+
+		return true
+	})
 }
 
 // 生成Plan
-func (p *DefaultParser) buildPlan(ctx *ParseContext, blder *PlanBuilder) error {
-	for _, op := range ctx.Nodes {
-		for _, out := range op.OutputStreams {
-			if out.Var != nil {
+func (p *DefaultParser) buildPlan(ctx *ParseContext, blder *builder.PlanBuilder) error {
+	var retErr error
+	ctx.DAG.Walk(func(node *dag.Node[NodeProps, VarProps]) bool {
+		for _, out := range node.OutputStreams {
+			if out.Props.Var != nil {
 				continue
 			}
 
-			out.Var = blder.NewStreamVar()
+			out.Props.Var = blder.NewStreamVar()
 		}
 
-		for _, in := range op.InputStreams {
-			if in.Var != nil {
+		for _, in := range node.InputStreams {
+			if in.Props.Var != nil {
 				continue
 			}
 
-			in.Var = blder.NewStreamVar()
+			in.Props.Var = blder.NewStreamVar()
 		}
 
-		for _, out := range op.OutputValues {
-			if out.Var != nil {
+		for _, out := range node.OutputValues {
+			if out.Props.Var != nil {
 				continue
 			}
 
-			switch out.Type {
+			switch out.Props.ValueType {
 			case StringValueVar:
-				out.Var = blder.NewStringVar()
+				out.Props.Var = blder.NewStringVar()
 			case SignalValueVar:
-				out.Var = blder.NewSignalVar()
+				out.Props.Var = blder.NewSignalVar()
 			}
 
 		}
 
-		for _, in := range op.InputValues {
-			if in.Var != nil {
+		for _, in := range node.InputValues {
+			if in.Props.Var != nil {
 				continue
 			}
 
-			switch in.Type {
+			switch in.Props.ValueType {
 			case StringValueVar:
-				in.Var = blder.NewStringVar()
+				in.Props.Var = blder.NewStringVar()
 			case SignalValueVar:
-				in.Var = blder.NewSignalVar()
+				in.Props.Var = blder.NewSignalVar()
 			}
 		}
 
-		if err := op.Type.GenerateOp(op, blder); err != nil {
-			return err
+		if err := node.Type.GenerateOp(node, blder); err != nil {
+			retErr = err
+			return false
 		}
-	}
 
-	return nil
+		return true
+	})
+
+	return retErr
 }

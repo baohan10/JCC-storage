@@ -45,7 +45,7 @@ func (o *SendStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 
 type GetStream struct {
 	Signal *ioswitch.SignalVar `json:"signal"`
-	Get    *ioswitch.StreamVar `json:"get"`
+	Target *ioswitch.StreamVar `json:"target"`
 	Output *ioswitch.StreamVar `json:"output"`
 	Node   cdssdk.Node         `json:"node"`
 }
@@ -57,9 +57,9 @@ func (o *GetStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
 
-	logger.Debugf("getting stream %v as %v from node %v", o.Get.ID, o.Output.ID, o.Node)
+	logger.Debugf("getting stream %v as %v from node %v", o.Target.ID, o.Output.ID, o.Node)
 
-	str, err := agtCli.GetStream(sw.Plan().ID, o.Get.ID, o.Signal)
+	str, err := agtCli.GetStream(sw.Plan().ID, o.Target.ID, o.Signal)
 	if err != nil {
 		return fmt.Errorf("getting stream: %w", err)
 	}
@@ -105,7 +105,7 @@ func (o *SendVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 
 type GetVar struct {
 	Signal *ioswitch.SignalVar `json:"signal"`
-	Get    ioswitch.Var        `json:"get"`
+	Target ioswitch.Var        `json:"target"`
 	Output ioswitch.Var        `json:"output"`
 	Node   cdssdk.Node         `json:"node"`
 }
@@ -117,9 +117,9 @@ func (o *GetVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	}
 	defer stgglb.AgentRPCPool.Release(agtCli)
 
-	logger.Debugf("getting var %v as %v from node %v", o.Get.GetID(), o.Output.GetID(), o.Node)
+	logger.Debugf("getting var %v as %v from node %v", o.Target.GetID(), o.Output.GetID(), o.Node)
 
-	v2, err := agtCli.GetVar(ctx, sw.Plan().ID, o.Get, o.Signal)
+	v2, err := agtCli.GetVar(ctx, sw.Plan().ID, o.Target, o.Signal)
 	if err != nil {
 		return fmt.Errorf("getting var: %w", err)
 	}
