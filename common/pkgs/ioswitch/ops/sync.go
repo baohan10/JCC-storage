@@ -6,31 +6,40 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 )
 
-type OnStreamBegin struct {
-	Raw    *ioswitch.StreamVar `json:"raw"`
-	New    *ioswitch.StreamVar `json:"new"`
-	Signal *ioswitch.SignalVar `json:"signal"`
+func init() {
+	OpUnion.AddT((*OnStreamBegin)(nil))
+	OpUnion.AddT((*OnStreamEnd)(nil))
+	OpUnion.AddT((*HoldUntil)(nil))
+	OpUnion.AddT((*HangUntil)(nil))
+	OpUnion.AddT((*Broadcast)(nil))
 }
 
-func (o *OnStreamBegin) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, o.Raw)
+type OnStreamBegin struct {
+	Raw    *exec.StreamVar `json:"raw"`
+	New    *exec.StreamVar `json:"new"`
+	Signal *exec.SignalVar `json:"signal"`
+}
+
+func (o *OnStreamBegin) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, o.Raw)
 	if err != nil {
 		return err
 	}
 
 	o.New.Stream = o.Raw.Stream
 
-	sw.PutVars(o.New, o.Signal)
+	e.PutVars(o.New, o.Signal)
 	return nil
 }
 
 type OnStreamEnd struct {
-	Raw    *ioswitch.StreamVar `json:"raw"`
-	New    *ioswitch.StreamVar `json:"new"`
-	Signal *ioswitch.SignalVar `json:"signal"`
+	Raw    *exec.StreamVar `json:"raw"`
+	New    *exec.StreamVar `json:"new"`
+	Signal *exec.SignalVar `json:"signal"`
 }
 
 type onStreamEnd struct {
@@ -53,8 +62,8 @@ func (o *onStreamEnd) Close() error {
 	return o.inner.Close()
 }
 
-func (o *OnStreamEnd) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, o.Raw)
+func (o *OnStreamEnd) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, o.Raw)
 	if err != nil {
 		return err
 	}
@@ -65,78 +74,100 @@ func (o *OnStreamEnd) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		inner:    o.Raw.Stream,
 		callback: cb,
 	}
-	sw.PutVars(o.New)
+	e.PutVars(o.New)
 
 	err = cb.Wait(ctx)
 	if err != nil {
 		return err
 	}
 
-	sw.PutVars(o.Signal)
+	e.PutVars(o.Signal)
 	return nil
 }
 
 type HoldUntil struct {
-	Waits []*ioswitch.SignalVar `json:"waits"`
-	Holds []ioswitch.Var        `json:"holds"`
-	Emits []ioswitch.Var        `json:"emits"`
+	Waits []*exec.SignalVar `json:"waits"`
+	Holds []exec.Var        `json:"holds"`
+	Emits []exec.Var        `json:"emits"`
 }
 
-func (w *HoldUntil) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, w.Holds...)
+func (w *HoldUntil) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, w.Holds...)
 	if err != nil {
 		return err
 	}
 
-	err = ioswitch.BindArrayVars(sw, ctx, w.Waits)
+	err = exec.BindArrayVars(e, ctx, w.Waits)
 	if err != nil {
 		return err
 	}
 
 	for i := 0; i < len(w.Holds); i++ {
-		err := ioswitch.AssignVar(w.Holds[i], w.Emits[i])
+		err := exec.AssignVar(w.Holds[i], w.Emits[i])
 		if err != nil {
 			return err
 		}
 	}
 
-	sw.PutVars(w.Emits...)
+	e.PutVars(w.Emits...)
 	return nil
 }
 
 type HangUntil struct {
-	Waits []*ioswitch.SignalVar `json:"waits"`
-	Op    ioswitch.Op           `json:"op"`
+	Waits []*exec.SignalVar `json:"waits"`
+	Op    exec.Op           `json:"op"`
 }
 
-func (h *HangUntil) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := ioswitch.BindArrayVars(sw, ctx, h.Waits)
+func (h *HangUntil) Execute(ctx context.Context, e *exec.Executor) error {
+	err := exec.BindArrayVars(e, ctx, h.Waits)
 	if err != nil {
 		return err
 	}
 
-	return h.Op.Execute(ctx, sw)
+	return h.Op.Execute(ctx, e)
 }
 
 type Broadcast struct {
-	Source  *ioswitch.SignalVar   `json:"source"`
-	Targets []*ioswitch.SignalVar `json:"targets"`
+	Source  *exec.SignalVar   `json:"source"`
+	Targets []*exec.SignalVar `json:"targets"`
 }
 
-func (b *Broadcast) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, b.Source)
+func (b *Broadcast) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, b.Source)
 	if err != nil {
 		return err
 	}
 
-	ioswitch.PutArrayVars(sw, b.Targets)
+	exec.PutArrayVars(e, b.Targets)
 	return nil
 }
 
-func init() {
-	OpUnion.AddT((*OnStreamBegin)(nil))
-	OpUnion.AddT((*OnStreamEnd)(nil))
-	OpUnion.AddT((*HoldUntil)(nil))
-	OpUnion.AddT((*HangUntil)(nil))
-	OpUnion.AddT((*Broadcast)(nil))
+type HoldUntilType struct {
+}
+
+func (t *HoldUntilType) InitNode(node *Node) {
+	dag.NodeDeclareInputValue(node, 1)
+}
+
+func (t *HoldUntilType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	o := &HoldUntil{
+		Waits: []*exec.SignalVar{op.InputValues[0].Props.Var.(*exec.SignalVar)},
+	}
+
+	for i := 0; i < len(op.OutputValues); i++ {
+		o.Holds = append(o.Holds, op.InputValues[i+1].Props.Var)
+		o.Emits = append(o.Emits, op.OutputValues[i].Props.Var)
+	}
+
+	for i := 0; i < len(op.OutputStreams); i++ {
+		o.Holds = append(o.Holds, op.InputStreams[i].Props.Var)
+		o.Emits = append(o.Emits, op.OutputStreams[i].Props.Var)
+	}
+
+	addOpByEnv(o, op.Env, blder)
+	return nil
+}
+
+func (t *HoldUntilType) String(node *Node) string {
+	return fmt.Sprintf("HoldUntil[]%v%v", formatStreamIO(node), formatValueIO(node))
 }

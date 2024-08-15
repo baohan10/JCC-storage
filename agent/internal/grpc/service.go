@@ -1,17 +1,17 @@
 package grpc
 
 import (
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	agentserver "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 type Service struct {
 	agentserver.AgentServer
-	swMgr *ioswitch.Manager
+	swWorker *exec.Worker
 }
 
-func NewService(swMgr *ioswitch.Manager) *Service {
+func NewService(swWorker *exec.Worker) *Service {
 	return &Service{
-		swMgr: swMgr,
+		swWorker: swWorker,
 	}
 }

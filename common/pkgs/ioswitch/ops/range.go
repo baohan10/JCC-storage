@@ -2,23 +2,29 @@ package ops
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
-type Range struct {
-	Input  *ioswitch.StreamVar `json:"input"`
-	Output *ioswitch.StreamVar `json:"output"`
-	Offset int64               `json:"offset"`
-	Length *int64              `json:"length"`
+func init() {
+	OpUnion.AddT((*Range)(nil))
 }
 
-func (o *Range) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, o.Input)
+type Range struct {
+	Input  *exec.StreamVar `json:"input"`
+	Output *exec.StreamVar `json:"output"`
+	Offset int64           `json:"offset"`
+	Length *int64          `json:"length"`
+}
+
+func (o *Range) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
@@ -47,7 +53,7 @@ func (o *Range) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 			fut.SetVoid()
 		})
 
-		sw.PutVars(o.Output)
+		e.PutVars(o.Output)
 		return fut.Wait(ctx)
 	}
 
@@ -55,7 +61,7 @@ func (o *Range) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		fut.SetVoid()
 	})
 
-	sw.PutVars(o.Output)
+	e.PutVars(o.Output)
 	err = fut.Wait(ctx)
 	if err != nil {
 		return err
@@ -65,6 +71,25 @@ func (o *Range) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	return nil
 }
 
-func init() {
-	OpUnion.AddT((*Range)(nil))
+type RangeType struct {
+	Range exec.Range
+}
+
+func (t *RangeType) InitNode(node *Node) {
+	dag.NodeDeclareInputStream(node, 1)
+	dag.NodeNewOutputStream(node, VarProps{})
+}
+
+func (t *RangeType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&Range{
+		Input:  op.InputStreams[0].Props.Var.(*exec.StreamVar),
+		Output: op.OutputStreams[0].Props.Var.(*exec.StreamVar),
+		Offset: t.Range.Offset,
+		Length: t.Range.Length,
+	}, op.Env, blder)
+	return nil
+}
+
+func (t *RangeType) String(node *Node) string {
+	return fmt.Sprintf("Range[%v+%v]%v%v", t.Range.Offset, t.Range.Length, formatStreamIO(node), formatValueIO(node))
 }

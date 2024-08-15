@@ -6,20 +6,26 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/ipfs"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
-type IPFSRead struct {
-	Output   *ioswitch.StreamVar `json:"output"`
-	FileHash string              `json:"fileHash"`
-	Option   ipfs.ReadOption     `json:"option"`
+func init() {
+	OpUnion.AddT((*IPFSRead)(nil))
+	OpUnion.AddT((*IPFSWrite)(nil))
 }
 
-func (o *IPFSRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+type IPFSRead struct {
+	Output   *exec.StreamVar `json:"output"`
+	FileHash string          `json:"fileHash"`
+	Option   ipfs.ReadOption `json:"option"`
+}
+
+func (o *IPFSRead) Execute(ctx context.Context, e *exec.Executor) error {
 	logger.
 		WithField("FileHash", o.FileHash).
 		Debugf("ipfs read op")
@@ -41,17 +47,17 @@ func (o *IPFSRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	o.Output.Stream = io2.AfterReadClosedOnce(file, func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})
-	sw.PutVars(o.Output)
+	e.PutVars(o.Output)
 
 	return fut.Wait(ctx)
 }
 
 type IPFSWrite struct {
-	Input    *ioswitch.StreamVar `json:"input"`
-	FileHash *ioswitch.StringVar `json:"fileHash"`
+	Input    *exec.StreamVar `json:"input"`
+	FileHash *exec.StringVar `json:"fileHash"`
 }
 
-func (o *IPFSWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+func (o *IPFSWrite) Execute(ctx context.Context, e *exec.Executor) error {
 	logger.
 		WithField("Input", o.Input.ID).
 		WithField("FileHashVar", o.FileHash.ID).
@@ -63,7 +69,7 @@ func (o *IPFSWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	}
 	defer stgglb.IPFSPool.Release(ipfsCli)
 
-	err = sw.BindVars(ctx, o.Input)
+	err = e.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
@@ -74,12 +80,51 @@ func (o *IPFSWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		return fmt.Errorf("creating ipfs file: %w", err)
 	}
 
-	sw.PutVars(o.FileHash)
+	e.PutVars(o.FileHash)
 
 	return nil
 }
 
-func init() {
-	OpUnion.AddT((*IPFSRead)(nil))
-	OpUnion.AddT((*IPFSWrite)(nil))
+type IPFSReadType struct {
+	FileHash string
+	Option   ipfs.ReadOption
+}
+
+func (t *IPFSReadType) InitNode(node *Node) {
+	dag.NodeNewOutputStream(node, VarProps{})
+}
+
+func (t *IPFSReadType) GenerateOp(node *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&IPFSRead{
+		Output:   node.OutputStreams[0].Props.Var.(*exec.StreamVar),
+		FileHash: t.FileHash,
+		Option:   t.Option,
+	}, node.Env, blder)
+	return nil
+}
+
+func (t *IPFSReadType) String(node *Node) string {
+	return fmt.Sprintf("IPFSRead[%s,%v+%v]%v%v", t.FileHash, t.Option.Offset, t.Option.Length, formatStreamIO(node), formatValueIO(node))
+}
+
+type IPFSWriteType struct {
+	FileHashStoreKey string
+	Range            exec.Range
+}
+
+func (t *IPFSWriteType) InitNode(node *Node) {
+	dag.NodeDeclareInputStream(node, 1)
+	dag.NodeNewOutputValue(node, VarProps{})
+}
+
+func (t *IPFSWriteType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&IPFSWrite{
+		Input:    op.InputStreams[0].Props.Var.(*exec.StreamVar),
+		FileHash: op.OutputValues[0].Props.Var.(*exec.StringVar),
+	}, op.Env, blder)
+	return nil
+}
+
+func (t *IPFSWriteType) String(node *Node) string {
+	return fmt.Sprintf("IPFSWrite[%s,%v+%v](%v>)", t.FileHashStoreKey, t.Range.Offset, t.Range.Length, formatStreamIO(node), formatValueIO(node))
 }

@@ -5,30 +5,38 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/sync2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"golang.org/x/sync/semaphore"
 )
 
-type ECReconstructAny struct {
-	EC                 cdssdk.ECRedundancy   `json:"ec"`
-	Inputs             []*ioswitch.StreamVar `json:"inputs"`
-	Outputs            []*ioswitch.StreamVar `json:"outputs"`
-	InputBlockIndexes  []int                 `json:"inputBlockIndexes"`
-	OutputBlockIndexes []int                 `json:"outputBlockIndexes"`
+func init() {
+	OpUnion.AddT((*ECReconstructAny)(nil))
+	OpUnion.AddT((*ECReconstruct)(nil))
+	OpUnion.AddT((*ECMultiply)(nil))
 }
 
-func (o *ECReconstructAny) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+type ECReconstructAny struct {
+	EC                 cdssdk.ECRedundancy `json:"ec"`
+	Inputs             []*exec.StreamVar   `json:"inputs"`
+	Outputs            []*exec.StreamVar   `json:"outputs"`
+	InputBlockIndexes  []int               `json:"inputBlockIndexes"`
+	OutputBlockIndexes []int               `json:"outputBlockIndexes"`
+}
+
+func (o *ECReconstructAny) Execute(ctx context.Context, e *exec.Executor) error {
 	rs, err := ec.NewStreamRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
 	if err != nil {
 		return fmt.Errorf("new ec: %w", err)
 	}
 
-	err = ioswitch.BindArrayVars(sw, ctx, o.Inputs)
+	err = exec.BindArrayVars(e, ctx, o.Inputs)
 	if err != nil {
 		return err
 	}
@@ -53,25 +61,25 @@ func (o *ECReconstructAny) Execute(ctx context.Context, sw *ioswitch.Switch) err
 			sem.Release(1)
 		})
 	}
-	ioswitch.PutArrayVars(sw, o.Outputs)
+	exec.PutArrayVars(e, o.Outputs)
 
 	return sem.Acquire(ctx, int64(len(o.Outputs)))
 }
 
 type ECReconstruct struct {
-	EC                cdssdk.ECRedundancy   `json:"ec"`
-	Inputs            []*ioswitch.StreamVar `json:"inputs"`
-	Outputs           []*ioswitch.StreamVar `json:"outputs"`
-	InputBlockIndexes []int                 `json:"inputBlockIndexes"`
+	EC                cdssdk.ECRedundancy `json:"ec"`
+	Inputs            []*exec.StreamVar   `json:"inputs"`
+	Outputs           []*exec.StreamVar   `json:"outputs"`
+	InputBlockIndexes []int               `json:"inputBlockIndexes"`
 }
 
-func (o *ECReconstruct) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+func (o *ECReconstruct) Execute(ctx context.Context, e *exec.Executor) error {
 	rs, err := ec.NewStreamRs(o.EC.K, o.EC.N, o.EC.ChunkSize)
 	if err != nil {
 		return fmt.Errorf("new ec: %w", err)
 	}
 
-	err = ioswitch.BindArrayVars(sw, ctx, o.Inputs)
+	err = exec.BindArrayVars(e, ctx, o.Inputs)
 	if err != nil {
 		return err
 	}
@@ -96,20 +104,20 @@ func (o *ECReconstruct) Execute(ctx context.Context, sw *ioswitch.Switch) error 
 			sem.Release(1)
 		})
 	}
-	ioswitch.PutArrayVars(sw, o.Outputs)
+	exec.PutArrayVars(e, o.Outputs)
 
 	return sem.Acquire(ctx, int64(len(o.Outputs)))
 }
 
 type ECMultiply struct {
-	Coef      [][]byte              `json:"coef"`
-	Inputs    []*ioswitch.StreamVar `json:"inputs"`
-	Outputs   []*ioswitch.StreamVar `json:"outputs"`
-	ChunkSize int                   `json:"chunkSize"`
+	Coef      [][]byte          `json:"coef"`
+	Inputs    []*exec.StreamVar `json:"inputs"`
+	Outputs   []*exec.StreamVar `json:"outputs"`
+	ChunkSize int               `json:"chunkSize"`
 }
 
-func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := ioswitch.BindArrayVars(sw, ctx, o.Inputs)
+func (o *ECMultiply) Execute(ctx context.Context, e *exec.Executor) error {
+	err := exec.BindArrayVars(e, ctx, o.Inputs)
 	if err != nil {
 		return err
 	}
@@ -141,7 +149,7 @@ func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		}
 
 		for {
-			err := sync2.ParallelDo(o.Inputs, func(s *ioswitch.StreamVar, i int) error {
+			err := sync2.ParallelDo(o.Inputs, func(s *exec.StreamVar, i int) error {
 				_, err := io.ReadFull(s.Stream, inputChunks[i])
 				return err
 			})
@@ -170,7 +178,7 @@ func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 		}
 	}()
 
-	ioswitch.PutArrayVars(sw, o.Outputs)
+	exec.PutArrayVars(e, o.Outputs)
 	err = fut.Wait(ctx)
 	if err != nil {
 		for _, wr := range outputWrs {
@@ -185,8 +193,46 @@ func (o *ECMultiply) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	return nil
 }
 
-func init() {
-	OpUnion.AddT((*ECReconstructAny)(nil))
-	OpUnion.AddT((*ECReconstruct)(nil))
-	OpUnion.AddT((*ECMultiply)(nil))
+type MultiplyType struct {
+	EC cdssdk.ECRedundancy
+}
+
+func (t *MultiplyType) InitNode(node *Node) {}
+
+func (t *MultiplyType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	var inputIdxs []int
+	var outputIdxs []int
+	for _, in := range op.InputStreams {
+		inputIdxs = append(inputIdxs, in.Props.StreamIndex)
+	}
+	for _, out := range op.OutputStreams {
+		outputIdxs = append(outputIdxs, out.Props.StreamIndex)
+	}
+
+	rs, err := ec.NewRs(t.EC.K, t.EC.N)
+	coef, err := rs.GenerateMatrix(inputIdxs, outputIdxs)
+	if err != nil {
+		return err
+	}
+
+	addOpByEnv(&ECMultiply{
+		Coef:      coef,
+		Inputs:    lo.Map(op.InputStreams, func(v *StreamVar, idx int) *exec.StreamVar { return v.Props.Var.(*exec.StreamVar) }),
+		Outputs:   lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *exec.StreamVar { return v.Props.Var.(*exec.StreamVar) }),
+		ChunkSize: t.EC.ChunkSize,
+	}, op.Env, blder)
+	return nil
+}
+
+func (t *MultiplyType) AddInput(node *Node, str *StreamVar) {
+	node.InputStreams = append(node.InputStreams, str)
+	str.To(node, len(node.InputStreams)-1)
+}
+
+func (t *MultiplyType) NewOutput(node *Node, dataIndex int) *StreamVar {
+	return dag.NodeNewOutputStream(node, VarProps{StreamIndex: dataIndex})
+}
+
+func (t *MultiplyType) String(node *Node) string {
+	return fmt.Sprintf("Multiply[]%v%v", formatStreamIO(node), formatValueIO(node))
 }

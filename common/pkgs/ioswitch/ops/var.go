@@ -3,15 +3,15 @@ package ops
 import (
 	"context"
 
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 )
 
 type ConstVar struct {
-	Var *ioswitch.StringVar `json:"var"`
+	Var *exec.StringVar `json:"var"`
 }
 
-func (o *ConstVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	sw.PutVars(o.Var)
+func (o *ConstVar) Execute(ctx context.Context, e *exec.Executor) error {
+	e.PutVars(o.Var)
 	return nil
 }
 

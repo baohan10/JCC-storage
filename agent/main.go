@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	log "gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/storage/agent/internal/config"
@@ -14,7 +15,6 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 
 	// TODO 注册OpUnion，但在mq包中注册会造成循环依赖，所以只能放到这里
 	_ "gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
@@ -92,15 +92,15 @@ func main() {
 		log.Fatalf("new ipfs failed, err: %s", err.Error())
 	}
 
-	sw := ioswitch.NewManager()
+	sw := exec.NewWorker()
 
 	dlder := downloader.NewDownloader(config.Cfg().Downloader, &conCol)
 
-	taskMgr := task.NewManager(distlock, &sw, &conCol, &dlder)
+	taskMgr := task.NewManager(distlock, &conCol, &dlder)
 
 	// 启动命令服务器
 	// TODO 需要设计AgentID持久化机制
-	agtSvr, err := agtmq.NewServer(cmdsvc.NewService(&taskMgr, &sw), config.Cfg().ID, &config.Cfg().RabbitMQ)
+	agtSvr, err := agtmq.NewServer(cmdsvc.NewService(&taskMgr), config.Cfg().ID, &config.Cfg().RabbitMQ)
 	if err != nil {
 		log.Fatalf("new agent server failed, err: %s", err.Error())
 	}

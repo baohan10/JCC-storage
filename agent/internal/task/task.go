@@ -5,12 +5,10 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/task"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 type TaskContext struct {
 	distlock     *distlock.Service
-	swMgr        *ioswitch.Manager
 	connectivity *connectivity.Collector
 	downloader   *downloader.Downloader
 }
@@ -27,10 +25,9 @@ type Task = task.Task[TaskContext]
 
 type CompleteOption = task.CompleteOption
 
-func NewManager(distlock *distlock.Service, swMgr *ioswitch.Manager, connectivity *connectivity.Collector, downloader *downloader.Downloader) Manager {
+func NewManager(distlock *distlock.Service, connectivity *connectivity.Collector, downloader *downloader.Downloader) Manager {
 	return task.NewManager(TaskContext{
 		distlock:     distlock,
-		swMgr:        swMgr,
 		connectivity: connectivity,
 		downloader:   downloader,
 	})

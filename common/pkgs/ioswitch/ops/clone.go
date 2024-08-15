@@ -5,18 +5,25 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"golang.org/x/sync/semaphore"
 )
 
-type CloneStream struct {
-	Input   *ioswitch.StreamVar   `json:"input"`
-	Outputs []*ioswitch.StreamVar `json:"outputs"`
+func init() {
+	OpUnion.AddT((*CloneStream)(nil))
+	OpUnion.AddT((*CloneVar)(nil))
 }
 
-func (o *CloneStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, o.Input)
+type CloneStream struct {
+	Input   *exec.StreamVar   `json:"input"`
+	Outputs []*exec.StreamVar `json:"outputs"`
+}
+
+func (o *CloneStream) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
@@ -32,33 +39,76 @@ func (o *CloneStream) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 			sem.Release(1)
 		})
 	}
-	ioswitch.PutArrayVars(sw, o.Outputs)
+	exec.PutArrayVars(e, o.Outputs)
 
 	return sem.Acquire(ctx, int64(len(o.Outputs)))
 }
 
 type CloneVar struct {
-	Raw     ioswitch.Var   `json:"raw"`
-	Cloneds []ioswitch.Var `json:"cloneds"`
+	Raw     exec.Var   `json:"raw"`
+	Cloneds []exec.Var `json:"cloneds"`
 }
 
-func (o *CloneVar) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, o.Raw)
+func (o *CloneVar) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, o.Raw)
 	if err != nil {
 		return err
 	}
 
 	for _, v := range o.Cloneds {
-		if err := ioswitch.AssignVar(o.Raw, v); err != nil {
+		if err := exec.AssignVar(o.Raw, v); err != nil {
 			return fmt.Errorf("clone var: %w", err)
 		}
 	}
-	sw.PutVars(o.Cloneds...)
+	e.PutVars(o.Cloneds...)
 
 	return nil
 }
 
-func init() {
-	OpUnion.AddT((*CloneStream)(nil))
-	OpUnion.AddT((*CloneVar)(nil))
+type CloneStreamType struct{}
+
+func (t *CloneStreamType) InitNode(node *Node) {
+	dag.NodeDeclareInputStream(node, 1)
+}
+
+func (t *CloneStreamType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&CloneStream{
+		Input: op.InputStreams[0].Props.Var.(*exec.StreamVar),
+		Outputs: lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *exec.StreamVar {
+			return v.Props.Var.(*exec.StreamVar)
+		}),
+	}, op.Env, blder)
+	return nil
+}
+
+func (t *CloneStreamType) NewOutput(node *Node) *StreamVar {
+	return dag.NodeNewOutputStream(node, VarProps{})
+}
+
+func (t *CloneStreamType) String(node *Node) string {
+	return fmt.Sprintf("CloneStream[]%v%v", formatStreamIO(node), formatValueIO(node))
+}
+
+type CloneVarType struct{}
+
+func (t *CloneVarType) InitNode(node *Node) {
+	dag.NodeDeclareInputValue(node, 1)
+}
+
+func (t *CloneVarType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&CloneVar{
+		Raw: op.InputValues[0].Props.Var,
+		Cloneds: lo.Map(op.OutputValues, func(v *ValueVar, idx int) exec.Var {
+			return v.Props.Var
+		}),
+	}, op.Env, blder)
+	return nil
+}
+
+func (t *CloneVarType) NewOutput(node *Node) *ValueVar {
+	return dag.NodeNewOutputValue(node, VarProps{})
+}
+
+func (t *CloneVarType) String(node *Node) string {
+	return fmt.Sprintf("CloneVar[]%v%v", formatStreamIO(node), formatValueIO(node))
 }

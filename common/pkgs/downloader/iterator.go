@@ -11,6 +11,7 @@ import (
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 
@@ -362,7 +363,7 @@ func (iter *DownloadObjectIterator) getNodeDistance(node cdssdk.Node) float64 {
 }
 
 func (iter *DownloadObjectIterator) downloadFromNode(node *cdssdk.Node, req downloadReqeust2) (io.ReadCloser, error) {
-	var strHandle *plans.ExecutorReadStream
+	var strHandle *exec.DriverReadStream
 	ft := plans.NewFromTo()
 
 	toExec, handle := plans.NewToExecutor(-1)

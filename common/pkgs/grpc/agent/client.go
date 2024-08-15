@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/serder"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -28,7 +28,7 @@ func NewClient(addr string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) ExecuteIOPlan(ctx context.Context, plan ioswitch.Plan) error {
+func (c *Client) ExecuteIOPlan(ctx context.Context, plan exec.Plan) error {
 	data, err := serder.ObjectToJSONEx(plan)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (s *grpcStreamReadCloser) Close() error {
 	return nil
 }
 
-func (c *Client) SendStream(ctx context.Context, planID ioswitch.PlanID, varID ioswitch.VarID, str io.Reader) error {
+func (c *Client) SendStream(ctx context.Context, planID exec.PlanID, varID exec.VarID, str io.Reader) error {
 	sendCli, err := c.cli.SendStream(ctx)
 	if err != nil {
 		return err
@@ -132,7 +132,7 @@ func (c *Client) SendStream(ctx context.Context, planID ioswitch.PlanID, varID i
 	}
 }
 
-func (c *Client) GetStream(planID ioswitch.PlanID, varID ioswitch.VarID, signal *ioswitch.SignalVar) (io.ReadCloser, error) {
+func (c *Client) GetStream(planID exec.PlanID, varID exec.VarID, signal *exec.SignalVar) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	sdata, err := serder.ObjectToJSONEx(signal)
@@ -156,7 +156,7 @@ func (c *Client) GetStream(planID ioswitch.PlanID, varID ioswitch.VarID, signal 
 	}, nil
 }
 
-func (c *Client) SendVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch.Var) error {
+func (c *Client) SendVar(ctx context.Context, planID exec.PlanID, v exec.Var) error {
 	data, err := serder.ObjectToJSONEx(v)
 	if err != nil {
 		return err
@@ -169,7 +169,7 @@ func (c *Client) SendVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch
 	return err
 }
 
-func (c *Client) GetVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch.Var, signal *ioswitch.SignalVar) (ioswitch.Var, error) {
+func (c *Client) GetVar(ctx context.Context, planID exec.PlanID, v exec.Var, signal *exec.SignalVar) (exec.Var, error) {
 	vdata, err := serder.ObjectToJSONEx(v)
 	if err != nil {
 		return nil, err
@@ -189,7 +189,7 @@ func (c *Client) GetVar(ctx context.Context, planID ioswitch.PlanID, v ioswitch.
 		return nil, err
 	}
 
-	v2, err := serder.JSONToObjectEx[ioswitch.Var]([]byte(resp.Var))
+	v2, err := serder.JSONToObjectEx[exec.Var]([]byte(resp.Var))
 	if err != nil {
 		return nil, err
 	}

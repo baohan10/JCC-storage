@@ -8,17 +8,23 @@ import (
 	"path"
 
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
-type FileWrite struct {
-	Input    *ioswitch.StreamVar `json:"input"`
-	FilePath string              `json:"filePath"`
+func init() {
+	OpUnion.AddT((*FileRead)(nil))
+	OpUnion.AddT((*FileWrite)(nil))
 }
 
-func (o *FileWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
-	err := sw.BindVars(ctx, o.Input)
+type FileWrite struct {
+	Input    *exec.StreamVar `json:"input"`
+	FilePath string          `json:"filePath"`
+}
+
+func (o *FileWrite) Execute(ctx context.Context, e *exec.Executor) error {
+	err := e.BindVars(ctx, o.Input)
 	if err != nil {
 		return err
 	}
@@ -45,11 +51,11 @@ func (o *FileWrite) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 }
 
 type FileRead struct {
-	Output   *ioswitch.StreamVar `json:"output"`
-	FilePath string              `json:"filePath"`
+	Output   *exec.StreamVar `json:"output"`
+	FilePath string          `json:"filePath"`
 }
 
-func (o *FileRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
+func (o *FileRead) Execute(ctx context.Context, e *exec.Executor) error {
 	file, err := os.Open(o.FilePath)
 	if err != nil {
 		return fmt.Errorf("opening file: %w", err)
@@ -59,13 +65,44 @@ func (o *FileRead) Execute(ctx context.Context, sw *ioswitch.Switch) error {
 	o.Output.Stream = io2.AfterReadClosed(file, func(closer io.ReadCloser) {
 		fut.SetVoid()
 	})
-	sw.PutVars(o.Output)
+	e.PutVars(o.Output)
 	fut.Wait(ctx)
 
 	return nil
 }
 
-func init() {
-	OpUnion.AddT((*FileRead)(nil))
-	OpUnion.AddT((*FileWrite)(nil))
+type FileReadType struct {
+	FilePath string
+}
+
+func (t *FileReadType) InitNode(node *Node) {
+	dag.NodeNewOutputStream(node, VarProps{})
+}
+
+func (t *FileReadType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&FileRead{
+		Output:   op.OutputStreams[0].Props.Var.(*exec.StreamVar),
+		FilePath: t.FilePath,
+	}, op.Env, blder)
+	return nil
+}
+
+func (t *FileReadType) String(node *Node) string {
+	return fmt.Sprintf("FileRead[%s]%v%v", t.FilePath, formatStreamIO(node), formatValueIO(node))
+}
+
+type FileWriteType struct {
+	FilePath string
+}
+
+func (t *FileWriteType) InitNode(node *Node) {
+	dag.NodeDeclareInputStream(node, 1)
+}
+
+func (t *FileWriteType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
+	addOpByEnv(&FileWrite{
+		Input:    op.InputStreams[0].Props.Var.(*exec.StreamVar),
+		FilePath: t.FilePath,
+	}, op.Env, blder)
+	return nil
 }
