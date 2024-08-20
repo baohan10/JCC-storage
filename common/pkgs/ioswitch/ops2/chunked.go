@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -10,12 +10,13 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 	"golang.org/x/sync/semaphore"
 )
 
 func init() {
-	OpUnion.AddT((*ChunkedSplit)(nil))
-	OpUnion.AddT((*ChunkedJoin)(nil))
+	exec.UseOp[*ChunkedSplit]()
+	exec.UseOp[*ChunkedJoin]()
 }
 
 type ChunkedSplit struct {
@@ -85,27 +86,26 @@ type ChunkedSplitType struct {
 	ChunkSize   int
 }
 
-func (t *ChunkedSplitType) InitNode(node *Node) {
+func (t *ChunkedSplitType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
 	for i := 0; i < t.OutputCount; i++ {
-		dag.NodeNewOutputStream(node, VarProps{})
+		dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
 	}
 }
 
-func (t *ChunkedSplitType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&ChunkedSplit{
-		Input: op.InputStreams[0].Props.Var.(*exec.StreamVar),
-		Outputs: lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *exec.StreamVar {
-			return v.Props.Var.(*exec.StreamVar)
+func (t *ChunkedSplitType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &ChunkedSplit{
+		Input: op.InputStreams[0].Var,
+		Outputs: lo.Map(op.OutputStreams, func(v *dag.StreamVar, idx int) *exec.StreamVar {
+			return v.Var
 		}),
 		ChunkSize:    t.ChunkSize,
 		PaddingZeros: true,
-	}, op.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *ChunkedSplitType) String(node *Node) string {
-	return fmt.Sprintf("ChunkedSplit[%v]", t.ChunkSize, formatStreamIO(node), formatValueIO(node))
+func (t *ChunkedSplitType) String(node *dag.Node) string {
+	return fmt.Sprintf("ChunkedSplit[%v]%v%v", t.ChunkSize, formatStreamIO(node), formatValueIO(node))
 }
 
 type ChunkedJoinType struct {
@@ -113,22 +113,21 @@ type ChunkedJoinType struct {
 	ChunkSize  int
 }
 
-func (t *ChunkedJoinType) InitNode(node *Node) {
+func (t *ChunkedJoinType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, t.InputCount)
-	dag.NodeNewOutputStream(node, VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
 }
 
-func (t *ChunkedJoinType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&ChunkedJoin{
-		Inputs: lo.Map(op.InputStreams, func(v *StreamVar, idx int) *exec.StreamVar {
-			return v.Props.Var.(*exec.StreamVar)
+func (t *ChunkedJoinType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &ChunkedJoin{
+		Inputs: lo.Map(op.InputStreams, func(v *dag.StreamVar, idx int) *exec.StreamVar {
+			return v.Var
 		}),
-		Output:    op.OutputStreams[0].Props.Var.(*exec.StreamVar),
+		Output:    op.OutputStreams[0].Var,
 		ChunkSize: t.ChunkSize,
-	}, op.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *ChunkedJoinType) String(node *Node) string {
-	return fmt.Sprintf("ChunkedJoin[%v]", t.ChunkSize, formatStreamIO(node), formatValueIO(node))
+func (t *ChunkedJoinType) String(node *dag.Node) string {
+	return fmt.Sprintf("ChunkedJoin[%v]%v%v", t.ChunkSize, formatStreamIO(node), formatValueIO(node))
 }

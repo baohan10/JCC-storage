@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -10,10 +10,11 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 func init() {
-	OpUnion.AddT((*Range)(nil))
+	exec.UseOp[*Range]()
 }
 
 type Range struct {
@@ -75,21 +76,20 @@ type RangeType struct {
 	Range exec.Range
 }
 
-func (t *RangeType) InitNode(node *Node) {
+func (t *RangeType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputStream(node, VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
 }
 
-func (t *RangeType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&Range{
-		Input:  op.InputStreams[0].Props.Var.(*exec.StreamVar),
-		Output: op.OutputStreams[0].Props.Var.(*exec.StreamVar),
+func (t *RangeType) GenerateOp(n *dag.Node) (exec.Op, error) {
+	return &Range{
+		Input:  n.InputStreams[0].Var,
+		Output: n.OutputStreams[0].Var,
 		Offset: t.Range.Offset,
 		Length: t.Range.Length,
-	}, op.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *RangeType) String(node *Node) string {
+func (t *RangeType) String(node *dag.Node) string {
 	return fmt.Sprintf("Range[%v+%v]%v%v", t.Range.Offset, t.Range.Length, formatStreamIO(node), formatValueIO(node))
 }

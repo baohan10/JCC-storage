@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -11,11 +11,12 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 func init() {
-	OpUnion.AddT((*FileRead)(nil))
-	OpUnion.AddT((*FileWrite)(nil))
+	exec.UseOp[*FileRead]()
+	exec.UseOp[*FileWrite]()
 }
 
 type FileWrite struct {
@@ -75,19 +76,18 @@ type FileReadType struct {
 	FilePath string
 }
 
-func (t *FileReadType) InitNode(node *Node) {
-	dag.NodeNewOutputStream(node, VarProps{})
+func (t *FileReadType) InitNode(node *dag.Node) {
+	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
 }
 
-func (t *FileReadType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&FileRead{
-		Output:   op.OutputStreams[0].Props.Var.(*exec.StreamVar),
+func (t *FileReadType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &FileRead{
+		Output:   op.OutputStreams[0].Var,
 		FilePath: t.FilePath,
-	}, op.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *FileReadType) String(node *Node) string {
+func (t *FileReadType) String(node *dag.Node) string {
 	return fmt.Sprintf("FileRead[%s]%v%v", t.FilePath, formatStreamIO(node), formatValueIO(node))
 }
 
@@ -95,14 +95,13 @@ type FileWriteType struct {
 	FilePath string
 }
 
-func (t *FileWriteType) InitNode(node *Node) {
+func (t *FileWriteType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
 }
 
-func (t *FileWriteType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&FileWrite{
-		Input:    op.InputStreams[0].Props.Var.(*exec.StreamVar),
+func (t *FileWriteType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &FileWrite{
+		Input:    op.InputStreams[0].Var,
 		FilePath: t.FilePath,
-	}, op.Env, blder)
-	return nil
+	}, nil
 }

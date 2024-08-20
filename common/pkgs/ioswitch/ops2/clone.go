@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 )
 
 func init() {
-	OpUnion.AddT((*CloneStream)(nil))
-	OpUnion.AddT((*CloneVar)(nil))
+	exec.UseOp[*CloneStream]()
+	exec.UseOp[*CloneVar]()
 }
 
 type CloneStream struct {
@@ -67,48 +67,46 @@ func (o *CloneVar) Execute(ctx context.Context, e *exec.Executor) error {
 
 type CloneStreamType struct{}
 
-func (t *CloneStreamType) InitNode(node *Node) {
+func (t *CloneStreamType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
 }
 
-func (t *CloneStreamType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&CloneStream{
-		Input: op.InputStreams[0].Props.Var.(*exec.StreamVar),
-		Outputs: lo.Map(op.OutputStreams, func(v *StreamVar, idx int) *exec.StreamVar {
-			return v.Props.Var.(*exec.StreamVar)
+func (t *CloneStreamType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &CloneStream{
+		Input: op.InputStreams[0].Var,
+		Outputs: lo.Map(op.OutputStreams, func(v *dag.StreamVar, idx int) *exec.StreamVar {
+			return v.Var
 		}),
-	}, op.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *CloneStreamType) NewOutput(node *Node) *StreamVar {
-	return dag.NodeNewOutputStream(node, VarProps{})
+func (t *CloneStreamType) NewOutput(node *dag.Node) *dag.StreamVar {
+	return dag.NodeNewOutputStream(node, nil)
 }
 
-func (t *CloneStreamType) String(node *Node) string {
+func (t *CloneStreamType) String(node *dag.Node) string {
 	return fmt.Sprintf("CloneStream[]%v%v", formatStreamIO(node), formatValueIO(node))
 }
 
 type CloneVarType struct{}
 
-func (t *CloneVarType) InitNode(node *Node) {
+func (t *CloneVarType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputValue(node, 1)
 }
 
-func (t *CloneVarType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&CloneVar{
-		Raw: op.InputValues[0].Props.Var,
-		Cloneds: lo.Map(op.OutputValues, func(v *ValueVar, idx int) exec.Var {
-			return v.Props.Var
+func (t *CloneVarType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &CloneVar{
+		Raw: op.InputValues[0].Var,
+		Cloneds: lo.Map(op.OutputValues, func(v *dag.ValueVar, idx int) exec.Var {
+			return v.Var
 		}),
-	}, op.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *CloneVarType) NewOutput(node *Node) *ValueVar {
-	return dag.NodeNewOutputValue(node, VarProps{})
+func (t *CloneVarType) NewOutput(node *dag.Node) *dag.ValueVar {
+	return dag.NodeNewOutputValue(node, nil)
 }
 
-func (t *CloneVarType) String(node *Node) string {
+func (t *CloneVarType) String(node *dag.Node) string {
 	return fmt.Sprintf("CloneVar[]%v%v", formatStreamIO(node), formatValueIO(node))
 }

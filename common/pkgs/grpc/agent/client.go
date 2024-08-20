@@ -132,11 +132,12 @@ func (c *Client) SendStream(ctx context.Context, planID exec.PlanID, varID exec.
 	}
 }
 
-func (c *Client) GetStream(planID exec.PlanID, varID exec.VarID, signal *exec.SignalVar) (io.ReadCloser, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (c *Client) GetStream(ctx context.Context, planID exec.PlanID, varID exec.VarID, signal *exec.SignalVar) (io.ReadCloser, error) {
+	ctx, cancel := context.WithCancel(ctx)
 
 	sdata, err := serder.ObjectToJSONEx(signal)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -169,15 +170,15 @@ func (c *Client) SendVar(ctx context.Context, planID exec.PlanID, v exec.Var) er
 	return err
 }
 
-func (c *Client) GetVar(ctx context.Context, planID exec.PlanID, v exec.Var, signal *exec.SignalVar) (exec.Var, error) {
+func (c *Client) GetVar(ctx context.Context, planID exec.PlanID, v exec.Var, signal *exec.SignalVar) error {
 	vdata, err := serder.ObjectToJSONEx(v)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	sdata, err := serder.ObjectToJSONEx(signal)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	resp, err := c.cli.GetVar(ctx, &GetVarReq{
@@ -186,15 +187,20 @@ func (c *Client) GetVar(ctx context.Context, planID exec.PlanID, v exec.Var, sig
 		Signal: string(sdata),
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	v2, err := serder.JSONToObjectEx[exec.Var]([]byte(resp.Var))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return v2, nil
+	err = exec.AssignVar(v2, v)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Client) Ping() error {

@@ -16,9 +16,6 @@ import (
 	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 
-	// TODO 注册OpUnion，但在mq包中注册会造成循环依赖，所以只能放到这里
-	_ "gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops"
-
 	"google.golang.org/grpc"
 
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"

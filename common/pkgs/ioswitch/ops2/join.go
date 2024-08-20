@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -8,6 +8,10 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 )
+
+func init() {
+	// OpUnion.AddT((*Join)(nil))
+}
 
 type Join struct {
 	Inputs []*exec.StreamVar `json:"inputs"`
@@ -38,8 +42,4 @@ func (o *Join) Execute(ctx context.Context, e *exec.Executor) error {
 	e.PutVars(o.Output)
 
 	return fut.Wait(ctx)
-}
-
-func init() {
-	OpUnion.AddT((*Join)(nil))
 }

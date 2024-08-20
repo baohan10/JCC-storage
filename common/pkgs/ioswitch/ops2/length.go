@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -8,6 +8,10 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 )
+
+func init() {
+	// OpUnion.AddT((*Length)(nil))
+}
 
 type Length struct {
 	Input  *exec.StreamVar `json:"input"`
@@ -29,8 +33,4 @@ func (o *Length) Execute(ctx context.Context, e *exec.Executor) error {
 	e.PutVars(o.Output)
 
 	return fut.Wait(ctx)
-}
-
-func init() {
-	OpUnion.AddT((*Length)(nil))
 }

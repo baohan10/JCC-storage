@@ -1,4 +1,4 @@
-package ops
+package ops2
 
 import (
 	"context"
@@ -12,11 +12,12 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 func init() {
-	OpUnion.AddT((*IPFSRead)(nil))
-	OpUnion.AddT((*IPFSWrite)(nil))
+	exec.UseOp[*IPFSRead]()
+	exec.UseOp[*IPFSWrite]()
 }
 
 type IPFSRead struct {
@@ -90,20 +91,19 @@ type IPFSReadType struct {
 	Option   ipfs.ReadOption
 }
 
-func (t *IPFSReadType) InitNode(node *Node) {
-	dag.NodeNewOutputStream(node, VarProps{})
+func (t *IPFSReadType) InitNode(node *dag.Node) {
+	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
 }
 
-func (t *IPFSReadType) GenerateOp(node *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&IPFSRead{
-		Output:   node.OutputStreams[0].Props.Var.(*exec.StreamVar),
+func (t *IPFSReadType) GenerateOp(n *dag.Node) (exec.Op, error) {
+	return &IPFSRead{
+		Output:   n.OutputStreams[0].Var,
 		FileHash: t.FileHash,
 		Option:   t.Option,
-	}, node.Env, blder)
-	return nil
+	}, nil
 }
 
-func (t *IPFSReadType) String(node *Node) string {
+func (t *IPFSReadType) String(node *dag.Node) string {
 	return fmt.Sprintf("IPFSRead[%s,%v+%v]%v%v", t.FileHash, t.Option.Offset, t.Option.Length, formatStreamIO(node), formatValueIO(node))
 }
 
@@ -112,19 +112,18 @@ type IPFSWriteType struct {
 	Range            exec.Range
 }
 
-func (t *IPFSWriteType) InitNode(node *Node) {
+func (t *IPFSWriteType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputValue(node, VarProps{})
+	dag.NodeNewOutputValue(node, &ioswitch.VarProps{})
 }
 
-func (t *IPFSWriteType) GenerateOp(op *Node, blder *exec.PlanBuilder) error {
-	addOpByEnv(&IPFSWrite{
-		Input:    op.InputStreams[0].Props.Var.(*exec.StreamVar),
-		FileHash: op.OutputValues[0].Props.Var.(*exec.StringVar),
-	}, op.Env, blder)
-	return nil
+func (t *IPFSWriteType) GenerateOp(op *dag.Node) (exec.Op, error) {
+	return &IPFSWrite{
+		Input:    op.InputStreams[0].Var,
+		FileHash: op.OutputValues[0].Var.(*exec.StringVar),
+	}, nil
 }
 
-func (t *IPFSWriteType) String(node *Node) string {
-	return fmt.Sprintf("IPFSWrite[%s,%v+%v](%v>)", t.FileHashStoreKey, t.Range.Offset, t.Range.Length, formatStreamIO(node), formatValueIO(node))
+func (t *IPFSWriteType) String(node *dag.Node) string {
+	return fmt.Sprintf("IPFSWrite[%s,%v+%v]%v%v", t.FileHashStoreKey, t.Range.Offset, t.Range.Length, formatStreamIO(node), formatValueIO(node))
 }

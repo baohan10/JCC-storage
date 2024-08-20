@@ -1,4 +1,4 @@
-package ops
+package ioswitch
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
@@ -17,71 +17,92 @@ type To interface {
 	GetDataIndex() int
 }
 
-type FromExecutor struct {
+type FromTos []FromTo
+
+type FromTo struct {
+	Froms []From
+	Toes  []To
+}
+
+func NewFromTo() FromTo {
+	return FromTo{}
+}
+
+func (ft *FromTo) AddFrom(from From) *FromTo {
+	ft.Froms = append(ft.Froms, from)
+	return ft
+}
+
+func (ft *FromTo) AddTo(to To) *FromTo {
+	ft.Toes = append(ft.Toes, to)
+	return ft
+}
+
+type FromDriver struct {
 	Handle    *exec.DriverWriteStream
 	DataIndex int
 }
 
-func NewFromExecutor(dataIndex int) (*FromExecutor, *exec.DriverWriteStream) {
+func NewFromDriver(dataIndex int) (*FromDriver, *exec.DriverWriteStream) {
 	handle := &exec.DriverWriteStream{
 		RangeHint: &exec.Range{},
 	}
-	return &FromExecutor{
+	return &FromDriver{
 		Handle:    handle,
 		DataIndex: dataIndex,
 	}, handle
 }
 
-func (f *FromExecutor) GetDataIndex() int {
+func (f *FromDriver) GetDataIndex() int {
 	return f.DataIndex
 }
 
-type FromWorker struct {
+type FromNode struct {
 	FileHash  string
 	Node      *cdssdk.Node
 	DataIndex int
 }
 
-func NewFromNode(fileHash string, node *cdssdk.Node, dataIndex int) *FromWorker {
-	return &FromWorker{
+func NewFromNode(fileHash string, node *cdssdk.Node, dataIndex int) *FromNode {
+	return &FromNode{
 		FileHash:  fileHash,
 		Node:      node,
 		DataIndex: dataIndex,
 	}
 }
 
-func (f *FromWorker) GetDataIndex() int {
+func (f *FromNode) GetDataIndex() int {
 	return f.DataIndex
 }
 
-type ToExecutor struct {
+type ToDriver struct {
 	Handle    *exec.DriverReadStream
 	DataIndex int
 	Range     exec.Range
 }
 
-func NewToExecutor(dataIndex int) (*ToExecutor, *exec.DriverReadStream) {
+func NewToDriver(dataIndex int) (*ToDriver, *exec.DriverReadStream) {
 	str := exec.DriverReadStream{}
-	return &ToExecutor{
+	return &ToDriver{
 		Handle:    &str,
 		DataIndex: dataIndex,
 	}, &str
 }
 
-func NewToExecutorWithRange(dataIndex int, rng exec.Range) (*ToExecutor, *exec.DriverReadStream) {
+func NewToExecutorWithRange(dataIndex int, rng exec.Range) (*ToDriver, *exec.DriverReadStream) {
 	str := exec.DriverReadStream{}
-	return &ToExecutor{
+	return &ToDriver{
 		Handle:    &str,
 		DataIndex: dataIndex,
 		Range:     rng,
 	}, &str
 }
 
-func (t *ToExecutor) GetDataIndex() int {
+func (t *ToDriver) GetDataIndex() int {
 	return t.DataIndex
 }
 
-func (t *ToExecutor) GetRange() exec.Range {
+func (t *ToDriver) GetRange() exec.Range {
 	return t.Range
 }
 
