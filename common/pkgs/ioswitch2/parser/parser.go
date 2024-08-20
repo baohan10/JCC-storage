@@ -1,4 +1,4 @@
-package plans
+package parser
 
 import (
 	"fmt"
@@ -12,8 +12,8 @@ import (
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/ops2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/ops2"
 )
 
 type DefaultParser struct {
@@ -27,14 +27,14 @@ func NewParser(ec cdssdk.ECRedundancy) *DefaultParser {
 }
 
 type ParseContext struct {
-	Ft  ioswitch.FromTo
+	Ft  ioswitch2.FromTo
 	DAG *dag.Graph
 	// 为了产生所有To所需的数据范围，而需要From打开的范围。
 	// 这个范围是基于整个文件的，且上下界都取整到条带大小的整数倍，因此上界是有可能超过文件大小的。
 	StreamRange exec.Range
 }
 
-func (p *DefaultParser) Parse(ft ioswitch.FromTo, blder *exec.PlanBuilder) error {
+func (p *DefaultParser) Parse(ft ioswitch2.FromTo, blder *exec.PlanBuilder) error {
 	ctx := ParseContext{Ft: ft}
 
 	// 分成两个阶段：
@@ -88,7 +88,7 @@ func (p *DefaultParser) findOutputStream(ctx *ParseContext, streamIndex int) *da
 	var ret *dag.StreamVar
 	ctx.DAG.Walk(func(n *dag.Node) bool {
 		for _, o := range n.OutputStreams {
-			if o != nil && ioswitch.SProps(o).StreamIndex == streamIndex {
+			if o != nil && ioswitch2.SProps(o).StreamIndex == streamIndex {
 				ret = o
 				return false
 			}
@@ -134,7 +134,7 @@ func (p *DefaultParser) calcStreamRange(ctx *ParseContext) {
 	ctx.StreamRange = rng
 }
 
-func (p *DefaultParser) extend(ctx *ParseContext, ft ioswitch.FromTo) error {
+func (p *DefaultParser) extend(ctx *ParseContext, ft ioswitch2.FromTo) error {
 	for _, fr := range ft.Froms {
 		_, err := p.buildFromNode(ctx, &ft, fr)
 		if err != nil {
@@ -143,9 +143,9 @@ func (p *DefaultParser) extend(ctx *ParseContext, ft ioswitch.FromTo) error {
 
 		// 对于完整文件的From，生成Split指令
 		if fr.GetDataIndex() == -1 {
-			n, _ := dag.NewNode(ctx.DAG, &ops2.ChunkedSplitType{ChunkSize: p.EC.ChunkSize, OutputCount: p.EC.K}, &ioswitch.NodeProps{})
+			n, _ := dag.NewNode(ctx.DAG, &ops2.ChunkedSplitType{ChunkSize: p.EC.ChunkSize, OutputCount: p.EC.K}, &ioswitch2.NodeProps{})
 			for i := 0; i < p.EC.K; i++ {
-				ioswitch.SProps(n.OutputStreams[i]).StreamIndex = i
+				ioswitch2.SProps(n.OutputStreams[i]).StreamIndex = i
 			}
 		}
 	}
@@ -155,7 +155,7 @@ func (p *DefaultParser) extend(ctx *ParseContext, ft ioswitch.FromTo) error {
 loop:
 	for _, o := range ctx.DAG.Nodes {
 		for _, s := range o.OutputStreams {
-			prop := ioswitch.SProps(s)
+			prop := ioswitch2.SProps(s)
 			if prop.StreamIndex >= 0 && ecInputStrs[prop.StreamIndex] == nil {
 				ecInputStrs[prop.StreamIndex] = s
 				if len(ecInputStrs) == p.EC.K {
@@ -167,7 +167,7 @@ loop:
 	if len(ecInputStrs) == p.EC.K {
 		mulNode, mulType := dag.NewNode(ctx.DAG, &ops2.MultiplyType{
 			EC: p.EC,
-		}, &ioswitch.NodeProps{})
+		}, &ioswitch2.NodeProps{})
 
 		for _, s := range ecInputStrs {
 			mulType.AddInput(mulNode, s)
@@ -179,13 +179,13 @@ loop:
 		joinNode, _ := dag.NewNode(ctx.DAG, &ops2.ChunkedJoinType{
 			InputCount: p.EC.K,
 			ChunkSize:  p.EC.ChunkSize,
-		}, &ioswitch.NodeProps{})
+		}, &ioswitch2.NodeProps{})
 
 		for i := 0; i < p.EC.K; i++ {
 			// 不可能找不到流
 			p.findOutputStream(ctx, i).To(joinNode, i)
 		}
-		ioswitch.SProps(joinNode.OutputStreams[0]).StreamIndex = -1
+		ioswitch2.SProps(joinNode.OutputStreams[0]).StreamIndex = -1
 	}
 
 	// 为每一个To找到一个输入流
@@ -206,7 +206,7 @@ loop:
 	return nil
 }
 
-func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch.FromTo, f ioswitch.From) (*dag.Node, error) {
+func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch2.FromTo, f ioswitch2.From) (*dag.Node, error) {
 	var repRange exec.Range
 	var blkRange exec.Range
 
@@ -221,17 +221,17 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch.FromTo, f 
 	}
 
 	switch f := f.(type) {
-	case *ioswitch.FromNode:
+	case *ioswitch2.FromNode:
 		n, t := dag.NewNode(ctx.DAG, &ops2.IPFSReadType{
 			FileHash: f.FileHash,
 			Option: ipfs.ReadOption{
 				Offset: 0,
 				Length: -1,
 			},
-		}, &ioswitch.NodeProps{
+		}, &ioswitch2.NodeProps{
 			From: f,
 		})
-		ioswitch.SProps(n.OutputStreams[0]).StreamIndex = f.DataIndex
+		ioswitch2.SProps(n.OutputStreams[0]).StreamIndex = f.DataIndex
 
 		if f.DataIndex == -1 {
 			t.Option.Offset = repRange.Offset
@@ -246,15 +246,15 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch.FromTo, f 
 		}
 
 		if f.Node != nil {
-			n.Env.ToEnvWorker(&ioswitch.AgentWorker{Node: *f.Node})
+			n.Env.ToEnvWorker(&ioswitch2.AgentWorker{Node: *f.Node})
 		}
 
 		return n, nil
 
-	case *ioswitch.FromDriver:
-		n, _ := dag.NewNode(ctx.DAG, &ops.FromDriverType{Handle: f.Handle}, &ioswitch.NodeProps{From: f})
-		n.Env.ToEnvExecutor()
-		ioswitch.SProps(n.OutputStreams[0]).StreamIndex = f.DataIndex
+	case *ioswitch2.FromDriver:
+		n, _ := dag.NewNode(ctx.DAG, &ops.FromDriverType{Handle: f.Handle}, &ioswitch2.NodeProps{From: f})
+		n.Env.ToEnvDriver()
+		ioswitch2.SProps(n.OutputStreams[0]).StreamIndex = f.DataIndex
 
 		if f.DataIndex == -1 {
 			f.Handle.RangeHint.Offset = repRange.Offset
@@ -271,21 +271,21 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch.FromTo, f 
 	}
 }
 
-func (p *DefaultParser) buildToNode(ctx *ParseContext, ft *ioswitch.FromTo, t ioswitch.To) (*dag.Node, error) {
+func (p *DefaultParser) buildToNode(ctx *ParseContext, ft *ioswitch2.FromTo, t ioswitch2.To) (*dag.Node, error) {
 	switch t := t.(type) {
-	case *ioswitch.ToNode:
+	case *ioswitch2.ToNode:
 		n, _ := dag.NewNode(ctx.DAG, &ops2.IPFSWriteType{
 			FileHashStoreKey: t.FileHashStoreKey,
 			Range:            t.Range,
-		}, &ioswitch.NodeProps{
+		}, &ioswitch2.NodeProps{
 			To: t,
 		})
 
 		return n, nil
 
-	case *ioswitch.ToDriver:
-		n, _ := dag.NewNode(ctx.DAG, &ops.ToDriverType{Handle: t.Handle, Range: t.Range}, &ioswitch.NodeProps{To: t})
-		n.Env.ToEnvExecutor()
+	case *ioswitch2.ToDriver:
+		n, _ := dag.NewNode(ctx.DAG, &ops.ToDriverType{Handle: t.Handle, Range: t.Range}, &ioswitch2.NodeProps{To: t})
+		n.Env.ToEnvDriver()
 
 		return n, nil
 
@@ -480,7 +480,7 @@ func (p *DefaultParser) dropUnused(ctx *ParseContext) {
 	ctx.DAG.Walk(func(node *dag.Node) bool {
 		for _, out := range node.OutputStreams {
 			if len(out.Toes) == 0 {
-				n := ctx.DAG.NewNode(&ops.DropType{}, &ioswitch.NodeProps{})
+				n := ctx.DAG.NewNode(&ops.DropType{}, &ioswitch2.NodeProps{})
 				n.Env = node.Env
 				out.To(n, 0)
 			}
@@ -498,8 +498,8 @@ func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
 
 		n := ctx.DAG.NewNode(&ops.StoreType{
 			StoreKey: typ.FileHashStoreKey,
-		}, &ioswitch.NodeProps{})
-		n.Env.ToEnvExecutor()
+		}, &ioswitch2.NodeProps{})
+		n.Env.ToEnvDriver()
 
 		node.OutputValues[0].To(n, 0)
 		return true
@@ -509,7 +509,7 @@ func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
 // 生成Range指令。StreamRange可能超过文件总大小，但Range指令会在数据量不够时不报错而是正常返回
 func (p *DefaultParser) generateRange(ctx *ParseContext) {
 	ctx.DAG.Walk(func(node *dag.Node) bool {
-		props := ioswitch.NProps(node)
+		props := ioswitch2.NProps(node)
 		if props.To == nil {
 			return true
 		}
@@ -523,7 +523,7 @@ func (p *DefaultParser) generateRange(ctx *ParseContext) {
 					Offset: toRng.Offset - ctx.StreamRange.Offset,
 					Length: toRng.Length,
 				},
-			}, &ioswitch.NodeProps{})
+			}, &ioswitch2.NodeProps{})
 			n.Env = node.InputStreams[0].From.Node.Env
 
 			node.InputStreams[0].To(n, 0)
@@ -541,7 +541,7 @@ func (p *DefaultParser) generateRange(ctx *ParseContext) {
 					Offset: toRng.Offset - blkStart,
 					Length: toRng.Length,
 				},
-			}, &ioswitch.NodeProps{})
+			}, &ioswitch2.NodeProps{})
 			n.Env = node.InputStreams[0].From.Node.Env
 
 			node.InputStreams[0].To(n, 0)
@@ -561,7 +561,7 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 				continue
 			}
 
-			n, t := dag.NewNode(ctx.DAG, &ops2.CloneStreamType{}, &ioswitch.NodeProps{})
+			n, t := dag.NewNode(ctx.DAG, &ops2.CloneStreamType{}, &ioswitch2.NodeProps{})
 			n.Env = node.Env
 			for _, to := range out.Toes {
 				t.NewOutput(node).To(to.Node, to.SlotIndex)
@@ -575,7 +575,7 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 				continue
 			}
 
-			n, t := dag.NewNode(ctx.DAG, &ops2.CloneVarType{}, &ioswitch.NodeProps{})
+			n, t := dag.NewNode(ctx.DAG, &ops2.CloneVarType{}, &ioswitch2.NodeProps{})
 			n.Env = node.Env
 			for _, to := range out.Toes {
 				t.NewOutput(node).To(to.Node, to.SlotIndex)

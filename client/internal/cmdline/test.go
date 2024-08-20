@@ -7,10 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"gitlink.org.cn/cloudream/common/pkgs/future"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/downloader"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/parser"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
 
@@ -32,7 +34,7 @@ func init() {
 				panic(err)
 			}
 
-			ft := plans.NewFromTo()
+			ft := ioswitch2.NewFromTo()
 
 			// ft.AddFrom(plans.NewFromNode("Qmf412jQZiuVUtdgnB36FXFX7xg5V6KEbSJ4dpQuhkLyfD", &nodes.Nodes[0], -1))
 			// ft.AddTo(plans.NewToNode(nodes.Nodes[1], -1, "asd"))
@@ -43,10 +45,10 @@ func init() {
 			// ft.AddTo(plans.NewToNode(nodes.Nodes[1], 1, "1"))
 			// ft.AddTo(plans.NewToNode(nodes.Nodes[1], 2, "2"))
 
-			ft.AddFrom(plans.NewFromNode("QmS2s8GRYHEurXL7V1zUtKvf2H1BGcQc5NN1T1hiSnWvbd", &nodes.Nodes[0], 1))
-			ft.AddFrom(plans.NewFromNode("QmUgUEUMzdnjPNx6xu9PDGXpSyXTk8wzPWvyYZ9zasE1WW", &nodes.Nodes[1], 2))
+			ft.AddFrom(ioswitch2.NewFromNode("QmS2s8GRYHEurXL7V1zUtKvf2H1BGcQc5NN1T1hiSnWvbd", &nodes.Nodes[0], 1))
+			ft.AddFrom(ioswitch2.NewFromNode("QmUgUEUMzdnjPNx6xu9PDGXpSyXTk8wzPWvyYZ9zasE1WW", &nodes.Nodes[1], 2))
 			le := int64(3)
-			toExec, hd := plans.NewToExecutorWithRange(-1, plans.Range{Offset: 5, Length: &le})
+			toExec, hd := ioswitch2.NewToDriverWithRange(-1, exec.Range{Offset: 5, Length: &le})
 			// toExec, hd := plans.NewToExecutorWithRange(1, plans.Range{Offset: 0, Length: nil})
 			// toExec2, hd2 := plans.NewToExecutorWithRange(2, plans.Range{Offset: 0, Length: nil})
 			ft.AddTo(toExec)
@@ -56,9 +58,9 @@ func init() {
 			// ft.AddFrom(fromExec)
 			// ft.AddTo(plans.NewToNode(nodes.Nodes[1], -1, "asd"))
 
-			parser := plans.NewParser(cdssdk.DefaultECRedundancy)
+			parser := parser.NewParser(cdssdk.DefaultECRedundancy)
 
-			plans := plans.NewPlanBuilder()
+			plans := exec.NewPlanBuilder()
 			err = parser.Parse(ft, plans)
 			if err != nil {
 				panic(err)

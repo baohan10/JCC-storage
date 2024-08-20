@@ -22,7 +22,8 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/parser"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 )
@@ -364,21 +365,21 @@ func (iter *DownloadObjectIterator) getNodeDistance(node cdssdk.Node) float64 {
 
 func (iter *DownloadObjectIterator) downloadFromNode(node *cdssdk.Node, req downloadReqeust2) (io.ReadCloser, error) {
 	var strHandle *exec.DriverReadStream
-	ft := plans.NewFromTo()
+	ft := ioswitch2.NewFromTo()
 
-	toExec, handle := plans.NewToExecutor(-1)
-	toExec.Range = plans.Range{
+	toExec, handle := ioswitch2.NewToDriver(-1)
+	toExec.Range = exec.Range{
 		Offset: req.Raw.Offset,
 	}
 	if req.Raw.Length != -1 {
 		len := req.Raw.Length
 		toExec.Range.Length = &len
 	}
-	ft.AddFrom(plans.NewFromNode(req.Detail.Object.FileHash, node, -1)).AddTo(toExec)
+	ft.AddFrom(ioswitch2.NewFromNode(req.Detail.Object.FileHash, node, -1)).AddTo(toExec)
 	strHandle = handle
 
-	parser := plans.NewParser(cdssdk.DefaultECRedundancy)
-	plans := plans.NewPlanBuilder()
+	parser := parser.NewParser(cdssdk.DefaultECRedundancy)
+	plans := exec.NewPlanBuilder()
 	if err := parser.Parse(ft, plans); err != nil {
 		return nil, fmt.Errorf("parsing plan: %w", err)
 	}

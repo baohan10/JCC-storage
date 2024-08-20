@@ -1,4 +1,4 @@
-package ioswitch
+package ioswitch2
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
@@ -89,7 +89,7 @@ func NewToDriver(dataIndex int) (*ToDriver, *exec.DriverReadStream) {
 	}, &str
 }
 
-func NewToExecutorWithRange(dataIndex int, rng exec.Range) (*ToDriver, *exec.DriverReadStream) {
+func NewToDriverWithRange(dataIndex int, rng exec.Range) (*ToDriver, *exec.DriverReadStream) {
 	str := exec.DriverReadStream{}
 	return &ToDriver{
 		Handle:    &str,

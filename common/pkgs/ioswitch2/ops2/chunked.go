@@ -10,7 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -89,7 +89,7 @@ type ChunkedSplitType struct {
 func (t *ChunkedSplitType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
 	for i := 0; i < t.OutputCount; i++ {
-		dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
+		dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
 	}
 }
 
@@ -115,7 +115,7 @@ type ChunkedJoinType struct {
 
 func (t *ChunkedJoinType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, t.InputCount)
-	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
 }
 
 func (t *ChunkedJoinType) GenerateOp(op *dag.Node) (exec.Op, error) {

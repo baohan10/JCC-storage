@@ -1,4 +1,4 @@
-package ioswitch
+package ioswitch2
 
 import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"

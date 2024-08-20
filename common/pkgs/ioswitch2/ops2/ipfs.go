@@ -12,7 +12,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
 )
 
 func init() {
@@ -92,7 +92,7 @@ type IPFSReadType struct {
 }
 
 func (t *IPFSReadType) InitNode(node *dag.Node) {
-	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
 }
 
 func (t *IPFSReadType) GenerateOp(n *dag.Node) (exec.Op, error) {
@@ -114,7 +114,7 @@ type IPFSWriteType struct {
 
 func (t *IPFSWriteType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputValue(node, &ioswitch.VarProps{})
+	dag.NodeNewOutputValue(node, &ioswitch2.VarProps{})
 }
 
 func (t *IPFSWriteType) GenerateOp(op *dag.Node) (exec.Op, error) {

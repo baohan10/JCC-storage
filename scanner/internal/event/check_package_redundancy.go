@@ -7,13 +7,15 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/sort2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/parser"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
@@ -413,13 +415,13 @@ func (t *CheckPackageRedundancy) noneToEC(obj stgmod.ObjectDetail, red *cdssdk.E
 		return nil, fmt.Errorf("requesting to get nodes: %w", err)
 	}
 
-	ft := plans.NewFromTo()
-	ft.AddFrom(plans.NewFromNode(obj.Object.FileHash, &getNodes.Nodes[0], -1))
+	ft := ioswitch2.NewFromTo()
+	ft.AddFrom(ioswitch2.NewFromNode(obj.Object.FileHash, &getNodes.Nodes[0], -1))
 	for i := 0; i < red.N; i++ {
-		ft.AddTo(plans.NewToNode(uploadNodes[i].Node, i, fmt.Sprintf("%d", i)))
+		ft.AddTo(ioswitch2.NewToNode(uploadNodes[i].Node, i, fmt.Sprintf("%d", i)))
 	}
-	parser := plans.NewParser(*red)
-	plans := plans.NewPlanBuilder()
+	parser := parser.NewParser(*red)
+	plans := exec.NewPlanBuilder()
 	err = parser.Parse(ft, plans)
 	if err != nil {
 		return nil, fmt.Errorf("parsing plan: %w", err)
@@ -515,17 +517,17 @@ func (t *CheckPackageRedundancy) ecToRep(obj stgmod.ObjectDetail, srcRed *cdssdk
 	uploadNodes = lo.UniqBy(uploadNodes, func(item *NodeLoadInfo) cdssdk.NodeID { return item.Node.NodeID })
 
 	// 每个被选节点都在自己节点上重建原始数据
-	parser := plans.NewParser(*srcRed)
-	planBlder := plans.NewPlanBuilder()
+	parser := parser.NewParser(*srcRed)
+	planBlder := exec.NewPlanBuilder()
 	for i := range uploadNodes {
-		ft := plans.NewFromTo()
+		ft := ioswitch2.NewFromTo()
 
 		for _, block := range chosenBlocks {
-			ft.AddFrom(plans.NewFromNode(block.FileHash, &uploadNodes[i].Node, block.Index))
+			ft.AddFrom(ioswitch2.NewFromNode(block.FileHash, &uploadNodes[i].Node, block.Index))
 		}
 
 		len := obj.Object.Size
-		ft.AddTo(plans.NewToNodeWithRange(uploadNodes[i].Node, -1, fmt.Sprintf("%d", i), plans.Range{
+		ft.AddTo(ioswitch2.NewToNodeWithRange(uploadNodes[i].Node, -1, fmt.Sprintf("%d", i), exec.Range{
 			Offset: 0,
 			Length: &len,
 		}))
@@ -583,8 +585,8 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 	}
 
 	// 目前EC的参数都相同，所以可以不用重建出完整数据然后再分块，可以直接构建出目的节点需要的块
-	parser := plans.NewParser(*srcRed)
-	planBlder := plans.NewPlanBuilder()
+	parser := parser.NewParser(*srcRed)
+	planBlder := exec.NewPlanBuilder()
 
 	var newBlocks []stgmod.ObjectBlock
 	shouldUpdateBlocks := false
@@ -608,13 +610,13 @@ func (t *CheckPackageRedundancy) ecToEC(obj stgmod.ObjectDetail, srcRed *cdssdk.
 
 		// 否则就要重建出这个节点需要的块
 
-		ft := plans.NewFromTo()
+		ft := ioswitch2.NewFromTo()
 		for _, block := range chosenBlocks {
-			ft.AddFrom(plans.NewFromNode(block.FileHash, &node.Node, block.Index))
+			ft.AddFrom(ioswitch2.NewFromNode(block.FileHash, &node.Node, block.Index))
 		}
 
 		// 输出只需要自己要保存的那一块
-		ft.AddTo(plans.NewToNode(node.Node, i, fmt.Sprintf("%d", i)))
+		ft.AddTo(ioswitch2.NewToNode(node.Node, i, fmt.Sprintf("%d", i)))
 
 		err := parser.Parse(ft, planBlder)
 		if err != nil {

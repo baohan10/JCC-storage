@@ -11,7 +11,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
 )
 
 func init() {
@@ -77,7 +77,7 @@ type FileReadType struct {
 }
 
 func (t *FileReadType) InitNode(node *dag.Node) {
-	dag.NodeNewOutputStream(node, &ioswitch.VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
 }
 
 func (t *FileReadType) GenerateOp(op *dag.Node) (exec.Op, error) {

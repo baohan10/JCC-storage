@@ -13,7 +13,7 @@ import (
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/sync2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -204,10 +204,10 @@ func (t *MultiplyType) GenerateOp(op *dag.Node) (exec.Op, error) {
 	var inputIdxs []int
 	var outputIdxs []int
 	for _, in := range op.InputStreams {
-		inputIdxs = append(inputIdxs, ioswitch.SProps(in).StreamIndex)
+		inputIdxs = append(inputIdxs, ioswitch2.SProps(in).StreamIndex)
 	}
 	for _, out := range op.OutputStreams {
-		outputIdxs = append(outputIdxs, ioswitch.SProps(out).StreamIndex)
+		outputIdxs = append(outputIdxs, ioswitch2.SProps(out).StreamIndex)
 	}
 
 	rs, err := ec.NewRs(t.EC.K, t.EC.N)
@@ -233,7 +233,7 @@ func (t *MultiplyType) AddInput(node *dag.Node, str *dag.StreamVar) {
 }
 
 func (t *MultiplyType) NewOutput(node *dag.Node, dataIndex int) *dag.StreamVar {
-	return dag.NodeNewOutputStream(node, &ioswitch.VarProps{StreamIndex: dataIndex})
+	return dag.NodeNewOutputStream(node, &ioswitch2.VarProps{StreamIndex: dataIndex})
 }
 
 func (t *MultiplyType) String(node *dag.Node) string {

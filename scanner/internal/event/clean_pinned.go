@@ -10,6 +10,7 @@ import (
 
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/bitmap"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/lo2"
@@ -19,7 +20,8 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/parser"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
 	scevt "gitlink.org.cn/cloudream/storage/common/pkgs/mq/scanner/event"
@@ -106,7 +108,7 @@ func (t *CleanPinned) Execute(execCtx ExecuteContext) {
 		}
 	}
 
-	planBld := plans.NewPlanBuilder()
+	planBld := exec.NewPlanBuilder()
 	pinPlans := make(map[cdssdk.NodeID]*[]string)
 	plnningNodeIDs := make(map[cdssdk.NodeID]bool)
 
@@ -750,7 +752,7 @@ func (t *CleanPinned) makePlansForRepObject(solu annealingSolution, obj stgmod.O
 	return entry
 }
 
-func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssdk.Node, solu annealingSolution, obj stgmod.ObjectDetail, planBld *plans.PlanBuilder, planningNodeIDs map[cdssdk.NodeID]bool) coormq.UpdatingObjectRedundancy {
+func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssdk.Node, solu annealingSolution, obj stgmod.ObjectDetail, planBld *exec.PlanBuilder, planningNodeIDs map[cdssdk.NodeID]bool) coormq.UpdatingObjectRedundancy {
 	entry := coormq.UpdatingObjectRedundancy{
 		ObjectID:   obj.Object.ObjectID,
 		Redundancy: obj.Object.Redundancy,
@@ -781,14 +783,14 @@ func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssd
 	}
 
 	ecRed := obj.Object.Redundancy.(*cdssdk.ECRedundancy)
-	parser := plans.NewParser(*ecRed)
+	parser := parser.NewParser(*ecRed)
 
 	for id, idxs := range reconstrct {
-		ft := plans.NewFromTo()
-		ft.AddFrom(plans.NewFromNode(obj.Object.FileHash, allNodeInfos[id], -1))
+		ft := ioswitch2.NewFromTo()
+		ft.AddFrom(ioswitch2.NewFromNode(obj.Object.FileHash, allNodeInfos[id], -1))
 
 		for _, i := range *idxs {
-			ft.AddTo(plans.NewToNode(*allNodeInfos[id], i, fmt.Sprintf("%d.%d", obj.Object.ObjectID, i)))
+			ft.AddTo(ioswitch2.NewToNode(*allNodeInfos[id], i, fmt.Sprintf("%d.%d", obj.Object.ObjectID, i)))
 		}
 
 		err := parser.Parse(ft, planBld)
@@ -802,7 +804,7 @@ func (t *CleanPinned) makePlansForECObject(allNodeInfos map[cdssdk.NodeID]*cdssd
 	return entry
 }
 
-func (t *CleanPinned) executePlans(execCtx ExecuteContext, pinPlans map[cdssdk.NodeID]*[]string, planBld *plans.PlanBuilder, plnningNodeIDs map[cdssdk.NodeID]bool) (map[string]any, error) {
+func (t *CleanPinned) executePlans(execCtx ExecuteContext, pinPlans map[cdssdk.NodeID]*[]string, planBld *exec.PlanBuilder, plnningNodeIDs map[cdssdk.NodeID]bool) (map[string]any, error) {
 	log := logger.WithType[CleanPinned]("Event")
 
 	// 统一加锁，有重复也没关系

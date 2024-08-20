@@ -1,4 +1,4 @@
-package ioswitch
+package ioswitch2
 
 import (
 	"context"

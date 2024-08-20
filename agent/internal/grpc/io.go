@@ -27,7 +27,7 @@ func (s *Service) ExecuteIOPlan(ctx context.Context, req *agtrpc.ExecuteIOPlanRe
 	s.swWorker.Add(sw)
 	defer s.swWorker.Remove(sw)
 
-	err = sw.Run(ctx)
+	_, err = sw.Run(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("running io plan: %w", err)
 	}
