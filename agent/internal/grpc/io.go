@@ -6,15 +6,15 @@ import (
 	"io"
 	"time"
 
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/serder"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch"
 )
 
 func (s *Service) ExecuteIOPlan(ctx context.Context, req *agtrpc.ExecuteIOPlanReq) (*agtrpc.ExecuteIOPlanResp, error) {
-	plan, err := serder.JSONToObjectEx[ioswitch.Plan]([]byte(req.Plan))
+	plan, err := serder.JSONToObjectEx[exec.Plan]([]byte(req.Plan))
 	if err != nil {
 		return nil, fmt.Errorf("deserializing plan: %w", err)
 	}
@@ -22,12 +22,12 @@ func (s *Service) ExecuteIOPlan(ctx context.Context, req *agtrpc.ExecuteIOPlanRe
 	logger.WithField("PlanID", plan.ID).Infof("begin execute io plan")
 	defer logger.WithField("PlanID", plan.ID).Infof("plan finished")
 
-	sw := ioswitch.NewSwitch(plan)
+	sw := exec.NewExecutor(plan)
 
-	s.swMgr.Add(sw)
-	defer s.swMgr.Remove(sw)
+	s.swWorker.Add(sw)
+	defer s.swWorker.Remove(sw)
 
-	err = sw.Run(ctx)
+	_, err = sw.Run(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("running io plan: %w", err)
 	}
@@ -53,15 +53,15 @@ func (s *Service) SendStream(server agtrpc.Agent_SendStreamServer) error {
 	ctx, cancel := context.WithTimeout(server.Context(), time.Second*30)
 	defer cancel()
 
-	sw := s.swMgr.FindByIDContexted(ctx, ioswitch.PlanID(msg.PlanID))
+	sw := s.swWorker.FindByIDContexted(ctx, exec.PlanID(msg.PlanID))
 	if sw == nil {
 		return fmt.Errorf("plan not found")
 	}
 
 	pr, pw := io.Pipe()
 
-	varID := ioswitch.VarID(msg.VarID)
-	sw.PutVars(&ioswitch.StreamVar{
+	varID := exec.VarID(msg.VarID)
+	sw.PutVars(&exec.StreamVar{
 		ID:     varID,
 		Stream: pr,
 	})
@@ -122,20 +122,20 @@ func (s *Service) GetStream(req *agtrpc.GetStreamReq, server agtrpc.Agent_GetStr
 	ctx, cancel := context.WithTimeout(server.Context(), time.Second*30)
 	defer cancel()
 
-	sw := s.swMgr.FindByIDContexted(ctx, ioswitch.PlanID(req.PlanID))
+	sw := s.swWorker.FindByIDContexted(ctx, exec.PlanID(req.PlanID))
 	if sw == nil {
 		return fmt.Errorf("plan not found")
 	}
 
-	signal, err := serder.JSONToObjectEx[*ioswitch.SignalVar]([]byte(req.Signal))
+	signal, err := serder.JSONToObjectEx[*exec.SignalVar]([]byte(req.Signal))
 	if err != nil {
 		return fmt.Errorf("deserializing var: %w", err)
 	}
 
 	sw.PutVars(signal)
 
-	strVar := &ioswitch.StreamVar{
-		ID: ioswitch.VarID(req.VarID),
+	strVar := &exec.StreamVar{
+		ID: exec.VarID(req.VarID),
 	}
 	err = sw.BindVars(server.Context(), strVar)
 	if err != nil {
@@ -193,12 +193,12 @@ func (s *Service) SendVar(ctx context.Context, req *agtrpc.SendVarReq) (*agtrpc.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	sw := s.swMgr.FindByIDContexted(ctx, ioswitch.PlanID(req.PlanID))
+	sw := s.swWorker.FindByIDContexted(ctx, exec.PlanID(req.PlanID))
 	if sw == nil {
 		return nil, fmt.Errorf("plan not found")
 	}
 
-	v, err := serder.JSONToObjectEx[ioswitch.Var]([]byte(req.Var))
+	v, err := serder.JSONToObjectEx[exec.Var]([]byte(req.Var))
 	if err != nil {
 		return nil, fmt.Errorf("deserializing var: %w", err)
 	}
@@ -211,17 +211,17 @@ func (s *Service) GetVar(ctx context.Context, req *agtrpc.GetVarReq) (*agtrpc.Ge
 	ctx2, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	sw := s.swMgr.FindByIDContexted(ctx2, ioswitch.PlanID(req.PlanID))
+	sw := s.swWorker.FindByIDContexted(ctx2, exec.PlanID(req.PlanID))
 	if sw == nil {
 		return nil, fmt.Errorf("plan not found")
 	}
 
-	v, err := serder.JSONToObjectEx[ioswitch.Var]([]byte(req.Var))
+	v, err := serder.JSONToObjectEx[exec.Var]([]byte(req.Var))
 	if err != nil {
 		return nil, fmt.Errorf("deserializing var: %w", err)
 	}
 
-	signal, err := serder.JSONToObjectEx[*ioswitch.SignalVar]([]byte(req.Signal))
+	signal, err := serder.JSONToObjectEx[*exec.SignalVar]([]byte(req.Signal))
 	if err != nil {
 		return nil, fmt.Errorf("deserializing var: %w", err)
 	}

@@ -5,11 +5,13 @@ import (
 	"io"
 	"sync"
 
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/iterator"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	stgmod "gitlink.org.cn/cloudream/storage/common/models"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/parser"
 )
 
 type downloadBlock struct {
@@ -108,18 +110,18 @@ func (s *StripIterator) Close() {
 }
 
 func (s *StripIterator) downloading() {
-	ft := plans.NewFromTo()
+	ft := ioswitch2.NewFromTo()
 	for _, b := range s.blocks {
-		ft.AddFrom(plans.NewFromNode(b.Block.FileHash, &b.Node, b.Block.Index))
+		ft.AddFrom(ioswitch2.NewFromNode(b.Block.FileHash, &b.Node, b.Block.Index))
 	}
 
-	toExec, hd := plans.NewToExecutorWithRange(-1, plans.Range{
+	toExec, hd := ioswitch2.NewToDriverWithRange(-1, exec.Range{
 		Offset: s.curStripIndex * int64(s.red.ChunkSize*s.red.K),
 	})
 	ft.AddTo(toExec)
 
-	parser := plans.NewParser(*s.red)
-	plans := plans.NewPlanBuilder()
+	parser := parser.NewParser(*s.red)
+	plans := exec.NewPlanBuilder()
 	err := parser.Parse(ft, plans)
 	if err != nil {
 		s.sendToDataChan(dataChanEntry{Error: err})

@@ -11,6 +11,7 @@ import (
 	"github.com/samber/lo"
 
 	"gitlink.org.cn/cloudream/common/pkgs/distlock"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/sort2"
@@ -18,7 +19,8 @@ import (
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/connectivity"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/distlock/reqbuilder"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch/plans"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2/parser"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/iterator"
 	agtmq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/agent"
 	coormq "gitlink.org.cn/cloudream/storage/common/pkgs/mq/coordinator"
@@ -238,12 +240,12 @@ func uploadFile(file io.Reader, uploadNode UploadNodeInfo) (string, error) {
 }
 
 func uploadToNode(file io.Reader, node cdssdk.Node) (string, error) {
-	ft := plans.NewFromTo()
-	fromExec, hd := plans.NewFromExecutor(-1)
-	ft.AddFrom(fromExec).AddTo(plans.NewToNode(node, -1, "fileHash"))
+	ft := ioswitch2.NewFromTo()
+	fromExec, hd := ioswitch2.NewFromDriver(-1)
+	ft.AddFrom(fromExec).AddTo(ioswitch2.NewToNode(node, -1, "fileHash"))
 
-	parser := plans.NewParser(cdssdk.DefaultECRedundancy)
-	plans := plans.NewPlanBuilder()
+	parser := parser.NewParser(cdssdk.DefaultECRedundancy)
+	plans := exec.NewPlanBuilder()
 	err := parser.Parse(ft, plans)
 	if err != nil {
 		return "", fmt.Errorf("parsing plan: %w", err)
