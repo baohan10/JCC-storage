@@ -35,7 +35,7 @@ type ParseContext struct {
 }
 
 func (p *DefaultParser) Parse(ft ioswitch2.FromTo, blder *exec.PlanBuilder) error {
-	ctx := ParseContext{Ft: ft}
+	ctx := ParseContext{Ft: ft, DAG: dag.NewGraph()}
 
 	// 分成两个阶段：
 	// 1. 基于From和To生成更多指令，初步匹配to的需求
@@ -136,17 +136,15 @@ func (p *DefaultParser) calcStreamRange(ctx *ParseContext) {
 
 func (p *DefaultParser) extend(ctx *ParseContext, ft ioswitch2.FromTo) error {
 	for _, fr := range ft.Froms {
-		_, err := p.buildFromNode(ctx, &ft, fr)
+		frNode, err := p.buildFromNode(ctx, &ft, fr)
 		if err != nil {
 			return err
 		}
 
 		// 对于完整文件的From，生成Split指令
 		if fr.GetDataIndex() == -1 {
-			n, _ := dag.NewNode(ctx.DAG, &ops2.ChunkedSplitType{ChunkSize: p.EC.ChunkSize, OutputCount: p.EC.K}, &ioswitch2.NodeProps{})
-			for i := 0; i < p.EC.K; i++ {
-				ioswitch2.SProps(n.OutputStreams[i]).StreamIndex = i
-			}
+			node, _ := dag.NewNode(ctx.DAG, &ops2.ChunkedSplitType{ChunkSize: p.EC.ChunkSize, OutputCount: p.EC.K}, &ioswitch2.NodeProps{})
+			frNode.OutputStreams[0].To(node, 0)
 		}
 	}
 
@@ -170,7 +168,7 @@ loop:
 		}, &ioswitch2.NodeProps{})
 
 		for _, s := range ecInputStrs {
-			mulType.AddInput(mulNode, s)
+			mulType.AddInput(mulNode, s, ioswitch2.SProps(s).StreamIndex)
 		}
 		for i := 0; i < p.EC.N; i++ {
 			mulType.NewOutput(mulNode, i)
@@ -247,6 +245,7 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch2.FromTo, f
 
 		if f.Node != nil {
 			n.Env.ToEnvWorker(&ioswitch2.AgentWorker{Node: *f.Node})
+			n.Env.Pinned = true
 		}
 
 		return n, nil
@@ -254,6 +253,7 @@ func (p *DefaultParser) buildFromNode(ctx *ParseContext, ft *ioswitch2.FromTo, f
 	case *ioswitch2.FromDriver:
 		n, _ := dag.NewNode(ctx.DAG, &ops.FromDriverType{Handle: f.Handle}, &ioswitch2.NodeProps{From: f})
 		n.Env.ToEnvDriver()
+		n.Env.Pinned = true
 		ioswitch2.SProps(n.OutputStreams[0]).StreamIndex = f.DataIndex
 
 		if f.DataIndex == -1 {
@@ -280,12 +280,15 @@ func (p *DefaultParser) buildToNode(ctx *ParseContext, ft *ioswitch2.FromTo, t i
 		}, &ioswitch2.NodeProps{
 			To: t,
 		})
+		n.Env.ToEnvWorker(&ioswitch2.AgentWorker{Node: t.Node})
+		n.Env.Pinned = true
 
 		return n, nil
 
 	case *ioswitch2.ToDriver:
 		n, _ := dag.NewNode(ctx.DAG, &ops.ToDriverType{Handle: t.Handle, Range: t.Range}, &ioswitch2.NodeProps{To: t})
 		n.Env.ToEnvDriver()
+		n.Env.Pinned = true
 
 		return n, nil
 
@@ -324,9 +327,11 @@ func (p *DefaultParser) removeUnusedMultiplyOutput(ctx *ParseContext) bool {
 			}
 
 			node.OutputStreams[i2] = nil
+			typ.OutputIndexes[i2] = -2
 			changed = true
 		}
 		node.OutputStreams = lo2.RemoveAllDefault(node.OutputStreams)
+		typ.OutputIndexes = lo2.RemoveAll(typ.OutputIndexes, -2)
 
 		// 如果所有输出流都被删除，则删除该指令
 		if len(node.OutputStreams) == 0 {
@@ -422,6 +427,10 @@ func (p *DefaultParser) omitSplitJoin(ctx *ParseContext) bool {
 func (p *DefaultParser) pin(ctx *ParseContext) bool {
 	changed := false
 	ctx.DAG.Walk(func(node *dag.Node) bool {
+		if node.Env.Pinned {
+			return true
+		}
+
 		var toEnv *dag.NodeEnv
 		for _, out := range node.OutputStreams {
 			for _, to := range out.Toes {
@@ -496,12 +505,11 @@ func (p *DefaultParser) storeIPFSWriteResult(ctx *ParseContext) {
 			return true
 		}
 
-		n := ctx.DAG.NewNode(&ops.StoreType{
+		n, t := dag.NewNode(ctx.DAG, &ops.StoreType{
 			StoreKey: typ.FileHashStoreKey,
 		}, &ioswitch2.NodeProps{})
 		n.Env.ToEnvDriver()
-
-		node.OutputValues[0].To(n, 0)
+		t.Store(n, node.OutputValues[0])
 		return true
 	})
 }
@@ -564,7 +572,9 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 			n, t := dag.NewNode(ctx.DAG, &ops2.CloneStreamType{}, &ioswitch2.NodeProps{})
 			n.Env = node.Env
 			for _, to := range out.Toes {
-				t.NewOutput(node).To(to.Node, to.SlotIndex)
+				str := t.NewOutput(n)
+				str.Props = &ioswitch2.VarProps{StreamIndex: ioswitch2.SProps(out).StreamIndex}
+				str.To(to.Node, to.SlotIndex)
 			}
 			out.Toes = nil
 			out.To(n, 0)
@@ -578,7 +588,7 @@ func (p *DefaultParser) generateClone(ctx *ParseContext) {
 			n, t := dag.NewNode(ctx.DAG, &ops2.CloneVarType{}, &ioswitch2.NodeProps{})
 			n.Env = node.Env
 			for _, to := range out.Toes {
-				t.NewOutput(node).To(to.Node, to.SlotIndex)
+				t.NewOutput(n).To(to.Node, to.SlotIndex)
 			}
 			out.Toes = nil
 			out.To(n, 0)

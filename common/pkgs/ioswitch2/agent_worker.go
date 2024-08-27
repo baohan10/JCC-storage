@@ -5,10 +5,16 @@ import (
 	"io"
 
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
+	"gitlink.org.cn/cloudream/common/pkgs/types"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/common/utils/serder"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
 	agtrpc "gitlink.org.cn/cloudream/storage/common/pkgs/grpc/agent"
 )
+
+var _ = serder.UseTypeUnionExternallyTagged(types.Ref(types.NewTypeUnion[exec.WorkerInfo](
+	(*AgentWorker)(nil),
+)))
 
 type AgentWorker struct {
 	Node cdssdk.Node

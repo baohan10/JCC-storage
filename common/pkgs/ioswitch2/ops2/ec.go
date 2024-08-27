@@ -195,26 +195,19 @@ func (o *ECMultiply) Execute(ctx context.Context, e *exec.Executor) error {
 }
 
 type MultiplyType struct {
-	EC cdssdk.ECRedundancy
+	EC            cdssdk.ECRedundancy
+	InputIndexes  []int
+	OutputIndexes []int
 }
 
 func (t *MultiplyType) InitNode(node *dag.Node) {}
 
 func (t *MultiplyType) GenerateOp(op *dag.Node) (exec.Op, error) {
-	var inputIdxs []int
-	var outputIdxs []int
-	for _, in := range op.InputStreams {
-		inputIdxs = append(inputIdxs, ioswitch2.SProps(in).StreamIndex)
-	}
-	for _, out := range op.OutputStreams {
-		outputIdxs = append(outputIdxs, ioswitch2.SProps(out).StreamIndex)
-	}
-
 	rs, err := ec.NewRs(t.EC.K, t.EC.N)
 	if err != nil {
 		return nil, err
 	}
-	coef, err := rs.GenerateMatrix(inputIdxs, outputIdxs)
+	coef, err := rs.GenerateMatrix(t.InputIndexes, t.OutputIndexes)
 	if err != nil {
 		return nil, err
 	}
@@ -227,12 +220,14 @@ func (t *MultiplyType) GenerateOp(op *dag.Node) (exec.Op, error) {
 	}, nil
 }
 
-func (t *MultiplyType) AddInput(node *dag.Node, str *dag.StreamVar) {
+func (t *MultiplyType) AddInput(node *dag.Node, str *dag.StreamVar, dataIndex int) {
+	t.InputIndexes = append(t.InputIndexes, dataIndex)
 	node.InputStreams = append(node.InputStreams, str)
 	str.To(node, len(node.InputStreams)-1)
 }
 
 func (t *MultiplyType) NewOutput(node *dag.Node, dataIndex int) *dag.StreamVar {
+	t.OutputIndexes = append(t.OutputIndexes, dataIndex)
 	return dag.NodeNewOutputStream(node, &ioswitch2.VarProps{StreamIndex: dataIndex})
 }
 

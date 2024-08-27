@@ -3,6 +3,7 @@ package stgmod
 import (
 	"github.com/samber/lo"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
+	"gitlink.org.cn/cloudream/common/utils/sort2"
 )
 
 type ObjectBlock struct {
@@ -48,7 +49,7 @@ func (o *ObjectDetail) GroupBlocks() []GrouppedObjectBlock {
 		grps[block.Index] = grp
 	}
 
-	return lo.Values(grps)
+	return sort2.Sort(lo.Values(grps), func(l, r GrouppedObjectBlock) int { return l.Index - r.Index })
 }
 
 type LocalMachineInfo struct {

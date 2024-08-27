@@ -114,7 +114,7 @@ type IPFSWriteType struct {
 
 func (t *IPFSWriteType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputValue(node, &ioswitch2.VarProps{})
+	dag.NodeNewOutputValue(node, dag.StringValueVar, &ioswitch2.VarProps{})
 }
 
 func (t *IPFSWriteType) GenerateOp(op *dag.Node) (exec.Op, error) {

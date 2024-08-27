@@ -104,7 +104,7 @@ func (t *CloneVarType) GenerateOp(op *dag.Node) (exec.Op, error) {
 }
 
 func (t *CloneVarType) NewOutput(node *dag.Node) *dag.ValueVar {
-	return dag.NodeNewOutputValue(node, nil)
+	return dag.NodeNewOutputValue(node, node.InputValues[0].Type, nil)
 }
 
 func (t *CloneVarType) String(node *dag.Node) string {

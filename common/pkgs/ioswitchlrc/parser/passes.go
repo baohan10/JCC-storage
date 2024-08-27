@@ -89,6 +89,7 @@ func buildFromNode(ctx *GenerateContext, f ioswitchlrc.From) (*dag.Node, error) 
 
 		if f.Node != nil {
 			n.Env.ToEnvWorker(&ioswitchlrc.AgentWorker{Node: *f.Node})
+			n.Env.Pinned = true
 		}
 
 		return n, nil
@@ -96,6 +97,7 @@ func buildFromNode(ctx *GenerateContext, f ioswitchlrc.From) (*dag.Node, error) 
 	case *ioswitchlrc.FromDriver:
 		n, _ := dag.NewNode(ctx.DAG, &ops.FromDriverType{Handle: f.Handle}, &ioswitchlrc.NodeProps{From: f})
 		n.Env.ToEnvDriver()
+		n.Env.Pinned = true
 		ioswitchlrc.SProps(n.OutputStreams[0]).StreamIndex = f.DataIndex
 
 		if f.DataIndex == -1 {
@@ -122,12 +124,15 @@ func buildToNode(ctx *GenerateContext, t ioswitchlrc.To) (*dag.Node, error) {
 		}, &ioswitchlrc.NodeProps{
 			To: t,
 		})
+		n.Env.ToEnvWorker(&ioswitchlrc.AgentWorker{Node: t.Node})
+		n.Env.Pinned = true
 
 		return n, nil
 
 	case *ioswitchlrc.ToDriver:
 		n, _ := dag.NewNode(ctx.DAG, &ops.ToDriverType{Handle: t.Handle, Range: t.Range}, &ioswitchlrc.NodeProps{To: t})
 		n.Env.ToEnvDriver()
+		n.Env.Pinned = true
 
 		return n, nil
 
@@ -142,6 +147,10 @@ func buildToNode(ctx *GenerateContext, t ioswitchlrc.To) (*dag.Node, error) {
 func pin(ctx *GenerateContext) bool {
 	changed := false
 	ctx.DAG.Walk(func(node *dag.Node) bool {
+		if node.Env.Pinned {
+			return true
+		}
+
 		var toEnv *dag.NodeEnv
 		for _, out := range node.OutputStreams {
 			for _, to := range out.Toes {

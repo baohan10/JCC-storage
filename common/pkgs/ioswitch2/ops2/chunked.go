@@ -89,7 +89,9 @@ type ChunkedSplitType struct {
 func (t *ChunkedSplitType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
 	for i := 0; i < t.OutputCount; i++ {
-		dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
+		dag.NodeNewOutputStream(node, &ioswitch2.VarProps{
+			StreamIndex: i,
+		})
 	}
 }
 
