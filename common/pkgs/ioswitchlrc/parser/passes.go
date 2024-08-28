@@ -225,12 +225,12 @@ func storeIPFSWriteResult(ctx *GenerateContext) {
 			return true
 		}
 
-		n := ctx.DAG.NewNode(&ops.StoreType{
+		n, t := dag.NewNode(ctx.DAG, &ops.StoreType{
 			StoreKey: typ.FileHashStoreKey,
 		}, &ioswitchlrc.NodeProps{})
 		n.Env.ToEnvDriver()
 
-		node.OutputValues[0].To(n, 0)
+		t.Store(n, node.OutputValues[0])
 		return true
 	})
 }
@@ -293,7 +293,9 @@ func generateClone(ctx *GenerateContext) {
 			n, t := dag.NewNode(ctx.DAG, &ops2.CloneStreamType{}, &ioswitchlrc.NodeProps{})
 			n.Env = node.Env
 			for _, to := range out.Toes {
-				t.NewOutput(node).To(to.Node, to.SlotIndex)
+				str := t.NewOutput(n)
+				str.Props = &ioswitchlrc.VarProps{StreamIndex: ioswitchlrc.SProps(out).StreamIndex}
+				str.To(to.Node, to.SlotIndex)
 			}
 			out.Toes = nil
 			out.To(n, 0)

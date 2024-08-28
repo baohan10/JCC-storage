@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/utils"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/sync2"
@@ -18,8 +19,8 @@ import (
 )
 
 func init() {
-	exec.UseOp[*ECReconstructAny]()
-	exec.UseOp[*ECReconstruct]()
+	// exec.UseOp[*ECReconstructAny]()
+	// exec.UseOp[*ECReconstruct]()
 	exec.UseOp[*ECMultiply]()
 }
 
@@ -192,6 +193,15 @@ func (o *ECMultiply) Execute(ctx context.Context, e *exec.Executor) error {
 		wr.Close()
 	}
 	return nil
+}
+
+func (o *ECMultiply) String() string {
+	return fmt.Sprintf(
+		"ECMultiply(coef=%v) (%v) -> (%v)",
+		o.Coef,
+		utils.FormatVarIDs(o.Inputs),
+		utils.FormatVarIDs(o.Outputs),
+	)
 }
 
 type MultiplyType struct {

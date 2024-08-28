@@ -53,6 +53,10 @@ func (o *IPFSRead) Execute(ctx context.Context, e *exec.Executor) error {
 	return fut.Wait(ctx)
 }
 
+func (o *IPFSRead) String() string {
+	return fmt.Sprintf("IPFSRead %v -> %v", o.FileHash, o.Output.ID)
+}
+
 type IPFSWrite struct {
 	Input    *exec.StreamVar `json:"input"`
 	FileHash *exec.StringVar `json:"fileHash"`
@@ -84,6 +88,10 @@ func (o *IPFSWrite) Execute(ctx context.Context, e *exec.Executor) error {
 	e.PutVars(o.FileHash)
 
 	return nil
+}
+
+func (o *IPFSWrite) String() string {
+	return fmt.Sprintf("IPFSWrite %v -> %v", o.Input.ID, o.FileHash.ID)
 }
 
 type IPFSReadType struct {

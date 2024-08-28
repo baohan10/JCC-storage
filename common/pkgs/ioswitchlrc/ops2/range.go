@@ -10,7 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitchlrc"
 )
 
 func init() {
@@ -72,13 +72,17 @@ func (o *Range) Execute(ctx context.Context, e *exec.Executor) error {
 	return nil
 }
 
+func (o *Range) String() string {
+	return fmt.Sprintf("Range(%v+%v) %v -> %v", o.Offset, o.Length, o.Input.ID, o.Output.ID)
+}
+
 type RangeType struct {
 	Range exec.Range
 }
 
 func (t *RangeType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitchlrc.VarProps{})
 }
 
 func (t *RangeType) GenerateOp(n *dag.Node) (exec.Op, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/utils"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"golang.org/x/sync/semaphore"
 )
@@ -18,30 +19,34 @@ func init() {
 }
 
 type CloneStream struct {
-	Input   *exec.StreamVar   `json:"input"`
-	Outputs []*exec.StreamVar `json:"outputs"`
+	Raw     *exec.StreamVar   `json:"raw"`
+	Cloneds []*exec.StreamVar `json:"cloneds"`
 }
 
 func (o *CloneStream) Execute(ctx context.Context, e *exec.Executor) error {
-	err := e.BindVars(ctx, o.Input)
+	err := e.BindVars(ctx, o.Raw)
 	if err != nil {
 		return err
 	}
-	defer o.Input.Stream.Close()
+	defer o.Raw.Stream.Close()
 
-	cloned := io2.Clone(o.Input.Stream, len(o.Outputs))
+	cloned := io2.Clone(o.Raw.Stream, len(o.Cloneds))
 
-	sem := semaphore.NewWeighted(int64(len(o.Outputs)))
+	sem := semaphore.NewWeighted(int64(len(o.Cloneds)))
 	for i, s := range cloned {
 		sem.Acquire(ctx, 1)
 
-		o.Outputs[i].Stream = io2.AfterReadClosedOnce(s, func(closer io.ReadCloser) {
+		o.Cloneds[i].Stream = io2.AfterReadClosedOnce(s, func(closer io.ReadCloser) {
 			sem.Release(1)
 		})
 	}
-	exec.PutArrayVars(e, o.Outputs)
+	exec.PutArrayVars(e, o.Cloneds)
 
-	return sem.Acquire(ctx, int64(len(o.Outputs)))
+	return sem.Acquire(ctx, int64(len(o.Cloneds)))
+}
+
+func (o *CloneStream) String() string {
+	return fmt.Sprintf("CloneStream %v -> (%v)", o.Raw.ID, utils.FormatVarIDs(o.Cloneds))
 }
 
 type CloneVar struct {
@@ -65,6 +70,10 @@ func (o *CloneVar) Execute(ctx context.Context, e *exec.Executor) error {
 	return nil
 }
 
+func (o *CloneVar) String() string {
+	return fmt.Sprintf("CloneStream %v -> (%v)", o.Raw.GetID(), utils.FormatVarIDs(o.Cloneds))
+}
+
 type CloneStreamType struct{}
 
 func (t *CloneStreamType) InitNode(node *dag.Node) {
@@ -73,8 +82,8 @@ func (t *CloneStreamType) InitNode(node *dag.Node) {
 
 func (t *CloneStreamType) GenerateOp(op *dag.Node) (exec.Op, error) {
 	return &CloneStream{
-		Input: op.InputStreams[0].Var,
-		Outputs: lo.Map(op.OutputStreams, func(v *dag.StreamVar, idx int) *exec.StreamVar {
+		Raw: op.InputStreams[0].Var,
+		Cloneds: lo.Map(op.OutputStreams, func(v *dag.StreamVar, idx int) *exec.StreamVar {
 			return v.Var
 		}),
 	}, nil

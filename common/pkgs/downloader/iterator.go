@@ -156,6 +156,18 @@ func (iter *DownloadObjectIterator) doMove() (*Downloading, error) {
 			File:    reader,
 			Request: req.Raw,
 		}, nil
+
+	case *cdssdk.LRCRedundancy:
+		reader, err := iter.downloadLRCObject(req, red)
+		if err != nil {
+			return nil, fmt.Errorf("downloading lrc object: %w", err)
+		}
+
+		return &Downloading{
+			Object:  &req.Detail.Object,
+			File:    reader,
+			Request: req.Raw,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("unsupported redundancy type: %v", reflect.TypeOf(req.Detail.Object.Redundancy))

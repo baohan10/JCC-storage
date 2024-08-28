@@ -60,18 +60,15 @@ func buildDAGEncode(ctx *GenerateContext, fr ioswitchlrc.From, toes []ioswitchlr
 
 	// 先创建需要完整文件的To节点，同时统计一下需要哪些文件块
 	for _, to := range toes {
-		if to.GetDataIndex() != -1 {
-			continue
-		}
-
-		toNode, err := buildToNode(ctx, to)
-		if err != nil {
-			return fmt.Errorf("building to node: %w", err)
-		}
-
 		idx := to.GetDataIndex()
 		if idx == -1 {
+			toNode, err := buildToNode(ctx, to)
+			if err != nil {
+				return fmt.Errorf("building to node: %w", err)
+			}
+
 			frNode.OutputStreams[0].To(toNode, 0)
+
 		} else if idx < ctx.LRC.K {
 			dataToes = append(dataToes, to)
 		} else {
@@ -87,7 +84,8 @@ func buildDAGEncode(ctx *GenerateContext, fr ioswitchlrc.From, toes []ioswitchlr
 	splitNode := ctx.DAG.NewNode(&ops2.ChunkedSplitType{
 		OutputCount: ctx.LRC.K,
 		ChunkSize:   ctx.LRC.ChunkSize,
-	}, nil)
+	}, &ioswitchlrc.NodeProps{})
+	frNode.OutputStreams[0].To(splitNode, 0)
 
 	for _, to := range dataToes {
 		toNode, err := buildToNode(ctx, to)
@@ -106,10 +104,10 @@ func buildDAGEncode(ctx *GenerateContext, fr ioswitchlrc.From, toes []ioswitchlr
 
 	conNode, conType := dag.NewNode(ctx.DAG, &ops2.LRCConstructAnyType{
 		LRC: ctx.LRC,
-	}, nil)
+	}, &ioswitchlrc.NodeProps{})
 
 	for _, out := range splitNode.OutputStreams {
-		conType.AddInput(conNode, out)
+		conType.AddInput(conNode, out, ioswitchlrc.SProps(out).StreamIndex)
 	}
 
 	for _, to := range parityToes {
@@ -193,10 +191,10 @@ func buildDAGReconstructAny(ctx *GenerateContext, frs []ioswitchlrc.From, toes [
 
 	conNode, conType := dag.NewNode(ctx.DAG, &ops2.LRCConstructAnyType{
 		LRC: ctx.LRC,
-	}, nil)
+	}, &ioswitchlrc.NodeProps{})
 
 	for _, fr := range frNodes {
-		conType.AddInput(conNode, fr.OutputStreams[0])
+		conType.AddInput(conNode, fr.OutputStreams[0], ioswitchlrc.SProps(fr.OutputStreams[0]).StreamIndex)
 	}
 
 	for _, to := range missedToes {
@@ -217,7 +215,7 @@ func buildDAGReconstructAny(ctx *GenerateContext, frs []ioswitchlrc.From, toes [
 	joinNode := ctx.DAG.NewNode(&ops2.ChunkedJoinType{
 		InputCount: ctx.LRC.K,
 		ChunkSize:  ctx.LRC.ChunkSize,
-	}, nil)
+	}, &ioswitchlrc.NodeProps{})
 
 	for i := 0; i < ctx.LRC.K; i++ {
 		n := frNodes[i]
@@ -235,6 +233,12 @@ func buildDAGReconstructAny(ctx *GenerateContext, frs []ioswitchlrc.From, toes [
 		}
 
 		joinNode.OutputStreams[0].To(toNode, 0)
+	}
+
+	// 如果不需要Construct任何块，则删除这个节点
+	if len(conNode.OutputStreams) == 0 {
+		conType.RemoveAllInputs(conNode)
+		ctx.DAG.RemoveNode(conNode)
 	}
 
 	return nil
@@ -273,7 +277,7 @@ func buildDAGReconstructGroup(ctx *GenerateContext, frs []ioswitchlrc.From, toes
 	conNode := ctx.DAG.NewNode(&ops2.LRCConstructGroupType{
 		LRC:              ctx.LRC,
 		TargetBlockIndex: missedGrpIdx,
-	}, nil)
+	}, &ioswitchlrc.NodeProps{})
 
 	for i, fr := range frs {
 		frNode, err := buildFromNode(ctx, fr)

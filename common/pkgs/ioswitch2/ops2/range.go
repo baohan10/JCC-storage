@@ -72,6 +72,10 @@ func (o *Range) Execute(ctx context.Context, e *exec.Executor) error {
 	return nil
 }
 
+func (o *Range) String() string {
+	return fmt.Sprintf("Range(%v+%v) %v -> %v", o.Offset, o.Length, o.Input.ID, o.Output.ID)
+}
+
 type RangeType struct {
 	Range exec.Range
 }

@@ -12,7 +12,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/logger"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	stgglb "gitlink.org.cn/cloudream/storage/common/globals"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitchlrc"
 )
 
 func init() {
@@ -53,6 +53,10 @@ func (o *IPFSRead) Execute(ctx context.Context, e *exec.Executor) error {
 	return fut.Wait(ctx)
 }
 
+func (o *IPFSRead) String() string {
+	return fmt.Sprintf("IPFSRead %v -> %v", o.FileHash, o.Output.ID)
+}
+
 type IPFSWrite struct {
 	Input    *exec.StreamVar `json:"input"`
 	FileHash *exec.StringVar `json:"fileHash"`
@@ -86,13 +90,17 @@ func (o *IPFSWrite) Execute(ctx context.Context, e *exec.Executor) error {
 	return nil
 }
 
+func (o *IPFSWrite) String() string {
+	return fmt.Sprintf("IPFSWrite %v -> %v", o.Input.ID, o.FileHash.ID)
+}
+
 type IPFSReadType struct {
 	FileHash string
 	Option   ipfs.ReadOption
 }
 
 func (t *IPFSReadType) InitNode(node *dag.Node) {
-	dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitchlrc.VarProps{})
 }
 
 func (t *IPFSReadType) GenerateOp(n *dag.Node) (exec.Op, error) {
@@ -114,7 +122,7 @@ type IPFSWriteType struct {
 
 func (t *IPFSWriteType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputValue(node, dag.StringValueVar, &ioswitch2.VarProps{})
+	dag.NodeNewOutputValue(node, dag.StringValueVar, &ioswitchlrc.VarProps{})
 }
 
 func (t *IPFSWriteType) GenerateOp(op *dag.Node) (exec.Op, error) {

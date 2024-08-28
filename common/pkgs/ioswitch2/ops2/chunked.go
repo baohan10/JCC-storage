@@ -9,6 +9,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/utils"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
 	"golang.org/x/sync/semaphore"
@@ -50,6 +51,16 @@ func (o *ChunkedSplit) Execute(ctx context.Context, e *exec.Executor) error {
 	return sem.Acquire(ctx, int64(len(outputs)))
 }
 
+func (o *ChunkedSplit) String() string {
+	return fmt.Sprintf(
+		"ChunkedSplit(chunkSize=%v, paddingZeros=%v), %v -> (%v)",
+		o.ChunkSize,
+		o.PaddingZeros,
+		o.Input.ID,
+		utils.FormatVarIDs(o.Outputs),
+	)
+}
+
 type ChunkedJoin struct {
 	Inputs    []*exec.StreamVar `json:"inputs"`
 	Output    *exec.StreamVar   `json:"output"`
@@ -79,6 +90,15 @@ func (o *ChunkedJoin) Execute(ctx context.Context, e *exec.Executor) error {
 	e.PutVars(o.Output)
 
 	return fut.Wait(ctx)
+}
+
+func (o *ChunkedJoin) String() string {
+	return fmt.Sprintf(
+		"ChunkedJoin(chunkSize=%v), (%v) -> %v",
+		o.ChunkSize,
+		utils.FormatVarIDs(o.Inputs),
+		o.Output.ID,
+	)
 }
 
 type ChunkedSplitType struct {

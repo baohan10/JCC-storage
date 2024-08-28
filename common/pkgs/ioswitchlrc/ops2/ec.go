@@ -9,12 +9,12 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/future"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/dag"
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
+	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/utils"
 	cdssdk "gitlink.org.cn/cloudream/common/sdks/storage"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/sync2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ec/lrc"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
 	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitchlrc"
 )
 
@@ -106,27 +106,29 @@ func (o *GalMultiply) Execute(ctx context.Context, e *exec.Executor) error {
 	return nil
 }
 
+func (o *GalMultiply) String() string {
+	return fmt.Sprintf(
+		"ECMultiply(coef=%v) (%v) -> (%v)",
+		o.Coef,
+		utils.FormatVarIDs(o.Inputs),
+		utils.FormatVarIDs(o.Outputs),
+	)
+}
+
 type LRCConstructAnyType struct {
-	LRC cdssdk.LRCRedundancy
+	LRC           cdssdk.LRCRedundancy
+	InputIndexes  []int
+	OutputIndexes []int
 }
 
 func (t *LRCConstructAnyType) InitNode(node *dag.Node) {}
 
 func (t *LRCConstructAnyType) GenerateOp(op *dag.Node) (exec.Op, error) {
-	var inputIdxs []int
-	var outputIdxs []int
-	for _, in := range op.InputStreams {
-		inputIdxs = append(inputIdxs, ioswitch2.SProps(in).StreamIndex)
-	}
-	for _, out := range op.OutputStreams {
-		outputIdxs = append(outputIdxs, ioswitch2.SProps(out).StreamIndex)
-	}
-
 	l, err := lrc.New(t.LRC.N, t.LRC.K, t.LRC.Groups)
 	if err != nil {
 		return nil, err
 	}
-	coef, err := l.GenerateMatrix(inputIdxs, outputIdxs)
+	coef, err := l.GenerateMatrix(t.InputIndexes, t.OutputIndexes)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +141,23 @@ func (t *LRCConstructAnyType) GenerateOp(op *dag.Node) (exec.Op, error) {
 	}, nil
 }
 
-func (t *LRCConstructAnyType) AddInput(node *dag.Node, str *dag.StreamVar) {
+func (t *LRCConstructAnyType) AddInput(node *dag.Node, str *dag.StreamVar, dataIndex int) {
+	t.InputIndexes = append(t.InputIndexes, dataIndex)
 	node.InputStreams = append(node.InputStreams, str)
 	str.To(node, len(node.InputStreams)-1)
 }
 
+func (t *LRCConstructAnyType) RemoveAllInputs(n *dag.Node) {
+	for _, in := range n.InputStreams {
+		in.From.Node.OutputStreams[in.From.SlotIndex].NotTo(n)
+	}
+	n.InputStreams = nil
+	t.InputIndexes = nil
+}
+
 func (t *LRCConstructAnyType) NewOutput(node *dag.Node, dataIndex int) *dag.StreamVar {
-	return dag.NodeNewOutputStream(node, &ioswitch2.VarProps{StreamIndex: dataIndex})
+	t.OutputIndexes = append(t.OutputIndexes, dataIndex)
+	return dag.NodeNewOutputStream(node, &ioswitchlrc.VarProps{StreamIndex: dataIndex})
 }
 
 func (t *LRCConstructAnyType) String(node *dag.Node) string {

@@ -16,7 +16,7 @@ func New(n int, k int, groups []int) (*LRC, error) {
 		groups: groups,
 	}
 
-	l, err := reedsolomon.NewLRC(k, n-k, groups)
+	l, err := reedsolomon.NewLRC(k, n-len(groups)-k, groups)
 	if err != nil {
 		return nil, err
 	}
