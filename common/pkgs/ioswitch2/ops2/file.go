@@ -51,6 +51,10 @@ func (o *FileWrite) Execute(ctx context.Context, e *exec.Executor) error {
 	return nil
 }
 
+func (o *FileWrite) String() string {
+	return fmt.Sprintf("FileWrite %v -> %s", o.Input.ID, o.FilePath)
+}
+
 type FileRead struct {
 	Output   *exec.StreamVar `json:"output"`
 	FilePath string          `json:"filePath"`
@@ -70,6 +74,10 @@ func (o *FileRead) Execute(ctx context.Context, e *exec.Executor) error {
 	fut.Wait(ctx)
 
 	return nil
+}
+
+func (o *FileRead) String() string {
+	return fmt.Sprintf("FileRead %s -> %v", o.FilePath, o.Output.ID)
 }
 
 type FileReadType struct {

@@ -10,7 +10,7 @@ import (
 	"gitlink.org.cn/cloudream/common/pkgs/ioswitch/exec"
 	"gitlink.org.cn/cloudream/common/utils/io2"
 	"gitlink.org.cn/cloudream/common/utils/math2"
-	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitch2"
+	"gitlink.org.cn/cloudream/storage/common/pkgs/ioswitchlrc"
 )
 
 func init() {
@@ -82,7 +82,7 @@ type RangeType struct {
 
 func (t *RangeType) InitNode(node *dag.Node) {
 	dag.NodeDeclareInputStream(node, 1)
-	dag.NodeNewOutputStream(node, &ioswitch2.VarProps{})
+	dag.NodeNewOutputStream(node, &ioswitchlrc.VarProps{})
 }
 
 func (t *RangeType) GenerateOp(n *dag.Node) (exec.Op, error) {
